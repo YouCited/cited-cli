@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 import typer
+from rich.console import Console
 
 from cited_cli.api import endpoints
 from cited_cli.api.client import CitedClient
@@ -67,7 +68,9 @@ def hq_dashboard(
             path = endpoints.HQ_PRIORITY.format(business_id=business_id)
             data["priority_actions"] = client.get(path)
 
-        def _human(d: dict, console) -> None:  # type: ignore[no-untyped-def]
+        def _human(d: object, console: Console) -> None:
+            if not isinstance(d, dict):
+                return
             name = d.get("business", {}).get("name", d.get("name", "Business HQ"))
             console.print()
             console.rule(f"[bold]{name}[/bold]")

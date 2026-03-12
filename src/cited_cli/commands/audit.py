@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 import typer
+from rich.console import Console
 
 from cited_cli.api import endpoints
 from cited_cli.api.client import LONG_TIMEOUT, CitedClient
@@ -106,9 +107,10 @@ def audit_list(
         data = client.get(endpoints.AUDIT_HISTORY, params=params or None)
         audits = data if isinstance(data, list) else data.get("audits", data.get("items", []))
 
-        def _human(d: list, console) -> None:  # type: ignore[no-untyped-def]
+        def _human(d: object, console: Console) -> None:
+            items = d if isinstance(d, list) else []
             rows = []
-            for a in d:
+            for a in items:
                 rows.append([
                     a.get("job_id", a.get("id", ""))[:8],
                     a.get("business_name", ""),

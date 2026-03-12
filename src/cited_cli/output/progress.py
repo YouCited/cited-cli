@@ -16,7 +16,7 @@ def watch_job(
     status_path: str,
     console: Console | None = None,
     poll_interval: float = 2.0,
-) -> dict:
+) -> dict[str, object]:
     """Poll a job status endpoint until completion. Returns the final status response."""
     c = console or Console()
 
@@ -53,4 +53,4 @@ def watch_job(
 
             time.sleep(poll_interval)
 
-    return data  # type: ignore[return-value]
+    return data  # type: ignore[no-any-return]

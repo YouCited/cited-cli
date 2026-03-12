@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 import typer
+from rich.console import Console
 
 from cited_cli.api import endpoints
 from cited_cli.api.client import CitedClient
@@ -43,9 +44,10 @@ def business_list(ctx: typer.Context) -> None:
             else data.get("businesses", data.get("items", [data]))
         )
 
-        def _human(d: list, console) -> None:  # type: ignore[no-untyped-def]
+        def _human(d: object, console: Console) -> None:
+            items = d if isinstance(d, list) else []
             rows = []
-            for b in d:
+            for b in items:
                 rows.append([
                     b.get("id", "")[:8],
                     b.get("name", ""),
@@ -96,7 +98,7 @@ def business_create(
     """Create a new business."""
     out, client, _ = _get_client(ctx)
     try:
-        payload: dict = {"name": name, "website": website}
+        payload: dict[str, str] = {"name": name, "website": website}
         if industry:
             payload["industry"] = industry
         data = client.post(endpoints.BUSINESSES, json=payload)
@@ -118,7 +120,7 @@ def business_update(
     """Update a business."""
     out, client, _ = _get_client(ctx)
     try:
-        payload: dict = {}
+        payload: dict[str, str] = {}
         if name is not None:
             payload["name"] = name
         if website is not None:
@@ -169,11 +171,12 @@ def business_health(
         path = endpoints.HEALTH_SCORES.format(business_id=business_id)
         data = client.get(path)
 
-        def _human(d: dict, console) -> None:  # type: ignore[no-untyped-def]
+        def _human(d: object, console: Console) -> None:
             console.print()
             console.print("[bold]Health Scores[/bold]")
             console.print("─" * 50)
-            scores = d.get("scores", d)
+            dd = d if isinstance(d, dict) else {}
+            scores = dd.get("scores", dd)
             if isinstance(scores, dict):
                 for label, value in scores.items():
                     if isinstance(value, (int, float)):

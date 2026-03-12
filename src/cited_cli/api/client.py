@@ -57,7 +57,7 @@ class CitedClient:
         try:
             body = response.json()
             if isinstance(body, dict):
-                message = body.get("detail", body.get("message", message))
+                message = str(body.get("detail", body.get("message", message)))
                 error_code = body.get("error_code")
         except Exception:
             message = response.text or message

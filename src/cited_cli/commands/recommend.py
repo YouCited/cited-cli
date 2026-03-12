@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 import typer
+from rich.console import Console
 
 from cited_cli.api import endpoints
 from cited_cli.api.client import LONG_TIMEOUT, CitedClient
@@ -121,9 +122,10 @@ def recommend_list(
             else data.get("recommendations", data.get("items", []))
         )
 
-        def _human(d: list, console) -> None:  # type: ignore[no-untyped-def]
+        def _human(d: object, console: Console) -> None:
+            items = d if isinstance(d, list) else []
             rows = []
-            for r in d:
+            for r in items:
                 rows.append([
                     r.get("job_id", r.get("id", ""))[:8],
                     r.get("status", ""),

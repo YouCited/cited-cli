@@ -57,7 +57,8 @@ class TokenStore:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         if CREDENTIALS_FILE.exists():
             with open(CREDENTIALS_FILE) as f:
-                return json.load(f)
+                data: dict[str, str] = json.load(f)
+                return data
         return {}
 
     def _write_creds(self, data: dict[str, str]) -> None:

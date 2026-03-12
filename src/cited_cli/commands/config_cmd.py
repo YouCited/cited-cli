@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 import typer
+from rich.console import Console
 
 from cited_cli.config.constants import ENVIRONMENTS
 from cited_cli.config.manager import VALID_KEYS, ConfigManager
@@ -86,7 +87,7 @@ def config_environments(ctx: typer.Context) -> None:
         rows.append([active, name, url])
         env_data[name] = {"url": url, "active": name == current_env}
 
-    def _human(data: dict, console) -> None:  # type: ignore[no-untyped-def]
+    def _human(data: dict[str, object], console: Console) -> None:
         render_table("Environments", ["", "Name", "API URL"], rows, console)
 
     print_result(env_data, out, human_formatter=_human)

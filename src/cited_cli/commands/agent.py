@@ -114,7 +114,7 @@ def agent_buyer_fit(
     """Run a buyer-fit simulation query."""
     out, client = _get_agent_client(ctx)
     try:
-        payload: dict = {"query": query}
+        payload: dict[str, str] = {"query": query}
         if business_id:
             payload["business_id"] = business_id
         data = client.post(endpoints.AGENT_BUYER_FIT, json=payload)

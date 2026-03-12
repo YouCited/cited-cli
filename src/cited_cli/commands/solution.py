@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 import typer
+from rich.console import Console
 
 from cited_cli.api import endpoints
 from cited_cli.api.client import LONG_TIMEOUT, CitedClient
@@ -109,9 +110,10 @@ def solution_list(
         data = client.get(endpoints.SOLUTION_HISTORY, params=params or None)
         solutions = data if isinstance(data, list) else data.get("solutions", data.get("items", []))
 
-        def _human(d: list, console) -> None:  # type: ignore[no-untyped-def]
+        def _human(d: object, console: Console) -> None:
+            items = d if isinstance(d, list) else []
             rows = []
-            for s in d:
+            for s in items:
                 rows.append([
                     s.get("job_id", s.get("id", ""))[:8],
                     s.get("status", ""),
