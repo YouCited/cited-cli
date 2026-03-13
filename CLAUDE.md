@@ -57,5 +57,4 @@ print_result(data, out, human_formatter=lambda d, c: render_kv("Title", d, c))
 |------|-----|---------|
 | prod | `https://api.youcited.com` | yes |
 | dev | `https://dev.youcited.com` | |
-| uat | `https://uat.youcited.com` | |
 | local | `http://localhost:8000` | |

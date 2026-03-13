@@ -50,7 +50,7 @@ def main_callback(
         bool, typer.Option("--json", "-j", help="Output as JSON")
     ] = False,
     env: Annotated[
-        str | None, typer.Option("--env", "-e", help="Target environment (dev, uat, prod, local)")
+        str | None, typer.Option("--env", "-e", help="Target environment (dev, prod, local)")
     ] = None,
     profile: Annotated[
         str | None, typer.Option("--profile", "-p", help="Config profile to use")

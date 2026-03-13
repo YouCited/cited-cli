@@ -46,7 +46,7 @@ cited audit result <job-id>
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--json` | `-j` | JSON output (agent-friendly) |
-| `--env` | `-e` | Target environment: dev, uat, prod, local |
+| `--env` | `-e` | Target environment: dev, prod, local |
 | `--profile` | `-p` | Config profile |
 | `--verbose` | `-v` | Debug logging |
 | `--quiet` | `-q` | Minimal output |

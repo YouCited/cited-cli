@@ -3,7 +3,6 @@ from pathlib import Path
 ENVIRONMENTS: dict[str, str] = {
     "prod": "https://api.youcited.com",
     "dev": "https://dev.youcited.com",
-    "uat": "https://uat.youcited.com",
     "local": "http://localhost:8000",
 }
 
