@@ -109,7 +109,7 @@ def status(ctx: typer.Context) -> None:
 
     client = CitedClient(base_url=api_url, timeout=10.0)
     try:
-        data = client.get(endpoints.HEALTH)
+        data = client.get(endpoints.HEALTH_READY)
         data["environment"] = env
         data["api_url"] = api_url
         print_result(
