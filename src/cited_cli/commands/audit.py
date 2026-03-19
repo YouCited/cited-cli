@@ -27,7 +27,7 @@ def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient, str]:
     store = TokenStore()
     token = store.get_token(env)
     if not token:
-        print_error(f"Not logged in to {env}. Run: cited auth login", out)
+        print_error(f"Not logged in to {env}. Run: cited login", out)
         raise typer.Exit(ExitCode.AUTH_ERROR)
 
     return out, CitedClient(base_url=api_url, token=token), env
@@ -36,14 +36,27 @@ def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient, str]:
 @audit_app.command("start")
 def audit_start(
     ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID to audit")],
+    named_audit_id: Annotated[str, typer.Argument(help="Audit template (named audit) ID")],
+    business_id: Annotated[
+        str | None,
+        typer.Option("--business", "-b", help="Business ID override"),
+    ] = None,
+    providers: Annotated[
+        list[str] | None,
+        typer.Option("--provider", help="Citation provider to use (repeatable)"),
+    ] = None,
 ) -> None:
-    """Start a new audit job."""
+    """Start a new audit job from a template."""
     out, client, _ = _get_client(ctx)
     try:
+        payload: dict = {"named_audit_id": named_audit_id}
+        if business_id:
+            payload["business_id"] = business_id
+        if providers:
+            payload["providers"] = providers
         data = client.post(
             endpoints.AUDIT_START,
-            json={"business_id": business_id},
+            json=payload,
             timeout=LONG_TIMEOUT,
         )
         job_id = data.get("job_id", data.get("id", ""))

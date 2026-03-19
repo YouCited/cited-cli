@@ -16,7 +16,7 @@ from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
 solution_app = typer.Typer(name="solution", help="Generate and manage content solutions.")
 
 
-def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient]:
+def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient, str]:
     obj = ctx.obj or {}
     out: OutputContext = obj.get("output", OutputContext())
     cfg: ConfigManager = obj.get("config", ConfigManager())
@@ -27,32 +27,50 @@ def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient]:
     store = TokenStore()
     token = store.get_token(env)
     if not token:
-        print_error(f"Not logged in to {env}. Run: cited auth login", out)
+        print_error(f"Not logged in to {env}. Run: cited login", out)
         raise typer.Exit(ExitCode.AUTH_ERROR)
 
-    return out, CitedClient(base_url=api_url, token=token)
+    return out, CitedClient(base_url=api_url, token=token), env
 
 
 @solution_app.command("start")
 def solution_start(
     ctx: typer.Context,
-    recommendation_id: Annotated[
+    recommendation_job_id: Annotated[
         str,
-        typer.Argument(help="Recommendation ID to generate solution from"),
+        typer.Argument(help="Recommendation job ID"),
+    ],
+    source_type: Annotated[
+        str,
+        typer.Option(
+            "--type", "-t",
+            help="Source type: question_insight, head_to_head, strengthening_tip, priority_action",
+        ),
+    ],
+    source_id: Annotated[
+        str,
+        typer.Option("--source", "-s", help="Source ID from 'cited recommend insights'"),
     ],
 ) -> None:
-    """Generate a content solution from a recommendation."""
-    out, client = _get_client(ctx)
+    """Generate a content solution from a recommendation insight."""
+    out, client, env = _get_client(ctx)
     try:
         data = client.post(
-            endpoints.SOLUTION_CREATE,
-            json={"recommendation_id": recommendation_id},
+            endpoints.SOLUTION_REQUEST,
+            json={
+                "recommendation_job_id": recommendation_job_id,
+                "source_type": source_type,
+                "source_id": source_id,
+            },
             timeout=LONG_TIMEOUT,
         )
         job_id = data.get("job_id", data.get("id", ""))
         print_result(data, out, human_formatter=lambda d, c: render_kv("Solution Started", d, c))
-        if not out.json_mode and job_id:
-            out.console.print(f"\nTrack progress: [bold]cited job watch {job_id}[/bold]")
+        if not out.json_mode:
+            if job_id:
+                out.console.print(f"\nTrack progress: [bold]cited job watch {job_id}[/bold]")
+                web_base = f"https://{env}.youcited.com" if env != "prod" else "https://youcited.com"
+                out.console.print(f"View artifacts: [bold]{web_base}/solutions/{job_id}[/bold]")
     except CitedAPIError as e:
         handle_api_error(e, out.json_mode)
     finally:
@@ -65,7 +83,7 @@ def solution_status(
     job_id: Annotated[str, typer.Argument(help="Solution job ID")],
 ) -> None:
     """Check solution job status."""
-    out, client = _get_client(ctx)
+    out, client, _ = _get_client(ctx)
     try:
         path = endpoints.SOLUTION_STATUS.format(job_id=job_id)
         data = client.get(path)
@@ -82,7 +100,7 @@ def solution_result(
     job_id: Annotated[str, typer.Argument(help="Solution job ID")],
 ) -> None:
     """Get solution results."""
-    out, client = _get_client(ctx)
+    out, client, _ = _get_client(ctx)
     try:
         path = endpoints.SOLUTION_RESULT.format(job_id=job_id)
         data = client.get(path)
@@ -102,7 +120,7 @@ def solution_list(
     ] = None,
 ) -> None:
     """List solution history."""
-    out, client = _get_client(ctx)
+    out, client, _ = _get_client(ctx)
     try:
         params = {}
         if business_id:
