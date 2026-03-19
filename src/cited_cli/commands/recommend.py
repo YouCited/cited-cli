@@ -27,7 +27,7 @@ def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient]:
     store = TokenStore()
     token = store.get_token(env)
     if not token:
-        print_error(f"Not logged in to {env}. Run: cited auth login", out)
+        print_error(f"Not logged in to {env}. Run: cited login", out)
         raise typer.Exit(ExitCode.AUTH_ERROR)
 
     return out, CitedClient(base_url=api_url, token=token)
@@ -95,6 +95,74 @@ def recommend_result(
         path = endpoints.RECOMMEND_RESULT.format(job_id=job_id)
         data = client.get(path)
         print_result(data, out)
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@recommend_app.command("insights")
+def recommend_insights(
+    ctx: typer.Context,
+    job_id: Annotated[str, typer.Argument(help="Recommendation job ID")],
+) -> None:
+    """List solution-ready insights from a recommendation job."""
+    out, client = _get_client(ctx)
+    try:
+        path = endpoints.RECOMMEND_RESULT.format(job_id=job_id)
+        data = client.get(path)
+
+        def _human(d: object, console: Console) -> None:
+            if not isinstance(d, dict):
+                console.print(d)
+                return
+            rows = []
+
+            # question_insights: id=question_id, desc=question_text
+            for item in d.get("question_insights", []):
+                if not isinstance(item, dict):
+                    continue
+                source_id   = item.get("question_id", item.get("id", ""))
+                description = item.get("question_text", item.get("question", ""))
+                rows.append([str(len(rows) + 1), "question_insight", source_id, description[:60]])
+
+            # head_to_head_comparisons: id=competitor_domain
+            for item in d.get("head_to_head_comparisons", d.get("head_to_head", [])):
+                if not isinstance(item, dict):
+                    continue
+                source_id   = item.get("competitor_domain", item.get("id", ""))
+                description = item.get("competitor_domain", item.get("description", ""))
+                rows.append([str(len(rows) + 1), "head_to_head", source_id, description[:60]])
+
+            # strengthening_tips: id=category (no uuid), desc=title
+            for item in d.get("strengthening_tips", []):
+                if not isinstance(item, dict):
+                    continue
+                source_id   = item.get("category", item.get("id", item.get("source_id", "")))
+                description = item.get("title", item.get("description", ""))
+                rows.append([str(len(rows) + 1), "strengthening_tip", source_id, description[:60]])
+
+            # priority_actions: id=id or category
+            for item in d.get("priority_actions", []):
+                if not isinstance(item, dict):
+                    continue
+                source_id   = item.get("id", item.get("category", item.get("source_id", "")))
+                description = item.get("title", item.get("description", item.get("action", "")))
+                rows.append([str(len(rows) + 1), "priority_action", source_id, description[:60]])
+
+            render_table(
+                "Available Insights",
+                ["#", "Type", "Source ID", "Description"],
+                rows,
+                console,
+            )
+            if rows:
+                console.print(
+                    "\nRun a solution: [bold]cited solution start "
+                    f"{job_id} --type <type> --source <source_id>[/bold]"
+                )
+
+        print_result(data, out, human_formatter=_human)
     except CitedAPIError as e:
         handle_api_error(e, out.json_mode)
     finally:

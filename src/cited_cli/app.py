@@ -11,7 +11,8 @@ from cited_cli.api.client import CitedClient
 from cited_cli.commands.agent import agent_app
 from cited_cli.commands.analytics import analytics_app
 from cited_cli.commands.audit import audit_app
-from cited_cli.commands.auth import auth_app
+from cited_cli.commands.named_audit import named_audit_app
+from cited_cli.commands.auth import auth_app, do_login, do_logout, do_register
 from cited_cli.commands.business import business_app
 from cited_cli.commands.config_cmd import config_app
 from cited_cli.commands.hq import hq_app
@@ -29,6 +30,9 @@ app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
+
+# Register nested subcommand groups
+audit_app.add_typer(named_audit_app, name="template")
 
 # Register subcommand groups
 app.add_typer(auth_app, name="auth")
@@ -124,6 +128,45 @@ def status(ctx: typer.Context) -> None:
         raise typer.Exit(ExitCode.ERROR) from e
     finally:
         client.close()
+
+
+@app.command()
+def login(
+    ctx: typer.Context,
+    email: Annotated[str | None, typer.Option(help="Email address")] = None,
+    password: Annotated[
+        str | None, typer.Option(help="Password", hide_input=True)
+    ] = None,
+    provider: Annotated[
+        str | None,
+        typer.Option(help="OAuth provider: google, microsoft, github"),
+    ] = None,
+) -> None:
+    """Log in to Cited. Opens browser by default, or use --email for password login."""
+    do_login(ctx, email, password, provider)
+
+
+@app.command()
+def logout(ctx: typer.Context) -> None:
+    """Log out and clear stored credentials."""
+    do_logout(ctx)
+
+
+@app.command()
+def register(
+    ctx: typer.Context,
+    email: Annotated[str | None, typer.Option(help="Email address")] = None,
+    name: Annotated[str | None, typer.Option(help="Full name")] = None,
+    password: Annotated[
+        str | None, typer.Option(help="Password", hide_input=True)
+    ] = None,
+    provider: Annotated[
+        str | None,
+        typer.Option(help="OAuth provider: google, microsoft, github"),
+    ] = None,
+) -> None:
+    """Register a new Cited account. Opens browser or use --email."""
+    do_register(ctx, email, name, password, provider)
 
 
 def main() -> None:
