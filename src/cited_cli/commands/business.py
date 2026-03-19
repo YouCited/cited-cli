@@ -27,7 +27,7 @@ def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient, str]:
     store = TokenStore()
     token = store.get_token(env)
     if not token:
-        print_error(f"Not logged in to {env}. Run: cited auth login", out)
+        print_error(f"Not logged in to {env}. Run: cited login", out)
         raise typer.Exit(ExitCode.AUTH_ERROR)
 
     return out, CitedClient(base_url=api_url, token=token), env
@@ -93,12 +93,13 @@ def business_create(
     ctx: typer.Context,
     name: Annotated[str, typer.Option(help="Business name")],
     website: Annotated[str, typer.Option(help="Business website URL")],
+    description: Annotated[str, typer.Option(help="Business description (min 50 chars)")],
     industry: Annotated[str | None, typer.Option(help="Industry")] = None,
 ) -> None:
     """Create a new business."""
     out, client, _ = _get_client(ctx)
     try:
-        payload: dict[str, str] = {"name": name, "website": website}
+        payload: dict[str, str] = {"name": name, "website": website, "description": description}
         if industry:
             payload["industry"] = industry
         data = client.post(endpoints.BUSINESSES, json=payload)

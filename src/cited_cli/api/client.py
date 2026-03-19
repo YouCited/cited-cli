@@ -84,6 +84,10 @@ class CitedClient:
         response = self._client.post(path, **kwargs)
         return self._handle_response(response)
 
+    def put(self, path: str, json: dict[str, Any] | None = None) -> Any:
+        response = self._client.put(path, json=json or {})
+        return self._handle_response(response)
+
     def patch(self, path: str, json: dict[str, Any] | None = None) -> Any:
         response = self._client.patch(path, json=json or {})
         return self._handle_response(response)
