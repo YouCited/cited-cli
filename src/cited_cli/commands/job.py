@@ -26,7 +26,7 @@ def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient]:
     store = TokenStore()
     token = store.get_token(env)
     if not token:
-        print_error(f"Not logged in to {env}. Run: cited auth login", out)
+        print_error(f"Not logged in to {env}. Run: cited login", out)
         raise typer.Exit(ExitCode.AUTH_ERROR)
 
     return out, CitedClient(base_url=api_url, token=token)

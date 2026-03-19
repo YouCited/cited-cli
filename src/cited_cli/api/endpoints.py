@@ -1,5 +1,9 @@
 # Auth
 LOGIN = "/auth/login"
+CLI_LOGIN = "/auth/cli-login"
+CLI_REGISTER = "/auth/cli-register"
+CLI_VERIFY_EMAIL = "/auth/cli-verify-email"
+CLI_OAUTH_START = "/auth/cli-oauth-start"
 LOGOUT = "/auth/logout"
 ME = "/auth/me"
 
@@ -21,6 +25,10 @@ HEALTH_SCORES_BREAKDOWN = "/businesses/{business_id}/health-scores/breakdown"
 CRAWL_DATA = "/businesses/{business_id}/crawl-data"
 CRAWL_START = "/businesses/{business_id}/crawl"
 CRAWL_CANCEL = "/businesses/{business_id}/crawl/cancel"
+
+# Named Audits (templates)
+NAMED_AUDITS = "/named-audits"
+NAMED_AUDIT = "/named-audits/{named_audit_id}"
 
 # Audit
 AUDIT_START = "/audit/start"
