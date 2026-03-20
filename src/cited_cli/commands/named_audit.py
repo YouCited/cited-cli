@@ -138,7 +138,7 @@ def template_create(
         if entered:
             questions = entered
     try:
-        payload: dict = {
+        payload: dict[str, object] = {
             "name": name,
             "business_id": business_id,
         }
@@ -187,7 +187,7 @@ def template_update(
     """
     out, client = _get_client(ctx)
     try:
-        payload: dict = {}
+        payload: dict[str, object] = {}
         if name is not None:
             payload["name"] = name
         if description is not None:

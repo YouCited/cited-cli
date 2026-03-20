@@ -28,7 +28,8 @@ def prompt_if_missing(
     if value is not None:
         return value
     if can_prompt(out):
-        return typer.prompt(prompt_text)
+        result: str = typer.prompt(prompt_text)
+        return result
     print_error(f"Missing required option: {flag_name}", out)
     raise typer.Exit(ExitCode.VALIDATION_ERROR)
 
@@ -55,7 +56,7 @@ def prompt_choice(
         for i, choice in enumerate(choices, 1):
             out.console.print(f"  {i}. {choice}")
         while True:
-            raw = typer.prompt("Enter number or value")
+            raw: str = typer.prompt("Enter number or value")
             if raw in choices:
                 return raw
             try:

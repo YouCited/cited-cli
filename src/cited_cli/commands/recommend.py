@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -118,39 +118,40 @@ def recommend_insights(
             if not isinstance(d, dict):
                 console.print(d)
                 return
-            rows = []
+            data: dict[str, Any] = d
+            rows: list[list[object]] = []
 
             # question_insights: id=question_id, desc=question_text
-            for item in d.get("question_insights", []):
+            for item in data.get("question_insights", []):
                 if not isinstance(item, dict):
                     continue
-                source_id   = item.get("question_id", item.get("id", ""))
-                description = item.get("question_text", item.get("question", ""))
-                rows.append([str(len(rows) + 1), "question_insight", source_id, description[:60]])
+                source_id = item.get("question_id", item.get("id", ""))
+                desc = str(item.get("question_text", item.get("question", "")))
+                rows.append([str(len(rows) + 1), "question_insight", source_id, desc[:60]])
 
             # head_to_head_comparisons: id=competitor_domain
-            for item in d.get("head_to_head_comparisons", d.get("head_to_head", [])):
+            for item in data.get("head_to_head_comparisons", data.get("head_to_head", [])):
                 if not isinstance(item, dict):
                     continue
-                source_id   = item.get("competitor_domain", item.get("id", ""))
-                description = item.get("competitor_domain", item.get("description", ""))
-                rows.append([str(len(rows) + 1), "head_to_head", source_id, description[:60]])
+                source_id = item.get("competitor_domain", item.get("id", ""))
+                desc = str(item.get("competitor_domain", item.get("description", "")))
+                rows.append([str(len(rows) + 1), "head_to_head", source_id, desc[:60]])
 
             # strengthening_tips: id=category (no uuid), desc=title
-            for item in d.get("strengthening_tips", []):
+            for item in data.get("strengthening_tips", []):
                 if not isinstance(item, dict):
                     continue
-                source_id   = item.get("category", item.get("id", item.get("source_id", "")))
-                description = item.get("title", item.get("description", ""))
-                rows.append([str(len(rows) + 1), "strengthening_tip", source_id, description[:60]])
+                source_id = item.get("category", item.get("id", item.get("source_id", "")))
+                desc = str(item.get("title", item.get("description", "")))
+                rows.append([str(len(rows) + 1), "strengthening_tip", source_id, desc[:60]])
 
             # priority_actions: id=id or category
-            for item in d.get("priority_actions", []):
+            for item in data.get("priority_actions", []):
                 if not isinstance(item, dict):
                     continue
-                source_id   = item.get("id", item.get("category", item.get("source_id", "")))
-                description = item.get("title", item.get("description", item.get("action", "")))
-                rows.append([str(len(rows) + 1), "priority_action", source_id, description[:60]])
+                source_id = item.get("id", item.get("category", item.get("source_id", "")))
+                desc = str(item.get("title", item.get("description", item.get("action", ""))))
+                rows.append([str(len(rows) + 1), "priority_action", source_id, desc[:60]])
 
             render_table(
                 "Available Insights",
