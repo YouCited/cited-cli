@@ -11,7 +11,10 @@ VALID_KEYS = {
     "environment",
     "default_business_id",
     "agent_api_key",
+    "output",
 }
+
+VALID_OUTPUT_VALUES = {"json", "text"}
 
 
 class ConfigManager:

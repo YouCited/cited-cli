@@ -16,6 +16,7 @@ pytest -k test_version_json  # Run a single test by name
 ruff check src/              # Lint
 mypy src/cited_cli/ --ignore-missing-imports  # Type check
 cited --help                 # Run the CLI
+./scripts/release.sh 0.2.0  # Release a new version + update Homebrew tap
 ```
 
 ## Architecture
@@ -29,6 +30,8 @@ cited --help                 # Run the CLI
 print_result(data, out, human_formatter=lambda d, c: render_kv("Title", d, c))
 ```
 `print_result` writes `json.dumps(data)` to stdout in JSON mode, or calls the `human_formatter` otherwise. Errors always go to stderr.
+
+**Output format resolution:** The output format is resolved with this precedence: `--json` flag → `--text` flag → config value (`cited config set output json|text`) → default (`text`). This lets users set `output = "json"` in config for scripting workflows and override back to human-readable with `--text` / `-t` for a single invocation.
 
 **Authentication:** Top-level `cited login` is the primary entry point (also available as `cited auth login` for backward compat). Both delegate to `do_login()` / `do_logout()` in `commands/auth.py`.
 
@@ -70,9 +73,19 @@ This gives `cited audit template list|get|create|update|delete` while `cited aud
 - **Line length:** 100 chars (ruff enforced)
 - **All files** start with `from __future__ import annotations`
 - **Type hints** use `X | None` syntax, not `Optional[X]`
+- **Valid config keys:** `environment`, `default_business_id`, `agent_api_key`, `output` (values: `json`, `text`)
 - **Config module** is named `config_cmd.py` (not `config.py`) to avoid shadowing stdlib
 - **Tests** use `typer.testing.CliRunner` (fixtures `runner` and `cli_app` in `conftest.py`), `respx` for HTTP mocking, and `monkeypatch` to redirect `CONFIG_DIR`/`CONFIG_FILE`/`CREDENTIALS_FILE` to `tmp_path`
 - **User config** lives at `~/.cited/config.toml`; version is in `src/cited_cli/__init__.py`
+- **Version** is defined in two places that must stay in sync: `pyproject.toml` and `src/cited_cli/__init__.py`. The release script handles this automatically.
+
+## Releasing
+
+`scripts/release.sh <version>` handles the full release pipeline. It bumps the version in both `pyproject.toml` and `__init__.py`, commits, tags `v<version>`, pushes (triggering the GitHub Actions release workflow), waits for the release, then regenerates the Homebrew formula in `~/repos/homebrew-cited` with the new tarball URL, SHA256, and all Python dependency resource blocks (resolved from PyPI). Finally it commits and pushes the tap update.
+
+**Prerequisites:** clean git state on `main`, `gh` CLI authenticated, `.venv` with cited-cli installed, `~/repos/homebrew-cited` cloned.
+
+**Homebrew tap repo:** `~/repos/homebrew-cited` (`YouCited/homebrew-cited` on GitHub). Contains a single formula `Formula/cited.rb` that installs cited-cli into a Python virtualenv with pinned dependency hashes. The formula uses `Language::Python::Virtualenv` and depends on `python@3.12` and `rust` (build-time, for `pydantic-core`).
 
 ## API Environments
 

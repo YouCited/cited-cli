@@ -78,6 +78,7 @@ These flags apply to every command and must be placed immediately after `cited`:
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--json` | `-j` | Machine-readable JSON output (great for scripting) |
+| `--text` | `-t` | Human-readable text output (overrides `output` config) |
 | `--env` | `-e` | Environment: `dev`, `prod`, `local` (default: `prod`) |
 | `--profile` | `-p` | Config profile to use |
 | `--verbose` | `-v` | Debug logging |
@@ -409,6 +410,9 @@ Config is stored in `~/.cited/config.toml`:
 # Set default environment (saves typing --env dev every time)
 cited config set environment dev
 
+# Set default output format (saves typing --json every time)
+cited config set output json    # or "text" (default)
+
 # Set a default business (used by commands that accept --business)
 cited config set default_business_id <uuid>
 
@@ -419,6 +423,8 @@ cited config set agent_api_key <key>
 cited config show
 cited config environments
 ```
+
+> **Tip:** With `output` set to `json`, use `--text` on any command to get human-readable output for that one invocation.
 
 ---
 
@@ -466,3 +472,23 @@ pytest tests/test_pipeline.py -v               # Pipeline integration tests
 ruff check src/
 mypy src/cited_cli/ --ignore-missing-imports
 ```
+
+## Releasing
+
+A single script handles the full release pipeline — version bump, GitHub release, and Homebrew tap update:
+
+```bash
+./scripts/release.sh 0.2.0
+```
+
+This will:
+1. Bump the version in `pyproject.toml` and `src/cited_cli/__init__.py`
+2. Commit, tag `v0.2.0`, and push to origin (triggers GitHub Actions release)
+3. Wait for the GitHub release to be created
+4. Download the tarball, compute SHA256, and resolve all Python dependency hashes from PyPI
+5. Regenerate `Formula/cited.rb` in `~/repos/homebrew-cited` with the updated formula
+6. Commit and push the tap update
+
+After the script completes, users can update with `brew update && brew upgrade cited`.
+
+**Prerequisites:** `gh` CLI authenticated, `.venv` with cited-cli installed, `~/repos/homebrew-cited` cloned.

@@ -47,11 +47,25 @@ app.add_typer(agent_app, name="agent")
 app.add_typer(job_app, name="job")
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        print(f"cited-cli {__version__}")
+        raise typer.Exit()
+
+
 @app.callback()
 def main_callback(
     ctx: typer.Context,
+    version: Annotated[
+        bool | None,
+        typer.Option("--version", "-V", help="Show version and exit", callback=_version_callback,
+                     is_eager=True),
+    ] = None,
     json_output: Annotated[
         bool, typer.Option("--json", "-j", help="Output as JSON")
+    ] = False,
+    text_output: Annotated[
+        bool, typer.Option("--text", "-t", help="Output as human-readable text (overrides config)")
     ] = False,
     env: Annotated[
         str | None, typer.Option("--env", "-e", help="Target environment (dev, prod, local)")
@@ -74,17 +88,27 @@ def main_callback(
     if not sys.stdout.isatty():
         no_color = True
 
+    config = ConfigManager()
+    profile_name = profile or "default"
+
+    # Resolve output format: --json/--text flags take precedence, then config, then default (text)
+    if json_output:
+        use_json = True
+    elif text_output:
+        use_json = False
+    else:
+        use_json = config.get("output", profile_name) == "json"
+
     output_ctx = OutputContext(
-        json_mode=json_output,
+        json_mode=use_json,
         quiet=quiet,
         no_color=no_color,
     )
-    config = ConfigManager()
 
     ctx.ensure_object(dict)
     ctx.obj["output"] = output_ctx
     ctx.obj["config"] = config
-    ctx.obj["profile"] = profile or "default"
+    ctx.obj["profile"] = profile_name
     ctx.obj["env_override"] = env
     ctx.obj["verbose"] = verbose
 
