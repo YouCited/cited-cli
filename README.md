@@ -7,15 +7,15 @@ Command-line interface for the [Cited](https://youcited.com) GEO (Generative Eng
 ### Homebrew (recommended)
 
 ```bash
-brew tap cited/tap
+brew tap youcited/cited
 brew install cited
 ```
 
 ### From source (development)
 
 ```bash
-git clone https://github.com/AdvantageGEOadmin/homebrew-cited.git
-cd homebrew-cited
+git clone https://github.com/YouCited/cited-cli.git
+cd cited-cli
 pip install -e ".[dev]"
 ```
 
