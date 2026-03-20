@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cited-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "CLI for the Cited GEO platform"
 readme = "README.md"
 license = "LicenseRef-Proprietary"
