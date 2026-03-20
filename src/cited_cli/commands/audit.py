@@ -55,7 +55,7 @@ def audit_start(
         named_audit_id, "NAMED_AUDIT_ID", "Audit template ID", out
     )
     try:
-        payload: dict = {"named_audit_id": named_audit_id}
+        payload: dict[str, object] = {"named_audit_id": named_audit_id}
         if business_id:
             payload["business_id"] = business_id
         if providers:

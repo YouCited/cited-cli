@@ -55,11 +55,12 @@ align-items:center;height:100vh;margin:0;background:#f8f9fa;}
 def _find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+        port: int = s.getsockname()[1]
+        return port
 
 
 class _CallbackHandler(BaseHTTPRequestHandler):
-    def __init__(
+    def __init__(  # type: ignore[no-untyped-def]
         self, token_event: threading.Event, server_ref: OAuthCallbackServer, *args, **kwargs,
     ):
         self._token_event = token_event
