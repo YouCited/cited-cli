@@ -49,7 +49,10 @@ def template_list(
         if business_id:
             params["business_id"] = business_id
         data = client.get(endpoints.NAMED_AUDITS, params=params or None)
-        templates = data if isinstance(data, list) else data.get("named_audits", data.get("items", []))
+        templates = (
+            data if isinstance(data, list)
+            else data.get("named_audits", data.get("items", []))
+        )
 
         def _human(d: object, console: Console) -> None:
             items = d if isinstance(d, list) else []
@@ -146,12 +149,12 @@ def template_create(
 
         data = client.post(endpoints.NAMED_AUDITS, json=payload)
         template_id = data.get("id", "")
-        template_name = data.get("name", name)
         print_result(data, out, human_formatter=lambda d, c: render_kv("Template Created", d, c))
         if not out.json_mode and template_id:
             out.console.print(
                 f"\nTemplate ID: [bold]{template_id}[/bold]"
-                f"\nRun audit:   [bold]cited audit start {template_id} --business {business_id}[/bold]"
+                f"\nRun audit:   [bold]cited audit start {template_id}"
+                f" --business {business_id}[/bold]"
             )
     except CitedAPIError as e:
         handle_api_error(e, out.json_mode)
@@ -171,7 +174,10 @@ def template_update(
     ] = None,
     questions: Annotated[
         list[str] | None,
-        typer.Option("--question", "-q", help="Replacement question (repeatable — replaces all existing questions)"),
+        typer.Option(
+            "--question", "-q",
+            help="Replacement question (repeatable — replaces all existing)",
+        ),
     ] = None,
 ) -> None:
     """Update an audit template's name, description, or questions.

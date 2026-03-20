@@ -325,7 +325,8 @@ def status(ctx: typer.Context) -> None:
         if not onboarding_completed and not out.json_mode:
             frontend_url = FRONTEND_URLS.get(env, FRONTEND_URLS[DEFAULT_ENV])
             out.console.print(
-                f"[yellow]→ Account setup incomplete. Visit {frontend_url}/onboarding to finish.[/yellow]"
+                f"[yellow]→ Account setup incomplete. "
+                f"Visit {frontend_url}/onboarding to finish.[/yellow]"
             )
     except CitedAPIError as e:
         if e.status_code in (401, 403):
