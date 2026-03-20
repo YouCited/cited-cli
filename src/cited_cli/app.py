@@ -11,12 +11,12 @@ from cited_cli.api.client import CitedClient
 from cited_cli.commands.agent import agent_app
 from cited_cli.commands.analytics import analytics_app
 from cited_cli.commands.audit import audit_app
-from cited_cli.commands.named_audit import named_audit_app
 from cited_cli.commands.auth import auth_app, do_login, do_logout, do_register
 from cited_cli.commands.business import business_app
 from cited_cli.commands.config_cmd import config_app
 from cited_cli.commands.hq import hq_app
 from cited_cli.commands.job import job_app
+from cited_cli.commands.named_audit import named_audit_app
 from cited_cli.commands.recommend import recommend_app
 from cited_cli.commands.solution import solution_app
 from cited_cli.config.manager import ConfigManager

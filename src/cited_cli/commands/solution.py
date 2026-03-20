@@ -75,11 +75,10 @@ def solution_start(
         )
         job_id = data.get("job_id", data.get("id", ""))
         print_result(data, out, human_formatter=lambda d, c: render_kv("Solution Started", d, c))
-        if not out.json_mode:
-            if job_id:
-                out.console.print(f"\nTrack progress: [bold]cited job watch {job_id}[/bold]")
-                web_base = f"https://{env}.youcited.com" if env != "prod" else "https://youcited.com"
-                out.console.print(f"View artifacts: [bold]{web_base}/solutions/{job_id}[/bold]")
+        if not out.json_mode and job_id:
+            out.console.print(f"\nTrack progress: [bold]cited job watch {job_id}[/bold]")
+            web_base = f"https://{env}.youcited.com" if env != "prod" else "https://youcited.com"
+            out.console.print(f"View artifacts: [bold]{web_base}/solutions/{job_id}[/bold]")
     except CitedAPIError as e:
         handle_api_error(e, out.json_mode)
     finally:
