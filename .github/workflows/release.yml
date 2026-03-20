@@ -31,10 +31,12 @@ jobs:
           files: dist/*
           generate_release_notes: true
 
-      # Future: update Homebrew tap formula
+      # Future: update Homebrew tap formula (requires HOMEBREW_TAP_TOKEN secret)
       # - name: Update Homebrew formula
       #   uses: mislav/bump-homebrew-formula-action@v3
       #   with:
       #     formula-name: cited
-      #     homebrew-tap: AdvantageGEOadmin/homebrew-cited
-      #     download-url: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cited-cli-*.tar.gz
+      #     homebrew-tap: YouCited/homebrew-cited
+      #     download-url: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cited_cli-${{ github.ref_name }}.tar.gz
+      #   env:
+      #     COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
