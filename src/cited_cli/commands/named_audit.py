@@ -12,6 +12,7 @@ from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
 from cited_cli.output.tables import render_kv, render_table
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
+from cited_cli.utils.interactive import can_prompt, prompt_if_missing
 
 named_audit_app = typer.Typer(name="template", help="Manage audit templates.")
 
@@ -109,8 +110,8 @@ def template_get(
 @named_audit_app.command("create")
 def template_create(
     ctx: typer.Context,
-    name: Annotated[str, typer.Option("--name", "-n", help="Template name")],
-    business_id: Annotated[str, typer.Option("--business", "-b", help="Business ID")],
+    name: Annotated[str | None, typer.Option("--name", "-n", help="Template name")] = None,
+    business_id: Annotated[str | None, typer.Option("--business", "-b", help="Business ID")] = None,
     description: Annotated[
         str | None, typer.Option("--description", "-d", help="Template description")
     ] = None,
@@ -121,6 +122,18 @@ def template_create(
 ) -> None:
     """Create a new audit template."""
     out, client = _get_client(ctx)
+    name = prompt_if_missing(name, "--name", "Template name", out)
+    business_id = prompt_if_missing(business_id, "--business", "Business ID", out)
+    if not questions and can_prompt(out):
+        out.console.print("\n[bold]Enter questions (one per line, empty line to finish):[/bold]")
+        entered: list[str] = []
+        while True:
+            q = typer.prompt(f"  Q{len(entered) + 1}", default="")
+            if not q:
+                break
+            entered.append(q)
+        if entered:
+            questions = entered
     try:
         payload: dict = {
             "name": name,

@@ -9,6 +9,7 @@ from cited_cli.api.client import CitedClient
 from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
+from cited_cli.utils.interactive import prompt_if_missing
 
 agent_app = typer.Typer(
     name="agent",
@@ -108,11 +109,14 @@ def agent_semantic_health(
 @agent_app.command("buyer-fit")
 def agent_buyer_fit(
     ctx: typer.Context,
-    query: Annotated[str, typer.Option("--query", "-q", help="Buyer query to simulate")],
+    query: Annotated[
+        str | None, typer.Option("--query", "-q", help="Buyer query to simulate")
+    ] = None,
     business_id: Annotated[str | None, typer.Option("--business", "-b", help="Business ID")] = None,
 ) -> None:
     """Run a buyer-fit simulation query."""
     out, client = _get_agent_client(ctx)
+    query = prompt_if_missing(query, "--query", "Buyer query", out)
     try:
         payload: dict[str, str] = {"query": query}
         if business_id:
