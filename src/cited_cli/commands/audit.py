@@ -12,6 +12,7 @@ from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
 from cited_cli.output.tables import render_kv, render_table
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
+from cited_cli.utils.interactive import prompt_if_missing
 
 audit_app = typer.Typer(name="audit", help="Run and manage audits.")
 
@@ -36,7 +37,9 @@ def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient, str]:
 @audit_app.command("start")
 def audit_start(
     ctx: typer.Context,
-    named_audit_id: Annotated[str, typer.Argument(help="Audit template (named audit) ID")],
+    named_audit_id: Annotated[
+        str | None, typer.Argument(help="Audit template (named audit) ID")
+    ] = None,
     business_id: Annotated[
         str | None,
         typer.Option("--business", "-b", help="Business ID override"),
@@ -48,6 +51,9 @@ def audit_start(
 ) -> None:
     """Start a new audit job from a template."""
     out, client, _ = _get_client(ctx)
+    named_audit_id = prompt_if_missing(
+        named_audit_id, "NAMED_AUDIT_ID", "Audit template ID", out
+    )
     try:
         payload: dict = {"named_audit_id": named_audit_id}
         if business_id:

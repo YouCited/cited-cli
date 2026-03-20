@@ -8,19 +8,16 @@ import typer
 from cited_cli.api import endpoints
 from cited_cli.api.client import CitedClient
 from cited_cli.auth.store import TokenStore
-from cited_cli.config.constants import FRONTEND_URLS, DEFAULT_ENV
+from cited_cli.config.constants import DEFAULT_ENV, FRONTEND_URLS
 from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
 from cited_cli.output.tables import render_kv
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
+from cited_cli.utils.interactive import is_interactive
 
 auth_app = typer.Typer(name="auth", help="Authentication commands.")
 
 _VALID_PROVIDERS = ("google", "microsoft", "github")
-
-
-def _is_interactive() -> bool:
-    return sys.stdin.isatty()
 
 
 def _get_ctx(ctx: typer.Context) -> tuple[OutputContext, ConfigManager, str]:
@@ -89,7 +86,7 @@ def _browser_auth(
         token = server.wait_for_token()
         if not token:
             # Paste fallback for environments where localhost callback fails
-            if _is_interactive():
+            if is_interactive():
                 out.console.print(
                     "\n[yellow]Browser callback timed out.[/yellow]\n"
                     "If you completed login in the browser, copy the token shown\n"
@@ -192,7 +189,7 @@ def do_login(
 
     if email:
         if password is None:
-            if not _is_interactive():
+            if not is_interactive():
                 print_error(
                     "Non-interactive mode requires --email and --password", out
                 )
@@ -240,12 +237,12 @@ def do_register(
 
     if email:
         if name is None:
-            if not _is_interactive():
+            if not is_interactive():
                 print_error("Non-interactive mode requires --name", out)
                 raise typer.Exit(ExitCode.VALIDATION_ERROR)
             name = typer.prompt("Full name")
         if password is None:
-            if not _is_interactive():
+            if not is_interactive():
                 print_error("Non-interactive mode requires --password", out)
                 raise typer.Exit(ExitCode.VALIDATION_ERROR)
             password = typer.prompt("Password", hide_input=True)

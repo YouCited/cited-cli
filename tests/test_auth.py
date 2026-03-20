@@ -120,7 +120,7 @@ def test_login_invalid_provider(runner, cli_app, tmp_path, monkeypatch):
 def test_login_non_interactive_email_requires_password(runner, cli_app, tmp_path, monkeypatch):
     """Non-TTY with --email but no --password should fail with a helpful error."""
     _setup_tmp_config(tmp_path, monkeypatch)
-    monkeypatch.setattr("cited_cli.commands.auth._is_interactive", lambda: False)
+    monkeypatch.setattr("cited_cli.commands.auth.is_interactive", lambda: False)
 
     result = runner.invoke(cli_app, ["auth", "login", "--email", "user@example.com"])
     assert result.exit_code != 0
@@ -333,7 +333,7 @@ def test_register_invalid_provider(runner, cli_app, tmp_path, monkeypatch):
 def test_register_password_mismatch(runner, cli_app, tmp_path, monkeypatch):
     """Interactive prompt with mismatched passwords should exit with validation error."""
     _setup_tmp_config(tmp_path, monkeypatch)
-    monkeypatch.setattr("cited_cli.commands.auth._is_interactive", lambda: True)
+    monkeypatch.setattr("cited_cli.commands.auth.is_interactive", lambda: True)
 
     result = runner.invoke(
         cli_app,
@@ -363,7 +363,7 @@ def test_paste_fallback(runner, cli_app, tmp_path, monkeypatch):
     )
 
     # CliRunner replaces sys.stdin, so patch the helper used by auth.py
-    monkeypatch.setattr("cited_cli.commands.auth._is_interactive", lambda: True)
+    monkeypatch.setattr("cited_cli.commands.auth.is_interactive", lambda: True)
 
     result = runner.invoke(
         cli_app,

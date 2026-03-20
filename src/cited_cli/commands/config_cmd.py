@@ -10,6 +10,7 @@ from cited_cli.config.manager import VALID_KEYS, VALID_OUTPUT_VALUES, ConfigMana
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
 from cited_cli.output.tables import render_kv, render_table
 from cited_cli.utils.errors import ExitCode
+from cited_cli.utils.interactive import prompt_choice, prompt_if_missing
 
 config_app = typer.Typer(name="config", help="Manage CLI configuration.")
 
@@ -25,15 +26,26 @@ def _get_ctx(ctx: typer.Context) -> tuple[OutputContext, ConfigManager, str]:
 @config_app.command("set")
 def config_set(
     ctx: typer.Context,
-    key: Annotated[str, typer.Argument(help="Config key to set")],
-    value: Annotated[str, typer.Argument(help="Value to set")],
+    key: Annotated[str | None, typer.Argument(help="Config key to set")] = None,
+    value: Annotated[str | None, typer.Argument(help="Value to set")] = None,
 ) -> None:
     """Set a configuration value."""
     out, cfg, profile = _get_ctx(ctx)
+    key = prompt_choice(key, "KEY", "Select config key:", sorted(VALID_KEYS), out)
 
     if key not in VALID_KEYS:
         print_error(f"Unknown config key: {key}. Valid keys: {', '.join(sorted(VALID_KEYS))}", out)
         raise typer.Exit(ExitCode.VALIDATION_ERROR)
+
+    if key == "environment":
+        value = prompt_choice(value, "VALUE", "Select environment:", list(ENVIRONMENTS.keys()), out)
+    elif key == "output":
+        value = prompt_choice(
+            value, "VALUE", "Select output format:",
+            sorted(VALID_OUTPUT_VALUES), out,
+        )
+    else:
+        value = prompt_if_missing(value, "VALUE", f"Value for {key}", out)
 
     if key == "environment" and value not in ENVIRONMENTS:
         print_error(

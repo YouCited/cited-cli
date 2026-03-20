@@ -11,6 +11,7 @@ from cited_cli.output.formatter import OutputContext, print_error, print_result,
 from cited_cli.output.progress import watch_job
 from cited_cli.output.tables import render_kv
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
+from cited_cli.utils.interactive import confirm_action
 
 job_app = typer.Typer(name="job", help="Monitor and manage background jobs.")
 
@@ -87,9 +88,11 @@ def job_cancel(
         str,
         typer.Option("--type", "-t", help="Job type: audit, recommendations, solutions"),
     ] = "",
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation")] = False,
 ) -> None:
     """Cancel a running job."""
     out, client = _get_client(ctx)
+    confirm_action(f"Cancel job {job_id[:8]}?", out, skip=yes)
     try:
         if not job_type:
             job_type = _guess_job_type(job_id, client)

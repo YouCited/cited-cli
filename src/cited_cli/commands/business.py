@@ -8,10 +8,12 @@ from rich.console import Console
 from cited_cli.api import endpoints
 from cited_cli.api.client import CitedClient
 from cited_cli.auth.store import TokenStore
+from cited_cli.config.constants import VALID_INDUSTRIES
 from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
 from cited_cli.output.tables import render_bar, render_kv, render_table
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
+from cited_cli.utils.interactive import can_prompt, prompt_choice, prompt_if_missing
 
 business_app = typer.Typer(name="business", help="Manage businesses.")
 
@@ -91,13 +93,20 @@ def business_get(
 @business_app.command("create")
 def business_create(
     ctx: typer.Context,
-    name: Annotated[str, typer.Option(help="Business name")],
-    website: Annotated[str, typer.Option(help="Business website URL")],
-    description: Annotated[str, typer.Option(help="Business description (min 50 chars)")],
+    name: Annotated[str | None, typer.Option(help="Business name")] = None,
+    website: Annotated[str | None, typer.Option(help="Business website URL")] = None,
+    description: Annotated[
+        str | None, typer.Option(help="Business description (min 50 chars)")
+    ] = None,
     industry: Annotated[str | None, typer.Option(help="Industry")] = None,
 ) -> None:
     """Create a new business."""
     out, client, _ = _get_client(ctx)
+    name = prompt_if_missing(name, "--name", "Business name", out)
+    website = prompt_if_missing(website, "--website", "Website URL", out)
+    description = prompt_if_missing(description, "--description", "Description (min 50 chars)", out)
+    if industry is None and can_prompt(out):
+        industry = prompt_choice(industry, "--industry", "Select industry:", VALID_INDUSTRIES, out)
     try:
         payload: dict[str, str] = {"name": name, "website": website, "description": description}
         if industry:

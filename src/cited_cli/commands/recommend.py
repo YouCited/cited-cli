@@ -12,6 +12,7 @@ from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result
 from cited_cli.output.tables import render_kv, render_table
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
+from cited_cli.utils.interactive import prompt_if_missing
 
 recommend_app = typer.Typer(name="recommend", help="Generate and manage recommendations.")
 
@@ -37,12 +38,13 @@ def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient]:
 def recommend_start(
     ctx: typer.Context,
     audit_job_id: Annotated[
-        str,
+        str | None,
         typer.Argument(help="Audit job ID to generate recommendations from"),
-    ],
+    ] = None,
 ) -> None:
     """Generate recommendations from an audit."""
     out, client = _get_client(ctx)
+    audit_job_id = prompt_if_missing(audit_job_id, "AUDIT_JOB_ID", "Audit job ID", out)
     try:
         data = client.post(
             endpoints.RECOMMEND_START,

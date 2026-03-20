@@ -8,10 +8,12 @@ from rich.console import Console
 from cited_cli.api import endpoints
 from cited_cli.api.client import LONG_TIMEOUT, CitedClient
 from cited_cli.auth.store import TokenStore
+from cited_cli.config.constants import VALID_SOURCE_TYPES
 from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result
 from cited_cli.output.tables import render_kv, render_table
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
+from cited_cli.utils.interactive import prompt_choice, prompt_if_missing
 
 solution_app = typer.Typer(name="solution", help="Generate and manage content solutions.")
 
@@ -37,23 +39,30 @@ def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient, str]:
 def solution_start(
     ctx: typer.Context,
     recommendation_job_id: Annotated[
-        str,
+        str | None,
         typer.Argument(help="Recommendation job ID"),
-    ],
+    ] = None,
     source_type: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--type", "-t",
             help="Source type: question_insight, head_to_head, strengthening_tip, priority_action",
         ),
-    ],
+    ] = None,
     source_id: Annotated[
-        str,
+        str | None,
         typer.Option("--source", "-s", help="Source ID from 'cited recommend insights'"),
-    ],
+    ] = None,
 ) -> None:
     """Generate a content solution from a recommendation insight."""
     out, client, env = _get_client(ctx)
+    recommendation_job_id = prompt_if_missing(
+        recommendation_job_id, "RECOMMENDATION_JOB_ID", "Recommendation job ID", out
+    )
+    source_type = prompt_choice(
+        source_type, "--type", "Select source type:", VALID_SOURCE_TYPES, out
+    )
+    source_id = prompt_if_missing(source_id, "--source", "Source ID", out)
     try:
         data = client.post(
             endpoints.SOLUTION_REQUEST,
