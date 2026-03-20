@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 
 from cited_cli.config.constants import ENVIRONMENTS
-from cited_cli.config.manager import VALID_KEYS, ConfigManager
+from cited_cli.config.manager import VALID_KEYS, VALID_OUTPUT_VALUES, ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
 from cited_cli.output.tables import render_kv, render_table
 from cited_cli.utils.errors import ExitCode
@@ -38,6 +38,12 @@ def config_set(
     if key == "environment" and value not in ENVIRONMENTS:
         print_error(
             f"Unknown environment: {value}. Valid: {', '.join(ENVIRONMENTS.keys())}", out
+        )
+        raise typer.Exit(ExitCode.VALIDATION_ERROR)
+
+    if key == "output" and value not in VALID_OUTPUT_VALUES:
+        print_error(
+            f"Unknown output format: {value}. Valid: {', '.join(sorted(VALID_OUTPUT_VALUES))}", out
         )
         raise typer.Exit(ExitCode.VALIDATION_ERROR)
 
