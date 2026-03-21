@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cited-mcp"
+version = "0.3.2"
+description = "MCP server for the Cited GEO platform"
+readme = "../../README.md"
+license = "LicenseRef-Proprietary"
+requires-python = ">=3.11"
+authors = [{ name = "Cited", email = "support@youcited.com" }]
+dependencies = [
+    "cited-core>=0.3.2",
+    "mcp>=1.26.0",
+]
+
+[project.scripts]
+cited-mcp = "cited_mcp:run_server"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "respx>=0.21",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cited_mcp"]

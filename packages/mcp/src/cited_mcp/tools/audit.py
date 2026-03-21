@@ -1,0 +1,186 @@
+from __future__ import annotations
+
+from typing import Any
+
+from cited_core.api import endpoints
+from cited_core.errors import CitedAPIError
+from mcp.server.fastmcp import Context
+
+from cited_mcp.context import CitedContext
+from cited_mcp.server import mcp
+from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
+
+
+@mcp.tool()
+async def list_audit_templates(ctx: Context[Any, CitedContext, Any]) -> Any:
+    """List all audit templates (named audits) for the user."""
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        return cited_ctx.client.get(endpoints.NAMED_AUDITS)
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool()
+async def get_audit_template(ctx: Context[Any, CitedContext, Any], named_audit_id: str) -> Any:
+    """Get a specific audit template by ID."""
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        return cited_ctx.client.get(
+            endpoints.NAMED_AUDIT.format(named_audit_id=named_audit_id)
+        )
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool()
+async def create_audit_template(
+    ctx: Context[Any, CitedContext, Any],
+    name: str,
+    business_id: str,
+    description: str | None = None,
+    questions: list[str] | None = None,
+) -> Any:
+    """Create a new audit template.
+
+    Args:
+        ctx: MCP context
+        name: Template name
+        business_id: Business ID to associate with
+        description: Optional template description
+        questions: Optional list of audit questions
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    payload: dict[str, Any] = {"name": name, "business_id": business_id}
+    if description is not None:
+        payload["description"] = description
+    if questions is not None:
+        payload["questions"] = questions
+    try:
+        return cited_ctx.client.post(endpoints.NAMED_AUDITS, json=payload)
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool()
+async def update_audit_template(
+    ctx: Context[Any, CitedContext, Any],
+    named_audit_id: str,
+    name: str | None = None,
+    description: str | None = None,
+    questions: list[str] | None = None,
+) -> Any:
+    """Update an audit template. Questions replace ALL existing questions if provided.
+
+    Args:
+        ctx: MCP context
+        named_audit_id: Template ID to update
+        name: New template name
+        description: New description
+        questions: New list of questions (replaces all existing questions). Omit to keep existing.
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    payload: dict[str, Any] = {}
+    if name is not None:
+        payload["name"] = name
+    if description is not None:
+        payload["description"] = description
+    if questions is not None:
+        payload["questions"] = questions
+    try:
+        return cited_ctx.client.put(
+            endpoints.NAMED_AUDIT.format(named_audit_id=named_audit_id), json=payload
+        )
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool()
+async def delete_audit_template(
+    ctx: Context[Any, CitedContext, Any], named_audit_id: str
+) -> Any:
+    """Delete an audit template.
+
+    Args:
+        ctx: MCP context
+        named_audit_id: Template ID to delete
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        cited_ctx.client.delete(
+            endpoints.NAMED_AUDIT.format(named_audit_id=named_audit_id)
+        )
+        return {"success": True, "message": f"Template {named_audit_id} deleted"}
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool()
+async def start_audit(
+    ctx: Context[Any, CitedContext, Any],
+    named_audit_id: str,
+    business_id: str | None = None,
+) -> Any:
+    """Start an audit using a template. Returns a job_id to poll for status.
+
+    Args:
+        ctx: MCP context
+        named_audit_id: The audit template ID to run
+        business_id: Optional business ID override
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    payload: dict[str, Any] = {"named_audit_id": named_audit_id}
+    if business_id is not None:
+        payload["business_id"] = business_id
+    try:
+        return cited_ctx.client.post(endpoints.AUDIT_START, json=payload)
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool()
+async def get_audit_status(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
+    """Check the status of a running audit job."""
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        return cited_ctx.client.get(endpoints.AUDIT_STATUS.format(job_id=job_id))
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool()
+async def get_audit_result(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
+    """Get the results of a completed audit job."""
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        return cited_ctx.client.get(endpoints.AUDIT_RESULT.format(job_id=job_id))
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool()
+async def list_audits(ctx: Context[Any, CitedContext, Any]) -> Any:
+    """List audit history."""
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        return cited_ctx.client.get(endpoints.AUDIT_HISTORY)
+    except CitedAPIError as e:
+        return _api_error_response(e)
