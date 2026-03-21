@@ -6,6 +6,7 @@ CLI_LOGIN = "/auth/cli-login"
 CLI_REGISTER = "/auth/cli-register"
 CLI_VERIFY_EMAIL = "/auth/cli-verify-email"
 CLI_OAUTH_START = "/auth/cli-oauth-start"
+AUTHORIZE_APP = "/auth/authorize-app"
 LOGOUT = "/auth/logout"
 ME = "/auth/me"
 

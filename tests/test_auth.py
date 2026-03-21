@@ -62,29 +62,23 @@ def test_login_password_flow(runner, cli_app, tmp_path, monkeypatch):
     assert creds["prod"] == "fake-jwt-token"
 
 
-@respx.mock
 def test_login_browser_flow(runner, cli_app, tmp_path, monkeypatch):
-    """Browser login starts OAuth server, opens browser, receives token via callback."""
+    """Browser login opens /auth/authorize-app URL, receives token via callback."""
     _, creds_file = _setup_tmp_config(tmp_path, monkeypatch)
 
-    # Capture the redirect_uri from the request so we can send a token to it
-    captured_redirect_uri = {}
-
-    def mock_oauth_start(request):
-        body = json.loads(request.content)
-        captured_redirect_uri["uri"] = body["redirect_uri"]
-        return httpx.Response(200, json={"auth_url": "https://accounts.google.com/auth"})
-
-    respx.post("https://api.youcited.com/auth/cli-oauth-start").mock(
-        side_effect=mock_oauth_start
-    )
-
-    # Mock webbrowser.open to instead send a token to the callback server
+    # Mock webbrowser.open to extract the callback URI from the authorize-app URL
+    # and send a token directly to the localhost callback server
     def fake_browser_open(url):
-        # Give the server a moment, then send the token callback
+        from urllib.parse import parse_qs, urlparse
+
+        assert "/auth/authorize-app" in url
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        assert "google" in params.get("provider", [""])[0]
+        callback_uri = params["callback"][0]
+
         def send_callback():
-            uri = captured_redirect_uri["uri"]
-            callback_url = f"{uri}?token=browser-jwt-token"
+            callback_url = f"{callback_uri}?token=browser-jwt-token"
             urllib.request.urlopen(callback_url, timeout=5)  # noqa: S310
 
         threading.Thread(target=send_callback, daemon=True).start()
@@ -278,26 +272,22 @@ def test_top_level_register(runner, cli_app, tmp_path, monkeypatch):
     assert creds["prod"] == "top-register-jwt"
 
 
-@respx.mock
 def test_register_browser_flow(runner, cli_app, tmp_path, monkeypatch):
-    """Browser registration sends mode=register in cli-oauth-start payload."""
+    """Browser registration passes mode=register in authorize-app URL."""
     _, creds_file = _setup_tmp_config(tmp_path, monkeypatch)
 
-    captured_payload = {}
-
-    def mock_oauth_start(request):
-        body = json.loads(request.content)
-        captured_payload.update(body)
-        return httpx.Response(200, json={"auth_url": "https://accounts.google.com/auth"})
-
-    respx.post("https://api.youcited.com/auth/cli-oauth-start").mock(
-        side_effect=mock_oauth_start
-    )
+    captured_url = {}
 
     def fake_browser_open(url):
+        from urllib.parse import parse_qs, urlparse
+
+        captured_url["url"] = url
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        callback_uri = params["callback"][0]
+
         def send_callback():
-            uri = captured_payload["redirect_uri"]
-            callback_url = f"{uri}?token=register-browser-jwt"
+            callback_url = f"{callback_uri}?token=register-browser-jwt"
             urllib.request.urlopen(callback_url, timeout=5)  # noqa: S310
 
         threading.Thread(target=send_callback, daemon=True).start()
@@ -312,7 +302,13 @@ def test_register_browser_flow(runner, cli_app, tmp_path, monkeypatch):
     )
     assert result.exit_code == 0
     assert "Registered" in result.output
-    assert captured_payload.get("mode") == "register"
+
+    # Verify mode=register was passed in the authorize-app URL
+    from urllib.parse import parse_qs, urlparse
+
+    parsed = urlparse(captured_url["url"])
+    params = parse_qs(parsed.query)
+    assert params.get("mode") == ["register"]
 
     creds = json.loads(creds_file.read_text())
     assert creds["prod"] == "register-browser-jwt"
@@ -344,21 +340,16 @@ def test_register_password_mismatch(runner, cli_app, tmp_path, monkeypatch):
     assert "do not match" in result.output.lower() or "Passwords" in result.output
 
 
-@respx.mock
 def test_paste_fallback(runner, cli_app, tmp_path, monkeypatch):
     """When browser callback times out, user can paste token manually."""
     _, creds_file = _setup_tmp_config(tmp_path, monkeypatch)
-
-    respx.post("https://api.youcited.com/auth/cli-oauth-start").mock(
-        return_value=httpx.Response(200, json={"auth_url": "https://example.com/auth"})
-    )
 
     # Mock webbrowser.open to do nothing (simulates browser opening but no callback)
     monkeypatch.setattr("webbrowser.open", lambda url: True)
 
     # Mock OAuthCallbackServer.wait_for_token to return None (timeout)
     monkeypatch.setattr(
-        "cited_cli.auth.oauth_server.OAuthCallbackServer.wait_for_token",
+        "cited_core.auth.oauth_server.OAuthCallbackServer.wait_for_token",
         lambda self: None,
     )
 

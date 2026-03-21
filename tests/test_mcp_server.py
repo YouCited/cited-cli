@@ -45,8 +45,9 @@ EXPECTED_TOOLS = [
 
 @pytest.mark.usefixtures("_mcp_available")
 def test_all_tools_registered():
-    from cited_mcp.server import mcp
+    from cited_mcp.server import create_stdio_server
 
+    mcp = create_stdio_server()
     tool_names = [t.name for t in mcp._tool_manager.list_tools()]
     assert len(tool_names) == len(EXPECTED_TOOLS)
     for name in EXPECTED_TOOLS:
@@ -55,7 +56,8 @@ def test_all_tools_registered():
 
 @pytest.mark.usefixtures("_mcp_available")
 def test_all_tools_have_descriptions():
-    from cited_mcp.server import mcp
+    from cited_mcp.server import create_stdio_server
 
+    mcp = create_stdio_server()
     for tool in mcp._tool_manager.list_tools():
         assert tool.description, f"Tool {tool.name} has no description"

@@ -4,75 +4,38 @@ This guide walks you through connecting Claude Desktop to the Cited GEO platform
 
 ## What You Need
 
-- **Claude Desktop** app installed on your Mac
+- **Claude Desktop** app installed
 - **A Cited account** at [youcited.com](https://youcited.com)
-- **uv** (a Python tool runner) — we'll install this in step 1
+- **Node.js** installed (download from [nodejs.org](https://nodejs.org))
 
-## Step 1: Install uv
-
-Open the **Terminal** app (search for "Terminal" in Spotlight, or find it in Applications > Utilities).
-
-Copy and paste this command, then press Enter:
-
-```
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-Close and reopen Terminal after it finishes.
-
-## Step 2: Get Your Auth Token
-
-You need a session token from the Cited web app. The easiest way is to use the Cited CLI:
-
-```
-uvx cited-cli login --env dev
-```
-
-This opens your browser. Log in with your Cited account (Google, Microsoft, GitHub, or email). Once you see "Authentication successful", you can close the browser tab.
-
-## Step 3: Configure Claude Desktop
+## Step 1: Configure Claude Desktop
 
 1. Open Claude Desktop
-2. Click the **Claude** menu in the top-left corner of your screen
+2. Click the **Claude** menu (top-left on Mac, top bar on Windows)
 3. Click **Settings**
 4. Click **Developer** in the left sidebar
 5. Click **Edit Config**
 
-This opens a file called `claude_desktop_config.json`. Replace its entire contents with:
+This opens `claude_desktop_config.json`. Add the `mcpServers` section:
 
 ```json
 {
   "mcpServers": {
     "cited": {
-      "command": "PATH_TO_UVX",
-      "args": ["cited-mcp"],
-      "env": {
-        "CITED_ENV": "dev"
-      }
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.youcited.com"]
     }
   }
 }
 ```
 
-**Important:** Replace `PATH_TO_UVX` with the actual path to uvx on your machine. To find it, open Terminal and run:
+Save the file and close the text editor.
 
-```
-which uvx
-```
+## Step 2: Restart Claude Desktop
 
-It's usually one of these:
-- `/Users/YOUR_USERNAME/.local/bin/uvx` (most common)
-- `/opt/homebrew/bin/uvx` (if installed via Homebrew)
+Quit Claude Desktop completely (Cmd+Q on Mac, or close fully on Windows), then reopen it.
 
-Save the file (Command + S) and close the text editor.
-
-## Step 4: Restart Claude Desktop
-
-Quit Claude Desktop completely (Command + Q), then reopen it.
-
-You may see a macOS popup asking to allow Python to access your keychain — click **Always Allow** and enter your Mac password. This lets Claude read your Cited login token.
-
-## Step 5: Try It Out
+## Step 3: Try It Out
 
 Start a new conversation in Claude Desktop and try any of these:
 
@@ -80,19 +43,18 @@ Start a new conversation in Claude Desktop and try any of these:
 - **"Run a GEO audit on [business name]"** — audits your AI search presence
 - **"Check my Cited account status"** — verifies you're connected
 
+On first use, your browser will open to log in to your Cited account. After logging in, you'll be redirected back automatically. This only happens once.
+
 ## Troubleshooting
 
-**Claude says "Not authenticated":**
-- Open Terminal and run `uvx cited-cli login --env dev` again
-- Restart Claude Desktop
-
-**Claude doesn't show Cited tools:**
+**Browser login popup doesn't appear:**
+- Make sure Node.js is installed: open a terminal and type `node --version`
 - Make sure you saved the config file correctly
-- Make sure you fully quit and reopened Claude Desktop (not just closed the window)
-- Check that uv is installed: open Terminal and type `uvx --version`
+- Restart Claude Desktop fully (not just close the window)
 
-**Keychain popup keeps appearing:**
-- Click "Always Allow" instead of just "Allow" so it doesn't ask again
+**"npx not found" error:**
+- Install Node.js from [nodejs.org](https://nodejs.org) (LTS version recommended)
+- Restart Claude Desktop after installing Node.js
 
 ## What Can Claude Do With Cited?
 
