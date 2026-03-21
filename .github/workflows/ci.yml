@@ -22,13 +22,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: |
+          pip install -e packages/core
+          pip install -e packages/mcp
+          pip install -e ".[dev]"
 
       - name: Lint
-        run: ruff check src/
+        run: ruff check src/ packages/
 
       - name: Type check
-        run: mypy src/cited_cli/ --ignore-missing-imports
+        run: mypy packages/core/src packages/mcp/src src/cited_cli/ --ignore-missing-imports
 
       - name: Test
         run: pytest -v
