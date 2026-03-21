@@ -12,14 +12,14 @@ def _setup_tmp_config(tmp_path, monkeypatch):
     config_dir = tmp_path / ".cited"
     config_file = config_dir / "config.toml"
     creds_file = config_dir / "credentials.json"
-    monkeypatch.setattr("cited_cli.config.constants.CONFIG_DIR", config_dir)
-    monkeypatch.setattr("cited_cli.config.constants.CONFIG_FILE", config_file)
-    monkeypatch.setattr("cited_cli.config.constants.CREDENTIALS_FILE", creds_file)
+    monkeypatch.setattr("cited_core.config.constants.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("cited_core.config.constants.CONFIG_FILE", config_file)
+    monkeypatch.setattr("cited_core.config.constants.CREDENTIALS_FILE", creds_file)
     # Also patch the already-imported references in store.py
-    monkeypatch.setattr("cited_cli.auth.store.CONFIG_DIR", config_dir)
-    monkeypatch.setattr("cited_cli.auth.store.CREDENTIALS_FILE", creds_file)
+    monkeypatch.setattr("cited_core.auth.store.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("cited_core.auth.store.CREDENTIALS_FILE", creds_file)
     # Force file-based credential storage (no keyring) so we can verify
-    monkeypatch.setattr("cited_cli.auth.store.TokenStore._has_keyring", lambda self: False)
+    monkeypatch.setattr("cited_core.auth.store.TokenStore._has_keyring", lambda self: False)
     return config_dir, creds_file
 
 

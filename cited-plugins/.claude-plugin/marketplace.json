@@ -1,0 +1,27 @@
+{
+  "name": "youcited-cited-plugins",
+  "owner": {
+    "name": "Cited",
+    "email": "support@youcited.com"
+  },
+  "metadata": {
+    "description": "Cited GEO platform plugin for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "cited",
+      "source": ".",
+      "description": "Audit, optimize, and monitor AI search presence for any business",
+      "version": "0.3.2",
+      "author": {
+        "name": "Cited",
+        "email": "support@youcited.com"
+      },
+      "homepage": "https://youcited.com",
+      "repository": "https://github.com/YouCited/cited-plugins",
+      "license": "LicenseRef-Proprietary",
+      "keywords": ["geo", "seo", "ai-search", "audit", "cited"],
+      "category": "external-integrations"
+    }
+  ]
+}

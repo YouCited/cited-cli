@@ -4,11 +4,11 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from mcp.server.fastmcp import FastMCP
+
 from cited_core.api.client import CitedClient
 from cited_core.auth.store import TokenStore
 from cited_core.config.manager import ConfigManager
-from mcp.server.fastmcp import FastMCP
-
 from cited_mcp.context import CitedContext
 
 

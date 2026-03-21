@@ -5,13 +5,13 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from cited_cli.api import endpoints
-from cited_cli.api.client import CitedClient
-from cited_cli.auth.store import TokenStore
-from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result
 from cited_cli.output.tables import render_bar
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
+from cited_core.api import endpoints
+from cited_core.api.client import CitedClient
+from cited_core.auth.store import TokenStore
+from cited_core.config.manager import ConfigManager
 
 hq_app = typer.Typer(name="hq", help="Business HQ dashboard.", invoke_without_command=True)
 

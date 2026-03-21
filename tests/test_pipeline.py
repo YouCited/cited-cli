@@ -240,13 +240,13 @@ def _setup_logged_in(tmp_path, monkeypatch) -> None:
     config_file = config_dir / "config.toml"
     creds_file  = config_dir / "credentials.json"
 
-    monkeypatch.setattr("cited_cli.config.constants.CONFIG_DIR",      config_dir)
-    monkeypatch.setattr("cited_cli.config.constants.CONFIG_FILE",     config_file)
-    monkeypatch.setattr("cited_cli.config.constants.CREDENTIALS_FILE", creds_file)
-    monkeypatch.setattr("cited_cli.auth.store.CONFIG_DIR",             config_dir)
-    monkeypatch.setattr("cited_cli.auth.store.CREDENTIALS_FILE",       creds_file)
+    monkeypatch.setattr("cited_core.config.constants.CONFIG_DIR",      config_dir)
+    monkeypatch.setattr("cited_core.config.constants.CONFIG_FILE",     config_file)
+    monkeypatch.setattr("cited_core.config.constants.CREDENTIALS_FILE", creds_file)
+    monkeypatch.setattr("cited_core.auth.store.CONFIG_DIR",             config_dir)
+    monkeypatch.setattr("cited_core.auth.store.CREDENTIALS_FILE",       creds_file)
     # Disable keyring so credentials go to the plain JSON file
-    monkeypatch.setattr("cited_cli.auth.store.TokenStore._has_keyring", lambda self: False)
+    monkeypatch.setattr("cited_core.auth.store.TokenStore._has_keyring", lambda self: False)
 
     config_dir.mkdir(parents=True, exist_ok=True)
     # Pre-seed a dev token — user is already logged in

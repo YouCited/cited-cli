@@ -4,22 +4,68 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Standalone CLI for the [Cited](https://youcited.com) GEO platform. Built with Python (Typer + Rich + httpx). Talks to the Cited backend API — does not contain any backend code itself. The backend lives in a separate monorepo at `~/repos/cited/`.
+Monorepo for the [Cited](https://youcited.com) GEO platform tooling. Contains three Python packages:
+
+- **`cited-core`** (`packages/core/`) — Shared library: API client, auth, config, endpoints, errors. No CLI or MCP dependencies.
+- **`cited-mcp`** (`packages/mcp/`) — Standalone MCP server with 28 tools. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
+- **`cited-cli`** (root `src/cited_cli/`) — Typer + Rich CLI. Depends on `cited-core` + `typer` + `rich`. Optional dep on `cited-mcp` for `cited mcp serve`.
+
+Also contains `cited-plugins/` — a Claude Code plugin (skills, commands, agents) that references the MCP server via `uvx cited-mcp`.
+
+The backend API lives in a separate monorepo at `~/repos/cited/`.
 
 ## Commands
 
 ```bash
-pip install -e ".[dev]"      # Install with dev dependencies
+# Dev setup (install all three packages in editable mode)
+./scripts/dev-install.sh
+
+# Or manually:
+pip install -e packages/core
+pip install -e packages/mcp
+pip install -e ".[dev]"
+
+# Run tests, lint, type check
 pytest -v                    # Run all tests
-pytest tests/test_pipeline.py -v  # Pipeline integration tests
-pytest -k test_version_json  # Run a single test by name
-ruff check src/              # Lint
-mypy src/cited_cli/ --ignore-missing-imports  # Type check
-cited --help                 # Run the CLI
-./scripts/release.sh 0.2.0  # Release a new version + update Homebrew tap
+ruff check src/ packages/    # Lint all packages
+mypy packages/core/src packages/mcp/src src/cited_cli/ --ignore-missing-imports
+
+# Run the CLI
+cited --help
+
+# Run the standalone MCP server
+cited-mcp                    # Standalone binary (from cited-mcp package)
+cited mcp serve              # Via CLI (requires cited-cli[mcp])
+
+# Release (publishes cited-core → cited-mcp → cited-cli to PyPI)
+./scripts/release.sh 0.3.2
 ```
 
 ## Architecture
+
+### Package Structure
+
+**`cited-core`** (`packages/core/src/cited_core/`) — Zero CLI/MCP dependencies:
+- `api/client.py` — `CitedClient` (httpx sync)
+- `api/endpoints.py` — API endpoint path constants
+- `auth/store.py` — `TokenStore` (keyring + file fallback)
+- `auth/oauth_server.py` — Temporary localhost OAuth callback server
+- `config/manager.py` — `ConfigManager` (TOML config)
+- `config/constants.py` — `ENVIRONMENTS`, `CONFIG_DIR`, `VALID_INDUSTRIES`, etc.
+- `errors.py` — `CitedAPIError`, `ExitCode`, `exit_code_for_status()`
+
+**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 28 tools:
+- `server.py` — `FastMCP` instance, lifespan, `run_server()`
+- `tools/` — auth, business, audit, recommend, solution, job tool modules
+- Supports `CITED_TOKEN` and `CITED_AGENT_API_KEY` env vars
+- Includes browser OAuth `login` tool for Claude Desktop users
+
+**`cited-cli`** (`src/cited_cli/`) — Typer CLI:
+- Imports core modules from `cited_core.*` (not `cited_cli.api.*`)
+- `utils/errors.py` re-exports `CitedAPIError` etc. from `cited_core.errors` + adds `handle_api_error()` (Rich-based)
+- `commands/mcp_cmd.py` lazy-imports from `cited_mcp` (optional dep)
+
+### CLI Architecture
 
 **Entry point:** `src/cited_cli/app.py` — creates the root `typer.Typer`, registers subcommand groups via `app.add_typer()`, plus top-level `login` and `logout` commands (delegating to `do_login`/`do_logout` from `commands/auth.py`). Defines global flags (`--json`, `--env`, `--profile`, etc.) in the `main_callback`, and stores shared state in `typer.Context.obj`.
 
@@ -77,7 +123,7 @@ This gives `cited audit template list|get|create|update|delete` while `cited aud
 - **Config module** is named `config_cmd.py` (not `config.py`) to avoid shadowing stdlib
 - **Tests** use `typer.testing.CliRunner` (fixtures `runner` and `cli_app` in `conftest.py`), `respx` for HTTP mocking, and `monkeypatch` to redirect `CONFIG_DIR`/`CONFIG_FILE`/`CREDENTIALS_FILE` to `tmp_path`
 - **User config** lives at `~/.cited/config.toml`; version is in `src/cited_cli/__init__.py`
-- **Version** is defined in two places that must stay in sync: `pyproject.toml` and `src/cited_cli/__init__.py`. The release script handles this automatically.
+- **Version** single source of truth is `packages/core/src/cited_core/__init__.py`. The CLI and MCP packages import it via `from cited_core import __version__`. The `version =` field in all three `pyproject.toml` files must also be bumped (the release script handles this).
 
 ## Releasing
 

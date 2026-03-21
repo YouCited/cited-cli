@@ -5,15 +5,15 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from cited_cli.api import endpoints
-from cited_cli.api.client import CitedClient
-from cited_cli.auth.store import TokenStore
-from cited_cli.config.constants import VALID_INDUSTRIES
-from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
 from cited_cli.output.tables import render_bar, render_kv, render_table
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
 from cited_cli.utils.interactive import can_prompt, prompt_choice, prompt_if_missing
+from cited_core.api import endpoints
+from cited_core.api.client import CitedClient
+from cited_core.auth.store import TokenStore
+from cited_core.config.constants import VALID_INDUSTRIES
+from cited_core.config.manager import ConfigManager
 
 business_app = typer.Typer(name="business", help="Manage businesses.")
 

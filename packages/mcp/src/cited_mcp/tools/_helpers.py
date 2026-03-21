@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from cited_core.errors import CitedAPIError
 from mcp.server.fastmcp import Context
 
+from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
 
 

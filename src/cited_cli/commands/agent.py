@@ -4,12 +4,12 @@ from typing import Annotated
 
 import typer
 
-from cited_cli.api import endpoints
-from cited_cli.api.client import CitedClient
-from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
 from cited_cli.utils.interactive import prompt_if_missing
+from cited_core.api import endpoints
+from cited_core.api.client import CitedClient
+from cited_core.config.manager import ConfigManager
 
 agent_app = typer.Typer(
     name="agent",

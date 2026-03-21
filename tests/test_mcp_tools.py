@@ -8,8 +8,8 @@ import httpx
 import pytest
 import respx
 
-from cited_cli.api.client import CitedClient
-from cited_cli.mcp.context import CitedContext
+from cited_core.api.client import CitedClient
+from cited_mcp.context import CitedContext
 
 DEV_API = "https://dev.youcited.com"
 
@@ -43,7 +43,7 @@ def _run(coro: Any) -> Any:
 
 @pytest.mark.usefixtures("_mcp_available")
 def test_auth_check_no_token():
-    from cited_cli.mcp.tools.auth import check_auth_status
+    from cited_mcp.tools.auth import check_auth_status
 
     cited_ctx = _make_cited_ctx(token=None)
     ctx = _make_mcp_ctx(cited_ctx)
@@ -56,7 +56,7 @@ def test_auth_check_no_token():
 @pytest.mark.usefixtures("_mcp_available")
 @respx.mock
 def test_check_auth_status_success():
-    from cited_cli.mcp.tools.auth import check_auth_status
+    from cited_mcp.tools.auth import check_auth_status
 
     respx.get(f"{DEV_API}/auth/me").mock(
         return_value=httpx.Response(200, json={"email": "test@example.com", "id": "u1"})
@@ -74,7 +74,7 @@ def test_check_auth_status_success():
 @pytest.mark.usefixtures("_mcp_available")
 @respx.mock
 def test_list_businesses():
-    from cited_cli.mcp.tools.business import list_businesses
+    from cited_mcp.tools.business import list_businesses
 
     respx.get(f"{DEV_API}/businesses").mock(
         return_value=httpx.Response(200, json=[{"id": "b1", "name": "Acme"}])
@@ -90,7 +90,7 @@ def test_list_businesses():
 @pytest.mark.usefixtures("_mcp_available")
 @respx.mock
 def test_create_business():
-    from cited_cli.mcp.tools.business import create_business
+    from cited_mcp.tools.business import create_business
 
     respx.post(f"{DEV_API}/businesses").mock(
         return_value=httpx.Response(201, json={"id": "b2", "name": "NewCo"})
@@ -105,7 +105,7 @@ def test_create_business():
 @pytest.mark.usefixtures("_mcp_available")
 @respx.mock
 def test_crawl_business():
-    from cited_cli.mcp.tools.business import crawl_business
+    from cited_mcp.tools.business import crawl_business
 
     respx.post(f"{DEV_API}/businesses/b1/crawl").mock(
         return_value=httpx.Response(202, json={"job_id": "j1", "status": "crawling"})
@@ -123,7 +123,7 @@ def test_crawl_business():
 @pytest.mark.usefixtures("_mcp_available")
 @respx.mock
 def test_api_error_returns_structured_error():
-    from cited_cli.mcp.tools.business import get_business
+    from cited_mcp.tools.business import get_business
 
     respx.get(f"{DEV_API}/businesses/bad-id").mock(
         return_value=httpx.Response(404, json={"detail": "Not found"})
@@ -142,7 +142,7 @@ def test_api_error_returns_structured_error():
 @pytest.mark.usefixtures("_mcp_available")
 @respx.mock
 def test_start_audit():
-    from cited_cli.mcp.tools.audit import start_audit
+    from cited_mcp.tools.audit import start_audit
 
     captured: dict[str, Any] = {}
 
@@ -168,7 +168,7 @@ def test_start_audit():
 @pytest.mark.usefixtures("_mcp_available")
 @respx.mock
 def test_get_recommendation_insights():
-    from cited_cli.mcp.tools.recommend import get_recommendation_insights
+    from cited_mcp.tools.recommend import get_recommendation_insights
 
     respx.get(f"{DEV_API}/recommendations/rj1/result").mock(
         return_value=httpx.Response(200, json={
@@ -202,7 +202,7 @@ def test_get_recommendation_insights():
 @pytest.mark.usefixtures("_mcp_available")
 @respx.mock
 def test_start_solution():
-    from cited_cli.mcp.tools.solution import start_solution
+    from cited_mcp.tools.solution import start_solution
 
     captured: dict[str, Any] = {}
 
@@ -229,7 +229,7 @@ def test_start_solution():
 @pytest.mark.usefixtures("_mcp_available")
 @respx.mock
 def test_get_job_status_with_type():
-    from cited_cli.mcp.tools.job import get_job_status
+    from cited_mcp.tools.job import get_job_status
 
     respx.get(f"{DEV_API}/audit/aj1/status").mock(
         return_value=httpx.Response(200, json={"job_id": "aj1", "status": "completed"})
@@ -245,7 +245,7 @@ def test_get_job_status_with_type():
 @pytest.mark.usefixtures("_mcp_available")
 @respx.mock
 def test_get_job_status_probes():
-    from cited_cli.mcp.tools.job import get_job_status
+    from cited_mcp.tools.job import get_job_status
 
     respx.get(f"{DEV_API}/audit/j1/status").mock(
         return_value=httpx.Response(404, json={"detail": "Not found"})

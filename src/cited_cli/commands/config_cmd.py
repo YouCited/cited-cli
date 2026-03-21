@@ -5,12 +5,12 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from cited_cli.config.constants import ENVIRONMENTS
-from cited_cli.config.manager import VALID_KEYS, VALID_OUTPUT_VALUES, ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
 from cited_cli.output.tables import render_kv, render_table
 from cited_cli.utils.errors import ExitCode
 from cited_cli.utils.interactive import prompt_choice, prompt_if_missing
+from cited_core.config.constants import ENVIRONMENTS
+from cited_core.config.manager import VALID_KEYS, VALID_OUTPUT_VALUES, ConfigManager
 
 config_app = typer.Typer(name="config", help="Manage CLI configuration.")
 
