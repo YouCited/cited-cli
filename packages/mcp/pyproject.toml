@@ -6,7 +6,6 @@ build-backend = "hatchling.build"
 name = "cited-mcp"
 version = "0.3.2"
 description = "MCP server for the Cited GEO platform"
-readme = "../../README.md"
 license = "LicenseRef-Proprietary"
 requires-python = ">=3.11"
 authors = [{ name = "Cited", email = "support@youcited.com" }]
