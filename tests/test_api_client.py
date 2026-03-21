@@ -6,8 +6,8 @@ import httpx
 import pytest
 import respx
 
-from cited_cli.api.client import CitedClient
-from cited_cli.utils.errors import CitedAPIError
+from cited_core.api.client import CitedClient
+from cited_core.errors import CitedAPIError
 
 
 @respx.mock

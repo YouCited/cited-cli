@@ -1,1 +1,1 @@
-__version__ = "0.3.1"
+from cited_core import __version__ as __version__  # noqa: F401

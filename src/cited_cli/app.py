@@ -6,8 +6,6 @@ from typing import Annotated
 import typer
 
 from cited_cli import __version__
-from cited_cli.api import endpoints
-from cited_cli.api.client import CitedClient
 from cited_cli.commands.agent import agent_app
 from cited_cli.commands.analytics import analytics_app
 from cited_cli.commands.audit import audit_app
@@ -20,10 +18,12 @@ from cited_cli.commands.mcp_cmd import mcp_app
 from cited_cli.commands.named_audit import named_audit_app
 from cited_cli.commands.recommend import recommend_app
 from cited_cli.commands.solution import solution_app
-from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result
 from cited_cli.output.tables import render_kv
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
+from cited_core.api import endpoints
+from cited_core.api.client import CitedClient
+from cited_core.config.manager import ConfigManager
 
 app = typer.Typer(
     name="cited",

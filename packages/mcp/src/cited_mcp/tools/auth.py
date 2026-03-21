@@ -4,13 +4,13 @@ import webbrowser
 from typing import Any
 
 import anyio
+from mcp.server.fastmcp import Context
+
 from cited_core.api import endpoints
 from cited_core.auth.oauth_server import OAuthCallbackServer
 from cited_core.auth.store import TokenStore
 from cited_core.config.constants import FRONTEND_URLS
 from cited_core.errors import CitedAPIError
-from mcp.server.fastmcp import Context
-
 from cited_mcp.context import CitedContext
 from cited_mcp.server import mcp
 from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx

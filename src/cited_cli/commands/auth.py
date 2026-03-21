@@ -5,15 +5,15 @@ from typing import Annotated
 
 import typer
 
-from cited_cli.api import endpoints
-from cited_cli.api.client import CitedClient
-from cited_cli.auth.store import TokenStore
-from cited_cli.config.constants import DEFAULT_ENV, FRONTEND_URLS
-from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
 from cited_cli.output.tables import render_kv
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
 from cited_cli.utils.interactive import is_interactive
+from cited_core.api import endpoints
+from cited_core.api.client import CitedClient
+from cited_core.auth.store import TokenStore
+from cited_core.config.constants import DEFAULT_ENV, FRONTEND_URLS
+from cited_core.config.manager import ConfigManager
 
 auth_app = typer.Typer(name="auth", help="Authentication commands.")
 

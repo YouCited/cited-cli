@@ -13,14 +13,19 @@ def _mcp_available():
 
 EXPECTED_TOOLS = [
     "check_auth_status",
+    "login",
     "list_businesses",
     "get_business",
     "create_business",
+    "update_business",
+    "delete_business",
     "crawl_business",
     "get_health_scores",
     "list_audit_templates",
     "get_audit_template",
     "create_audit_template",
+    "update_audit_template",
+    "delete_audit_template",
     "start_audit",
     "get_audit_status",
     "get_audit_result",
@@ -29,16 +34,18 @@ EXPECTED_TOOLS = [
     "get_recommendation_status",
     "get_recommendation_result",
     "get_recommendation_insights",
+    "list_recommendations",
     "start_solution",
     "get_solution_status",
     "get_solution_result",
+    "list_solutions",
     "get_job_status",
 ]
 
 
 @pytest.mark.usefixtures("_mcp_available")
 def test_all_tools_registered():
-    from cited_cli.mcp.server import mcp
+    from cited_mcp.server import mcp
 
     tool_names = [t.name for t in mcp._tool_manager.list_tools()]
     assert len(tool_names) == len(EXPECTED_TOOLS)
@@ -48,7 +55,7 @@ def test_all_tools_registered():
 
 @pytest.mark.usefixtures("_mcp_available")
 def test_all_tools_have_descriptions():
-    from cited_cli.mcp.server import mcp
+    from cited_mcp.server import mcp
 
     for tool in mcp._tool_manager.list_tools():
         assert tool.description, f"Tool {tool.name} has no description"

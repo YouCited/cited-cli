@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cited": {
+      "command": "uvx",
+      "args": ["cited-mcp"],
+      "env": {
+        "CITED_ENV": "prod"
+      }
+    }
+  }
+}

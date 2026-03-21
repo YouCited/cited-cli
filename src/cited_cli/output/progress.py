@@ -7,8 +7,8 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
 
-from cited_cli.api.client import CitedClient
 from cited_cli.utils.errors import CitedAPIError
+from cited_core.api.client import CitedClient
 
 
 def watch_job(

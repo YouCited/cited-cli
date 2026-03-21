@@ -5,14 +5,14 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from cited_cli.api import endpoints
-from cited_cli.api.client import CitedClient
-from cited_cli.auth.store import TokenStore
-from cited_cli.config.manager import ConfigManager
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
 from cited_cli.output.tables import render_kv, render_table
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
 from cited_cli.utils.interactive import can_prompt, prompt_if_missing
+from cited_core.api import endpoints
+from cited_core.api.client import CitedClient
+from cited_core.auth.store import TokenStore
+from cited_core.config.manager import ConfigManager
 
 named_audit_app = typer.Typer(name="template", help="Manage audit templates.")
 

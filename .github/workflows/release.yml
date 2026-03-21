@@ -20,23 +20,35 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tools
-        run: pip install build
+        run: pip install build twine
 
-      - name: Build sdist and wheel
+      # Build and publish in dependency order: core → mcp → cli
+      - name: Build and publish cited-core
+        run: |
+          cd packages/core
+          python -m build
+          twine upload dist/* -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+        env:
+          TWINE_NON_INTERACTIVE: "1"
+
+      - name: Build and publish cited-mcp
+        run: |
+          cd packages/mcp
+          python -m build
+          twine upload dist/* -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+        env:
+          TWINE_NON_INTERACTIVE: "1"
+
+      - name: Build cited-cli
         run: python -m build
+
+      - name: Publish cited-cli to PyPI
+        run: twine upload dist/* -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+        env:
+          TWINE_NON_INTERACTIVE: "1"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           generate_release_notes: true
-
-      # Future: update Homebrew tap formula (requires HOMEBREW_TAP_TOKEN secret)
-      # - name: Update Homebrew formula
-      #   uses: mislav/bump-homebrew-formula-action@v3
-      #   with:
-      #     formula-name: cited
-      #     homebrew-tap: YouCited/homebrew-cited
-      #     download-url: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cited_cli-${{ github.ref_name }}.tar.gz
-      #   env:
-      #     COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

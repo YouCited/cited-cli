@@ -18,7 +18,7 @@ def mcp_serve(
 ) -> None:
     """Start the MCP server (stdio transport) for AI agent tool calls."""
     try:
-        from cited_cli.mcp.server import run_server
+        from cited_mcp.server import run_server
     except ImportError:
         print(
             'MCP dependencies not installed. Run: pip install "cited-cli[mcp]"',
