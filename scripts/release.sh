@@ -6,11 +6,11 @@
 #   ./scripts/release.sh <new_version>
 #
 # Example:
-#   ./scripts/release.sh 0.2.0
+#   ./scripts/release.sh 0.3.2
 #
 # What it does:
 #   1. Validates the version argument and checks for clean git state
-#   2. Bumps version in pyproject.toml and src/cited_cli/__init__.py
+#   2. Bumps version in all pyproject.toml files and cited_core/__init__.py
 #   3. Commits the version bump and creates a git tag (v<version>)
 #   4. Pushes the commit and tag to origin (triggers GitHub Actions release)
 #   5. Waits for the GitHub release to create the tarball
@@ -32,14 +32,20 @@ FORMULA="$TAP_REPO/Formula/cited.rb"
 GITHUB_REPO="YouCited/cited-cli"
 VENV="$CLI_REPO/.venv"
 
+# Version files (single source of truth + mirrors)
+VERSION_SOURCE="$CLI_REPO/packages/core/src/cited_core/__init__.py"
+PYPROJECT_ROOT="$CLI_REPO/pyproject.toml"
+PYPROJECT_CORE="$CLI_REPO/packages/core/pyproject.toml"
+PYPROJECT_MCP="$CLI_REPO/packages/mcp/pyproject.toml"
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 die()  { echo "Error: $*" >&2; exit 1; }
 info() { echo "→ $*"; }
 
 # ── Validate args ─────────────────────────────────────────────────────────────
 VERSION="${1:-}"
-[[ -z "$VERSION" ]] && die "Usage: $0 <new_version>  (e.g. 0.2.0)"
-[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Version must be semver (e.g. 0.2.0)"
+[[ -z "$VERSION" ]] && die "Usage: $0 <new_version>  (e.g. 0.3.2)"
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Version must be semver (e.g. 0.3.2)"
 TAG="v$VERSION"
 
 # ── Pre-flight checks ────────────────────────────────────────────────────────
@@ -64,17 +70,26 @@ fi
 # ── Step 1: Bump version ─────────────────────────────────────────────────────
 info "Bumping version to $VERSION"
 
-sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
-sed -i '' "s/^__version__ = \".*\"/__version__ = \"$VERSION\"/" src/cited_cli/__init__.py
+# Single source of truth
+sed -i '' "s/^__version__ = \".*\"/__version__ = \"$VERSION\"/" "$VERSION_SOURCE"
+grep -q "__version__ = \"$VERSION\"" "$VERSION_SOURCE" || die "Failed to update $VERSION_SOURCE"
 
-# Verify the bump
-grep -q "version = \"$VERSION\"" pyproject.toml || die "Failed to update pyproject.toml"
-grep -q "__version__ = \"$VERSION\"" src/cited_cli/__init__.py || die "Failed to update __init__.py"
+# Mirror in all pyproject.toml files
+for pyp in "$PYPROJECT_ROOT" "$PYPROJECT_CORE" "$PYPROJECT_MCP"; do
+    sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" "$pyp"
+    grep -q "version = \"$VERSION\"" "$pyp" || die "Failed to update $pyp"
+done
+
+# Also update cited-core dependency pins in mcp and cli pyproject.toml
+sed -i '' "s/\"cited-core>=.*\"/\"cited-core>=$VERSION\"/" "$PYPROJECT_ROOT" "$PYPROJECT_MCP"
+sed -i '' "s/\"cited-mcp>=.*\"/\"cited-mcp>=$VERSION\"/" "$PYPROJECT_ROOT"
+
+info "Version bumped in 4 files"
 
 # ── Step 2: Commit and tag ────────────────────────────────────────────────────
 info "Committing version bump and creating tag $TAG"
 
-git add pyproject.toml src/cited_cli/__init__.py
+git add "$VERSION_SOURCE" "$PYPROJECT_ROOT" "$PYPROJECT_CORE" "$PYPROJECT_MCP"
 git commit -m "chore: bump version to $VERSION"
 git tag "$TAG"
 
@@ -123,11 +138,11 @@ TMPVENV="$TMPDIR_RELEASE/venv"
 "$TMPVENV/bin/python" -c "
 import importlib.metadata
 import json
-import subprocess
 import sys
+import urllib.request
 
 # Get all installed packages except cited-cli itself, pip, setuptools, wheel
-skip = {'cited-cli', 'pip', 'setuptools', 'wheel', 'pkg_resources'}
+skip = {'cited-cli', 'cited-core', 'pip', 'setuptools', 'wheel', 'pkg_resources'}
 packages = []
 for dist in importlib.metadata.distributions():
     name = dist.metadata['Name']
@@ -136,11 +151,7 @@ for dist in importlib.metadata.distributions():
     version = dist.metadata['Version']
     packages.append((name, version))
 
-# Sort for stable output
 packages.sort(key=lambda x: x[0].lower())
-
-# For each package, get the sdist URL and hash from PyPI JSON API
-import urllib.request
 
 for name, version in packages:
     url = f'https://pypi.org/pypi/{name}/{version}/json'
@@ -151,7 +162,6 @@ for name, version in packages:
         print(f'# WARNING: Could not fetch {name}=={version}: {e}', file=sys.stderr)
         continue
 
-    # Find sdist (tar.gz) URL
     sdist = None
     for u in data['urls']:
         if u['packagetype'] == 'sdist':
@@ -220,8 +230,11 @@ fi
 echo ""
 echo "✓ Release $TAG complete!"
 echo ""
-echo "  cited-cli:      $TAG pushed, GitHub release created"
-echo "  homebrew-cited:  formula updated to $TAG"
+echo "  PyPI:           cited-core, cited-mcp, cited-cli published (via GitHub Actions)"
+echo "  GitHub:         $TAG pushed, release created"
+echo "  Homebrew:       formula updated to $TAG"
 echo ""
 echo "  Users can now run:"
 echo "    brew update && brew upgrade cited"
+echo "    pip install --upgrade cited-cli"
+echo "    uvx cited-mcp  # auto-updates"
