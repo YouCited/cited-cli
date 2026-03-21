@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "cited",
-      "source": ".",
+      "source": "./",
       "description": "Audit, optimize, and monitor AI search presence for any business",
       "version": "0.3.2",
       "author": {
