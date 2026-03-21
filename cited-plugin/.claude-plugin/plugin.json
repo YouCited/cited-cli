@@ -1,0 +1,13 @@
+{
+  "name": "cited",
+  "description": "Cited GEO platform — audit, optimize, and monitor AI search presence for any business",
+  "version": "0.3.1",
+  "author": {
+    "name": "Cited",
+    "url": "https://youcited.com"
+  },
+  "homepage": "https://youcited.com",
+  "repository": "https://github.com/YouCited/cited-cli",
+  "license": "LicenseRef-Proprietary",
+  "keywords": ["geo", "seo", "ai-search", "audit", "cited"]
+}

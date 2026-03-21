@@ -16,6 +16,7 @@ from cited_cli.commands.business import business_app
 from cited_cli.commands.config_cmd import config_app
 from cited_cli.commands.hq import hq_app
 from cited_cli.commands.job import job_app
+from cited_cli.commands.mcp_cmd import mcp_app
 from cited_cli.commands.named_audit import named_audit_app
 from cited_cli.commands.recommend import recommend_app
 from cited_cli.commands.solution import solution_app
@@ -45,6 +46,7 @@ app.add_typer(hq_app, name="hq")
 app.add_typer(analytics_app, name="analytics")
 app.add_typer(agent_app, name="agent")
 app.add_typer(job_app, name="job")
+app.add_typer(mcp_app, name="mcp")
 
 
 def _version_callback(value: bool) -> None:
