@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import logging
 import secrets
 import time
 from urllib.parse import urlencode
 
-import jwt
+import jwt as pyjwt
 from mcp.server.auth.provider import (
     AccessToken,
     AuthorizationCode,
@@ -14,6 +15,21 @@ from mcp.server.auth.provider import (
 )
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 from pydantic import AnyUrl
+
+logger = logging.getLogger(__name__)
+
+
+class _PermissiveLocalhostClient(OAuthClientInformationFull):
+    """Client that accepts any localhost redirect_uri (dynamic ports)."""
+
+    def validate_redirect_uri(self, redirect_uri: AnyUrl | None) -> AnyUrl:
+        if redirect_uri is not None and str(redirect_uri).startswith("http://localhost"):
+            return redirect_uri
+        return super().validate_redirect_uri(redirect_uri)
+
+# Token lifetimes
+ACCESS_TOKEN_TTL = 3600  # 1 hour
+REFRESH_TOKEN_TTL = 86400 * 7  # 7 days (matches backend JWT TTL)
 
 
 class CitedAuthCode(AuthorizationCode):
@@ -39,14 +55,12 @@ class CitedOAuthProvider(
 ):
     """OAuth provider that delegates user authentication to the Cited backend.
 
-    The MCP server acts as both the OAuth authorization server (for Claude Desktop)
-    and as a relay to the Cited backend API. The flow:
+    Access and refresh tokens are **stateless signed JWTs**, so they survive
+    server restarts, deploys, and Fargate Spot reclaims without triggering
+    re-authentication in Claude Desktop.
 
-    1. Claude Desktop -> MCP /authorize -> redirect to backend /auth/authorize-app
-    2. Backend authenticates user -> redirects to MCP /oauth/callback with JWT
-    3. MCP /oauth/callback -> generates auth code -> redirects to Claude Desktop
-    4. Claude Desktop -> MCP /token -> exchanges code for access/refresh tokens
-    5. Claude Desktop -> MCP /mcp with Bearer token -> MCP uses stored JWT for API calls
+    Auth codes remain in-memory (short-lived, single-use, exchanged in seconds).
+    Client registrations are also in-memory — Claude Desktop re-registers each session.
     """
 
     def __init__(self, backend_url: str, mcp_url: str, jwt_secret: str) -> None:
@@ -55,21 +69,114 @@ class CitedOAuthProvider(
         self.jwt_secret = jwt_secret
         self._clients: dict[str, OAuthClientInformationFull] = {}
         self._auth_codes: dict[str, CitedAuthCode] = {}
-        self._access_tokens: dict[str, CitedAccessToken] = {}
-        self._refresh_tokens: dict[str, CitedRefreshToken] = {}
+
+    # -- Stateless token helpers --
+
+    def _encode_token(self, payload: dict) -> str:
+        return pyjwt.encode(payload, self.jwt_secret, algorithm="HS256")
+
+    def _decode_token(self, token: str) -> dict | None:
+        try:
+            return pyjwt.decode(token, self.jwt_secret, algorithms=["HS256"])
+        except pyjwt.ExpiredSignatureError:
+            return None
+        except pyjwt.InvalidTokenError:
+            return None
+
+    def _issue_tokens(
+        self,
+        user_jwt: str,
+        client_id: str,
+        scopes: list[str],
+        resource: str | None = None,
+    ) -> OAuthToken:
+        now = int(time.time())
+
+        access_payload = {
+            "typ": "access",
+            "sub": client_id,
+            "scopes": scopes,
+            "user_jwt": user_jwt,
+            "exp": now + ACCESS_TOKEN_TTL,
+            "iat": now,
+        }
+        if resource:
+            access_payload["resource"] = resource
+
+        refresh_payload = {
+            "typ": "refresh",
+            "sub": client_id,
+            "scopes": scopes,
+            "user_jwt": user_jwt,
+            "exp": now + REFRESH_TOKEN_TTL,
+            "iat": now,
+        }
+
+        return OAuthToken(
+            access_token=self._encode_token(access_payload),
+            refresh_token=self._encode_token(refresh_payload),
+            expires_in=ACCESS_TOKEN_TTL,
+        )
 
     # -- Client registration (RFC 7591) --
+    # Client info is stored in-memory AND encoded into a signed client_id JWT.
+    # On get_client, if the in-memory lookup misses (post-restart), we decode
+    # the client_id JWT to reconstruct the registration — making it survive restarts.
 
     async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
-        return self._clients.get(client_id)
+        # Try in-memory first
+        client = self._clients.get(client_id)
+        if client:
+            return client
+
+        # Try to reconstruct from signed client_id JWT (post-restart recovery)
+        payload = self._decode_token(client_id)
+        if payload and payload.get("typ") == "client":
+            client_info = OAuthClientInformationFull(
+                client_id=client_id,
+                client_secret=payload.get("client_secret"),
+                client_id_issued_at=payload.get("iat", int(time.time())),
+                redirect_uris=[AnyUrl(u) for u in payload.get("redirect_uris", [])],
+                scope=payload.get("scope"),
+                token_endpoint_auth_method=payload.get("token_endpoint_auth_method", "none"),
+            )
+            self._clients[client_id] = client_info
+            return client_info
+
+        # Accept unknown client IDs (e.g. old UUID-format registrations lost on restart).
+        # Security relies on PKCE, not client identity — this avoids forcing re-registration
+        # on every deploy. We use http://localhost as a permissive redirect_uri since Claude
+        # Desktop uses dynamic localhost ports for OAuth callbacks.
+        logger.info("Auto-accepting unknown client_id: %s", client_id[:12])
+        client_info = _PermissiveLocalhostClient(
+            client_id=client_id,
+            client_id_issued_at=int(time.time()),
+            redirect_uris=[AnyUrl("http://localhost")],
+            scope="cited",
+            token_endpoint_auth_method="none",
+        )
+        self._clients[client_id] = client_info
+        return client_info
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
-        if client_info.client_id is None:
-            client_info.client_id = secrets.token_urlsafe(24)
-        # Only generate a secret if the client expects one (not "none" auth method)
+        # Generate a client_secret if needed
         if client_info.token_endpoint_auth_method != "none" and client_info.client_secret is None:
             client_info.client_secret = secrets.token_urlsafe(48)
-        client_info.client_id_issued_at = int(time.time())
+
+        now = int(time.time())
+        # Encode client registration into a signed JWT as the client_id
+        client_payload = {
+            "typ": "client",
+            "redirect_uris": [str(u) for u in (client_info.redirect_uris or [])],
+            "token_endpoint_auth_method": client_info.token_endpoint_auth_method or "none",
+            "scope": client_info.scope,
+            "iat": now,
+        }
+        if client_info.client_secret:
+            client_payload["client_secret"] = client_info.client_secret
+
+        client_info.client_id = self._encode_token(client_payload)
+        client_info.client_id_issued_at = now
         self._clients[client_info.client_id] = client_info
 
     # -- Authorization --
@@ -79,11 +186,7 @@ class CitedOAuthProvider(
         client: OAuthClientInformationFull,
         params: AuthorizationParams,
     ) -> str:
-        """Redirect the user to the Cited backend for authentication.
-
-        We encode the original OAuth params into a signed state JWT so the
-        /oauth/callback handler can reconstruct the authorization code response.
-        """
+        """Redirect the user to the Cited backend for authentication."""
         state_payload = {
             "client_id": client.client_id,
             "code_challenge": params.code_challenge,
@@ -91,11 +194,11 @@ class CitedOAuthProvider(
             "redirect_uri_provided_explicitly": params.redirect_uri_provided_explicitly,
             "scopes": params.scopes or [],
             "original_state": params.state,
-            "exp": int(time.time()) + 600,  # 10 minute expiry
+            "exp": int(time.time()) + 600,
         }
         if params.resource:
             state_payload["resource"] = params.resource
-        signed_state = jwt.encode(state_payload, self.jwt_secret, algorithm="HS256")
+        signed_state = pyjwt.encode(state_payload, self.jwt_secret, algorithm="HS256")
 
         callback_url = f"{self.mcp_url}/oauth/callback"
         query = urlencode({
@@ -105,7 +208,7 @@ class CitedOAuthProvider(
         })
         return f"{self.backend_url}/auth/authorize-app?{query}"
 
-    # -- Authorization code handling --
+    # -- Authorization code handling (in-memory, short-lived) --
 
     async def load_authorization_code(
         self,
@@ -122,53 +225,33 @@ class CitedOAuthProvider(
         client: OAuthClientInformationFull,
         authorization_code: CitedAuthCode,
     ) -> OAuthToken:
-        # Remove the auth code (single use)
         self._auth_codes.pop(authorization_code.code, None)
-
-        user_jwt = authorization_code.user_jwt
-        scopes = authorization_code.scopes
-
-        access_token_str = secrets.token_urlsafe(32)
-        refresh_token_str = secrets.token_urlsafe(32)
-        now = int(time.time())
-
-        self._access_tokens[access_token_str] = CitedAccessToken(
-            token=access_token_str,
+        return self._issue_tokens(
+            user_jwt=authorization_code.user_jwt,
             client_id=client.client_id or "",
-            scopes=scopes,
-            expires_at=now + 3600,
-            user_jwt=user_jwt,
+            scopes=authorization_code.scopes,
             resource=authorization_code.resource,
         )
 
-        self._refresh_tokens[refresh_token_str] = CitedRefreshToken(
-            token=refresh_token_str,
-            client_id=client.client_id or "",
-            scopes=scopes,
-            expires_at=now + 86400 * 30,  # 30 days
-            user_jwt=user_jwt,
-        )
-
-        return OAuthToken(
-            access_token=access_token_str,
-            refresh_token=refresh_token_str,
-            expires_in=3600,
-        )
-
-    # -- Refresh token handling --
+    # -- Refresh token handling (stateless JWT) --
 
     async def load_refresh_token(
         self,
         client: OAuthClientInformationFull,
         refresh_token: str,
     ) -> CitedRefreshToken | None:
-        rt = self._refresh_tokens.get(refresh_token)
-        if rt and rt.client_id != client.client_id:
+        payload = self._decode_token(refresh_token)
+        if not payload or payload.get("typ") != "refresh":
             return None
-        if rt and rt.expires_at and rt.expires_at < time.time():
-            self._refresh_tokens.pop(refresh_token, None)
+        if payload.get("sub") != client.client_id:
             return None
-        return rt
+        return CitedRefreshToken(
+            token=refresh_token,
+            client_id=payload["sub"],
+            scopes=payload.get("scopes", []),
+            expires_at=payload.get("exp"),
+            user_jwt=payload["user_jwt"],
+        )
 
     async def exchange_refresh_token(
         self,
@@ -176,78 +259,38 @@ class CitedOAuthProvider(
         refresh_token: CitedRefreshToken,
         scopes: list[str],
     ) -> OAuthToken:
-        # Rotate both tokens
-        self._refresh_tokens.pop(refresh_token.token, None)
-        # Revoke old access tokens for this client
-        old_access_keys = [
-            k for k, v in self._access_tokens.items()
-            if v.client_id == client.client_id
-        ]
-        for k in old_access_keys:
-            del self._access_tokens[k]
-
-        user_jwt = refresh_token.user_jwt
         effective_scopes = scopes if scopes else refresh_token.scopes
-
-        new_access = secrets.token_urlsafe(32)
-        new_refresh = secrets.token_urlsafe(32)
-        now = int(time.time())
-
-        self._access_tokens[new_access] = CitedAccessToken(
-            token=new_access,
+        return self._issue_tokens(
+            user_jwt=refresh_token.user_jwt,
             client_id=client.client_id or "",
             scopes=effective_scopes,
-            expires_at=now + 3600,
-            user_jwt=user_jwt,
         )
 
-        self._refresh_tokens[new_refresh] = CitedRefreshToken(
-            token=new_refresh,
-            client_id=client.client_id or "",
-            scopes=effective_scopes,
-            expires_at=now + 86400 * 30,
-            user_jwt=user_jwt,
-        )
-
-        return OAuthToken(
-            access_token=new_access,
-            refresh_token=new_refresh,
-            expires_in=3600,
-        )
-
-    # -- Access token verification --
+    # -- Access token verification (stateless JWT) --
 
     async def load_access_token(self, token: str) -> CitedAccessToken | None:
-        at = self._access_tokens.get(token)
-        if at and at.expires_at and at.expires_at < time.time():
-            self._access_tokens.pop(token, None)
+        payload = self._decode_token(token)
+        if not payload or payload.get("typ") != "access":
             return None
-        return at
+        return CitedAccessToken(
+            token=token,
+            client_id=payload["sub"],
+            scopes=payload.get("scopes", []),
+            expires_at=payload.get("exp"),
+            user_jwt=payload["user_jwt"],
+            resource=payload.get("resource"),
+        )
 
-    # -- Revocation --
+    # -- Revocation (best-effort, no-op for stateless tokens) --
 
     async def revoke_token(
         self,
         token: CitedAccessToken | CitedRefreshToken,
     ) -> None:
-        if isinstance(token, CitedAccessToken):
-            self._access_tokens.pop(token.token, None)
-            # Also revoke refresh tokens for same client
-            to_remove = [
-                k for k, v in self._refresh_tokens.items()
-                if v.client_id == token.client_id
-            ]
-            for k in to_remove:
-                del self._refresh_tokens[k]
-        elif isinstance(token, CitedRefreshToken):
-            self._refresh_tokens.pop(token.token, None)
-            # Also revoke access tokens for same client
-            to_remove = [
-                k for k, v in self._access_tokens.items()
-                if v.client_id == token.client_id
-            ]
-            for k in to_remove:
-                del self._access_tokens[k]
+        # Stateless JWTs can't be revoked server-side without a blocklist.
+        # For this use case (Claude Desktop), explicit revocation is rare
+        # and tokens expire naturally.
+        logger.debug("Token revocation requested (no-op for stateless tokens)")
 
     # -- Helper: store auth code from callback --
 
@@ -270,7 +313,7 @@ class CitedOAuthProvider(
             redirect_uri=AnyUrl(redirect_uri),
             redirect_uri_provided_explicitly=redirect_uri_provided_explicitly,
             scopes=scopes,
-            expires_at=time.time() + 300,  # 5 minute expiry
+            expires_at=time.time() + 300,
             user_jwt=user_jwt,
             resource=resource,
         )
