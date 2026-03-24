@@ -14,6 +14,12 @@ FRONTEND_URLS: dict[str, str] = {
     "local": "http://localhost:3000",
 }
 
+MCP_URLS: dict[str, str] = {
+    "prod": "https://mcp.youcited.com",
+    "dev": "https://mcpdev.youcited.com",
+    "local": "http://localhost:8080",
+}
+
 DEFAULT_ENV = "prod"
 CONFIG_DIR = Path.home() / ".cited"
 CONFIG_FILE = CONFIG_DIR / "config.toml"

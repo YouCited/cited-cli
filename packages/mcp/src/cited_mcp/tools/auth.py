@@ -32,11 +32,26 @@ async def check_auth_status(ctx: Context[Any, CitedContext, Any]) -> Any:
 async def login(ctx: Context[Any, CitedContext, Any], env: str | None = None) -> Any:
     """Log in to Cited by opening a browser window for OAuth authentication.
 
+    In remote mode (HTTP transport), authentication is handled automatically via
+    OAuth — this tool is only needed for stdio transport.
+
     Args:
         ctx: MCP context
         env: Optional environment override (dev, prod, local)
     """
     cited_ctx = _get_ctx(ctx)
+
+    # If already authenticated (e.g. remote mode with OAuth), skip login
+    if cited_ctx.client.token:
+        try:
+            user = cited_ctx.client.get(endpoints.ME)
+            return {
+                "success": True,
+                "message": f"Already authenticated as {user.get('email', 'unknown')}",
+            }
+        except CitedAPIError:
+            pass  # Token invalid, proceed with login flow
+
     target_env = env or cited_ctx.env
 
     callback_server = OAuthCallbackServer(timeout=120.0)
