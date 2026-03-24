@@ -8,21 +8,46 @@ set -euo pipefail
 # ECS service — all via AWS CLI (no CDK dependency).
 #
 # Usage:
-#   ./scripts/deploy-mcp.sh dev     # Deploy to dev (mcpdev.youcited.com)
-#   ./scripts/deploy-mcp.sh prod    # Deploy to prod (mcp.youcited.com)
+#   ./scripts/deploy-mcp.sh dev              # Deploy to dev (mcpdev.youcited.com)
+#   ./scripts/deploy-mcp.sh prod             # Deploy to prod (mcp.youcited.com) — requires prod AWS account
+#   ./scripts/deploy-mcp.sh prod --dev-infra  # Deploy prod MCP on dev AWS infra (prod API suspended)
+#
+# The --dev-infra flag deploys the prod MCP service (pointing at api.youcited.com)
+# onto the dev AWS account's infrastructure. Useful when the prod AWS account is
+# suspended. The MCP server is stateless — it just relays authenticated requests.
 #
 # Prerequisites:
 #   - AWS SSO session: aws sso login --profile advgeo-<env>
 #   - Docker running locally
 #   - SSM params from the cited backend CDK (VPC, cluster, ALB, etc.)
+#   - For --dev-infra: JWT secret at cited-mcp-prod/jwt-secret in dev account
 
 ENV="${1:-}"
+DEV_INFRA=false
+if [[ "${2:-}" == "--dev-infra" ]]; then
+    DEV_INFRA=true
+fi
+
 if [[ -z "$ENV" || ! "$ENV" =~ ^(dev|prod)$ ]]; then
-    echo "Usage: $0 <dev|prod>"
+    echo "Usage: $0 <dev|prod> [--dev-infra]"
     exit 1
 fi
 
-PROFILE="advgeo-${ENV}"
+if [[ "$DEV_INFRA" == true && "$ENV" != "prod" ]]; then
+    echo "Error: --dev-infra is only valid with prod environment"
+    exit 1
+fi
+
+# Infrastructure profile: which AWS account to deploy to
+if [[ "$DEV_INFRA" == true ]]; then
+    INFRA_ENV="dev"
+    PROFILE="advgeo-dev"
+    echo "*** Cross-account deploy: prod MCP service on dev AWS infrastructure ***"
+else
+    INFRA_ENV="$ENV"
+    PROFILE="advgeo-${ENV}"
+fi
+
 REGION="us-east-1"
 SERVICE_NAME="cited-mcp-${ENV}"
 CONTAINER_NAME="cited-mcp"
@@ -30,7 +55,7 @@ CONTAINER_PORT=8080
 CPU=256
 MEMORY=512
 
-# Environment-specific config
+# Environment-specific config (always based on target ENV, not infra)
 if [[ "$ENV" == "dev" ]]; then
     MCP_URL="https://mcpdev.youcited.com"
     API_URL="https://dev.youcited.com"
@@ -41,17 +66,17 @@ else
     MCP_HOST="mcp.youcited.com"
 fi
 
-echo "==> Deploying MCP server to ${ENV} (${MCP_HOST})"
+echo "==> Deploying MCP server to ${ENV} (${MCP_HOST}) [infra: ${INFRA_ENV}]"
 
 # ── Resolve SSM parameters from existing infra ──────────────────────────────
-echo "    Resolving infrastructure parameters..."
+echo "    Resolving infrastructure parameters from ${INFRA_ENV} account..."
 ssm() { aws --profile "$PROFILE" --region "$REGION" ssm get-parameter --name "$1" --query Parameter.Value --output text; }
 
-VPC_ID=$(ssm "/advgeo/${ENV}/vpc-id")
-SUBNET_IDS=$(ssm "/advgeo/${ENV}/private-subnet-ids")
-ECS_CLUSTER=$(ssm "/advgeo/${ENV}/ecs-cluster-arn")
-ECS_SG=$(ssm "/advgeo/${ENV}/ecs-security-group-id")
-HTTPS_LISTENER=$(ssm "/advgeo/${ENV}/https-listener-arn")
+VPC_ID=$(ssm "/advgeo/${INFRA_ENV}/vpc-id")
+SUBNET_IDS=$(ssm "/advgeo/${INFRA_ENV}/private-subnet-ids")
+ECS_CLUSTER=$(ssm "/advgeo/${INFRA_ENV}/ecs-cluster-arn")
+ECS_SG=$(ssm "/advgeo/${INFRA_ENV}/ecs-security-group-id")
+HTTPS_LISTENER=$(ssm "/advgeo/${INFRA_ENV}/https-listener-arn")
 ACCOUNT_ID=$(aws --profile "$PROFILE" sts get-caller-identity --query Account --output text)
 
 echo "    VPC: ${VPC_ID}"
@@ -115,11 +140,14 @@ RULE_EXISTS=$(aws --profile "$PROFILE" --region "$REGION" elbv2 describe-rules \
     --query "Rules[?Conditions[?Field=='host-header' && Values[?contains(@,'${MCP_HOST}')]]]|[0].RuleArn" \
     --output text 2>/dev/null || echo "None")
 
+# Assign different priorities so dev and prod rules can coexist on the same ALB
+if [[ "$ENV" == "dev" ]]; then RULE_PRIORITY=1; else RULE_PRIORITY=2; fi
+
 if [[ "$RULE_EXISTS" == "None" || -z "$RULE_EXISTS" ]]; then
-    echo "    Creating listener rule for ${MCP_HOST}"
+    echo "    Creating listener rule for ${MCP_HOST} (priority ${RULE_PRIORITY})"
     aws --profile "$PROFILE" --region "$REGION" elbv2 create-rule \
         --listener-arn "$HTTPS_LISTENER" \
-        --priority 1 \
+        --priority "$RULE_PRIORITY" \
         --conditions "Field=host-header,Values=${MCP_HOST}" \
         --actions "Type=forward,TargetGroupArn=${TG_ARN}" \
         --query "Rules[0].RuleArn" --output text
@@ -128,15 +156,28 @@ else
 fi
 
 # ── Resolve JWT secret ARN ──────────────────────────────────────────────────
-JWT_SECRET_ARN=$(aws --profile "$PROFILE" --region "$REGION" secretsmanager list-secrets \
-    --filters "Key=name,Values=advgeo/${ENV}/jwt-secret" \
-    --query "SecretList[0].ARN" --output text)
+if [[ "$DEV_INFRA" == true ]]; then
+    # Cross-account: use dedicated prod JWT secret stored in dev account
+    JWT_SECRET_ARN=$(aws --profile "$PROFILE" --region "$REGION" secretsmanager list-secrets \
+        --filters "Key=name,Values=cited-mcp-prod/jwt-secret" \
+        --query "SecretList[0].ARN" --output text)
+else
+    JWT_SECRET_ARN=$(aws --profile "$PROFILE" --region "$REGION" secretsmanager list-secrets \
+        --filters "Key=name,Values=advgeo/${ENV}/jwt-secret" \
+        --query "SecretList[0].ARN" --output text)
+fi
+if [[ -z "$JWT_SECRET_ARN" || "$JWT_SECRET_ARN" == "None" ]]; then
+    echo "Error: JWT secret not found. For --dev-infra, create it first:"
+    echo "  aws --profile advgeo-dev --region us-east-1 secretsmanager create-secret \\"
+    echo "    --name cited-mcp-prod/jwt-secret --secret-string \"\$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')\""
+    exit 1
+fi
 echo "    JWT secret: ${JWT_SECRET_ARN}"
 
 # ── IAM roles (reuse existing execution role, create minimal task role) ─────
 # Get execution role from existing API task definition
 API_TASKDEF=$(aws --profile "$PROFILE" --region "$REGION" ecs describe-services \
-    --cluster advgeo-${ENV} --services advgeo-${ENV}-api \
+    --cluster advgeo-${INFRA_ENV} --services advgeo-${INFRA_ENV}-api \
     --query "services[0].taskDefinition" --output text)
 EXEC_ROLE=$(aws --profile "$PROFILE" --region "$REGION" ecs describe-task-definition \
     --task-definition "$API_TASKDEF" \
@@ -181,7 +222,7 @@ cat > "$TASKDEF_FILE" <<EOF
             "logConfiguration": {
                 "logDriver": "awslogs",
                 "options": {
-                    "awslogs-group": "/ecs/advgeo-${ENV}",
+                    "awslogs-group": "/ecs/advgeo-${INFRA_ENV}",
                     "awslogs-region": "${REGION}",
                     "awslogs-stream-prefix": "mcp"
                 }
@@ -199,7 +240,7 @@ echo "    Task definition: ${TASKDEF_ARN}"
 
 # ── ECS service ─────────────────────────────────────────────────────────────
 SERVICE_EXISTS=$(aws --profile "$PROFILE" --region "$REGION" ecs describe-services \
-    --cluster "advgeo-${ENV}" --services "$SERVICE_NAME" \
+    --cluster "advgeo-${INFRA_ENV}" --services "$SERVICE_NAME" \
     --query "services[?status=='ACTIVE']|[0].serviceName" --output text 2>/dev/null || echo "None")
 
 # Format subnet IDs for JSON array
@@ -209,7 +250,7 @@ SUBNET_JSON=$(printf '"%s",' "${SUBNET_ARR[@]}" | sed 's/,$//')
 if [[ "$SERVICE_EXISTS" == "None" || -z "$SERVICE_EXISTS" ]]; then
     echo "==> Creating ECS service: ${SERVICE_NAME}"
     aws --profile "$PROFILE" --region "$REGION" ecs create-service \
-        --cluster "advgeo-${ENV}" \
+        --cluster "advgeo-${INFRA_ENV}" \
         --service-name "$SERVICE_NAME" \
         --task-definition "$TASKDEF_ARN" \
         --desired-count 1 \
@@ -221,7 +262,7 @@ if [[ "$SERVICE_EXISTS" == "None" || -z "$SERVICE_EXISTS" ]]; then
 else
     echo "==> Updating ECS service: ${SERVICE_NAME}"
     aws --profile "$PROFILE" --region "$REGION" ecs update-service \
-        --cluster "advgeo-${ENV}" \
+        --cluster "advgeo-${INFRA_ENV}" \
         --service "$SERVICE_NAME" \
         --task-definition "$TASKDEF_ARN" \
         --force-new-deployment \
@@ -235,7 +276,7 @@ echo "    URL: ${MCP_URL}"
 echo ""
 echo "    Waiting for service to stabilize..."
 aws --profile "$PROFILE" --region "$REGION" ecs wait services-stable \
-    --cluster "advgeo-${ENV}" --services "$SERVICE_NAME" && \
+    --cluster "advgeo-${INFRA_ENV}" --services "$SERVICE_NAME" && \
     echo "    ✓ Service is stable!" || \
     echo "    ⚠ Service did not stabilize within timeout. Check ECS console."
 
