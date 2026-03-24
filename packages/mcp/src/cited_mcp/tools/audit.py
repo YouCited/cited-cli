@@ -61,7 +61,7 @@ async def create_audit_template(
     if description is not None:
         payload["description"] = description
     if questions is not None:
-        payload["questions"] = questions
+        payload["questions"] = [{"question": q} for q in questions]
     try:
         return cited_ctx.client.post(endpoints.NAMED_AUDITS, json=payload)
     except CitedAPIError as e:
@@ -94,7 +94,7 @@ async def update_audit_template(
     if description is not None:
         payload["description"] = description
     if questions is not None:
-        payload["questions"] = questions
+        payload["questions"] = [{"question": q} for q in questions]
     try:
         return cited_ctx.client.put(
             endpoints.NAMED_AUDIT.format(named_audit_id=named_audit_id), json=payload

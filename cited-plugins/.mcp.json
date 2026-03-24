@@ -1,11 +1,8 @@
 {
   "mcpServers": {
     "cited": {
-      "command": "uvx",
-      "args": ["cited-mcp"],
-      "env": {
-        "CITED_ENV": "prod"
-      }
+      "type": "http",
+      "url": "https://mcpdev.youcited.com"
     }
   }
 }

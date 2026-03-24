@@ -59,20 +59,25 @@ def _browser_auth(
     *, mode: str = "login",
 ) -> None:
     import webbrowser
+    from urllib.parse import urlencode
 
-    from cited_cli.auth.oauth_server import OAuthCallbackServer
+    from cited_core.auth.oauth_server import OAuthCallbackServer
 
-    server = OAuthCallbackServer(timeout=120)
-    server.start()
+    callback_server = OAuthCallbackServer(timeout=120)
+    callback_server.start()
 
-    client = CitedClient(base_url=api_url)
     try:
-        payload: dict[str, str] = {"redirect_uri": server.redirect_uri, "mode": mode}
+        # Build the authorize-app URL — the backend handles login/consent/redirect
+        params: dict[str, str] = {
+            "callback": callback_server.redirect_uri,
+            "app_name": "cited-cli",
+        }
         if provider:
-            payload["provider"] = provider
+            params["provider"] = provider
+        if mode == "register":
+            params["mode"] = "register"
 
-        response = client.post(endpoints.CLI_OAUTH_START, json=payload)
-        auth_url = response["auth_url"]
+        auth_url = f"{api_url}{endpoints.AUTHORIZE_APP}?{urlencode(params)}"
 
         action = "registration" if mode == "register" else "login"
         label = f"{provider} {action}" if provider else action
@@ -83,7 +88,7 @@ def _browser_auth(
             )
         out.console.print("[dim]Waiting for authentication...[/dim]")
 
-        token = server.wait_for_token()
+        token = callback_server.wait_for_token()
         if not token:
             # Paste fallback for environments where localhost callback fails
             if is_interactive():
@@ -107,11 +112,8 @@ def _browser_auth(
         via = f" via {provider}" if provider else ""
         success_msg = "Registered" if mode == "register" else "Logged in"
         print_success(f"{success_msg} on {env}{via}", out)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
     finally:
-        server.shutdown()
-        client.close()
+        callback_server.shutdown()
 
 
 def _password_register(
