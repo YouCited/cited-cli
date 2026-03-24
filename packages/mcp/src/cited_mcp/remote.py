@@ -74,8 +74,8 @@ def create_remote_server() -> FastMCP:
         lifespan=cited_remote_lifespan,
         auth_server_provider=auth_provider,
         auth=AuthSettings(
-            issuer_url=mcp_url,
-            resource_server_url=mcp_url,
+            issuer_url=mcp_url,  # type: ignore[arg-type]
+            resource_server_url=mcp_url,  # type: ignore[arg-type]
             client_registration_options=ClientRegistrationOptions(
                 enabled=True,
                 valid_scopes=["cited"],
@@ -89,7 +89,7 @@ def create_remote_server() -> FastMCP:
     server_module.mcp = remote_mcp
 
     # Register the OAuth callback route (handles redirect from backend)
-    @remote_mcp.custom_route("/oauth/callback", methods=["GET"])
+    @remote_mcp.custom_route("/oauth/callback", methods=["GET"])  # type: ignore[untyped-decorator]
     async def oauth_callback(request: Request) -> Response:
         """Handle callback from the Cited backend after user authentication."""
         user_token = request.query_params.get("token")
@@ -137,7 +137,7 @@ def create_remote_server() -> FastMCP:
         )
         return RedirectResponse(url=redirect_uri, status_code=302)
 
-    @remote_mcp.custom_route("/health", methods=["GET"])
+    @remote_mcp.custom_route("/health", methods=["GET"])  # type: ignore[untyped-decorator]
     async def health_check(request: Request) -> Response:
         return JSONResponse({"status": "ok"})
 

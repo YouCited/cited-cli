@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import secrets
 import time
+from typing import Any
 from urllib.parse import urlencode
 
 import jwt as pyjwt
@@ -72,10 +73,10 @@ class CitedOAuthProvider(
 
     # -- Stateless token helpers --
 
-    def _encode_token(self, payload: dict) -> str:
+    def _encode_token(self, payload: dict[str, Any]) -> str:
         return pyjwt.encode(payload, self.jwt_secret, algorithm="HS256")
 
-    def _decode_token(self, token: str) -> dict | None:
+    def _decode_token(self, token: str) -> dict[str, Any] | None:
         try:
             return pyjwt.decode(token, self.jwt_secret, algorithms=["HS256"])
         except pyjwt.ExpiredSignatureError:
