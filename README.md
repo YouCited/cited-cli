@@ -71,6 +71,71 @@ cited register --email you@example.com --name "Your Name" --password "Secret123!
 
 ---
 
+## MCP Server
+
+This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 28 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, and create solutions on your behalf.
+
+### Claude Desktop (remote — recommended)
+
+No local install required. Add this to your Claude Desktop config (`Settings → Developer → Edit Config`):
+
+```json
+{
+  "mcpServers": {
+    "cited": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.youcited.com/mcp"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop. A browser window will open for authentication on first use.
+
+> **Prerequisite:** [Node.js](https://nodejs.org) (LTS) must be installed for `npx`.
+
+### Claude Desktop (local stdio)
+
+```json
+{
+  "mcpServers": {
+    "cited": {
+      "command": "uvx",
+      "args": ["cited-mcp"],
+      "env": {
+        "CITED_TOKEN": "your-jwt-token"
+      }
+    }
+  }
+}
+```
+
+Get your token with `cited login` then `cited auth token`.
+
+### Example
+
+Once connected, ask Claude something like:
+
+> "List my businesses, then run a GEO audit on Acme Corp using the default template. When it's done, generate recommendations and show me the top insights."
+
+Claude will chain the tools automatically — `list_businesses` → `start_audit` → `get_audit_status` → `start_recommendation` → `get_recommendation_insights`.
+
+### Available Tools
+
+| Category | Tools |
+|----------|-------|
+| **Auth** | `check_auth_status`, `login` |
+| **Businesses** | `list_businesses`, `get_business`, `create_business`, `update_business`, `delete_business`, `crawl_business`, `get_health_scores` |
+| **Audit Templates** | `list_audit_templates`, `get_audit_template`, `create_audit_template`, `update_audit_template`, `delete_audit_template` |
+| **Audits** | `start_audit`, `get_audit_status`, `get_audit_result`, `list_audits` |
+| **Recommendations** | `start_recommendation`, `get_recommendation_status`, `get_recommendation_result`, `get_recommendation_insights`, `list_recommendations` |
+| **Solutions** | `start_solution`, `get_solution_status`, `get_solution_result`, `list_solutions` |
+| **Jobs** | `get_job_status` |
+
+See [`packages/mcp/README.md`](packages/mcp/README.md) for full details, environment variables, and development instructions.
+
+---
+
 ## Global Flags
 
 These flags apply to every command and must be placed immediately after `cited`:
