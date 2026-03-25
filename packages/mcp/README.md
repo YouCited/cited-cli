@@ -74,6 +74,14 @@ Add a `.cursor/mcp.json` file to your project root (or configure globally in `~/
 }
 ```
 
+Verify Node.js is installed first:
+
+```bash
+node --version   # should print v18+ or v20+
+```
+
+If not installed, run `brew install node` or download from [nodejs.org](https://nodejs.org).
+
 Then in Cursor: open Settings (`Cmd+,`) → search "MCP" → verify the server appears and shows a green status indicator. Use Cited tools in Composer (Agent mode) or Chat by asking Claude to interact with your GEO data.
 
 ### Standalone

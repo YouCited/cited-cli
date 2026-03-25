@@ -127,6 +127,8 @@ Add a `.cursor/mcp.json` file to your project root (or `~/.cursor/mcp.json` for 
 }
 ```
 
+Verify Node.js is installed (`node --version`), or install with `brew install node`.
+
 Open Settings (`Cmd+,`) → search "MCP" → verify the server shows a green status. Use tools in Composer (Agent mode).
 
 ### Example
