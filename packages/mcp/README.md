@@ -59,6 +59,23 @@ Get your token by running `cited login` and then `cited auth token` with the [ci
 
 Add the remote server as a tool source in your Claude Code settings or use the `cited-plugins/` configuration from the monorepo.
 
+### Cursor
+
+Add a `.cursor/mcp.json` file to your project root (or configure globally in `~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "cited": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.youcited.com/mcp"]
+    }
+  }
+}
+```
+
+Then in Cursor: open Settings (`Cmd+,`) → search "MCP" → verify the server appears and shows a green status indicator. Use Cited tools in Composer (Agent mode) or Chat by asking Claude to interact with your GEO data.
+
 ### Standalone
 
 ```bash
