@@ -112,6 +112,23 @@ Restart Claude Desktop. A browser window will open for authentication on first u
 
 Get your token with `cited login` then `cited auth token`.
 
+### Cursor
+
+Add a `.cursor/mcp.json` file to your project root (or `~/.cursor/mcp.json` for global access):
+
+```json
+{
+  "mcpServers": {
+    "cited": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.youcited.com/mcp"]
+    }
+  }
+}
+```
+
+Open Settings (`Cmd+,`) → search "MCP" → verify the server shows a green status. Use tools in Composer (Agent mode).
+
 ### Example
 
 Once connected, ask Claude something like:
