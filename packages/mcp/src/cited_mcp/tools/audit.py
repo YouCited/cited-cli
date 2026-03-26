@@ -12,13 +12,24 @@ from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
 
 
 @mcp.tool()
-async def list_audit_templates(ctx: Context[Any, CitedContext, Any]) -> Any:
-    """List all audit templates (named audits) for the user."""
+async def list_audit_templates(
+    ctx: Context[Any, CitedContext, Any],
+    business_id: str | None = None,
+) -> Any:
+    """List all audit templates (named audits) for the user.
+
+    Args:
+        ctx: MCP context
+        business_id: Optional business ID to filter templates by
+    """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
     try:
-        return cited_ctx.client.get(endpoints.NAMED_AUDITS)
+        params = {}
+        if business_id is not None:
+            params["business_id"] = business_id
+        return cited_ctx.client.get(endpoints.NAMED_AUDITS, params=params)
     except CitedAPIError as e:
         return _api_error_response(e)
 
