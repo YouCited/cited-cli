@@ -14,6 +14,7 @@ def _mcp_available():
 EXPECTED_TOOLS = [
     "check_auth_status",
     "login",
+    "logout",
     "list_businesses",
     "get_business",
     "create_business",

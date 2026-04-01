@@ -61,10 +61,14 @@ def test_check_auth_status_success():
     respx.get(f"{DEV_API}/auth/me").mock(
         return_value=httpx.Response(200, json={"email": "test@example.com", "id": "u1"})
     )
+    respx.get(f"{DEV_API}/businesses").mock(
+        return_value=httpx.Response(200, json=[{"id": "b1", "name": "Acme"}])
+    )
     cited_ctx = _make_cited_ctx()
     ctx = _make_mcp_ctx(cited_ctx)
     result = _run(check_auth_status(ctx))
     assert result["email"] == "test@example.com"
+    assert result["business_count"] == 1
     cited_ctx.client.close()
 
 
@@ -258,4 +262,113 @@ def test_get_job_status_probes():
     result = _run(get_job_status(ctx, "j1"))
     assert result["job_type"] == "recommendation"
     assert result["status"] == "completed"
+    cited_ctx.client.close()
+
+
+# --- Logout ---
+
+
+@pytest.mark.usefixtures("_mcp_available")
+def test_logout():
+    from unittest.mock import patch
+
+    from cited_mcp.tools.auth import logout
+
+    cited_ctx = _make_cited_ctx()
+    ctx = _make_mcp_ctx(cited_ctx)
+    with patch("cited_mcp.tools.auth.TokenStore") as mock_store_cls:
+        result = _run(logout(ctx))
+    assert result["success"] is True
+    assert "Logged out" in result["message"]
+    assert cited_ctx.client.token is None
+    mock_store_cls().delete_token.assert_called_once_with("dev")
+    cited_ctx.client.close()
+
+
+# --- Login with force ---
+
+
+@pytest.mark.usefixtures("_mcp_available")
+def test_login_force_clears_token():
+    from unittest.mock import MagicMock, patch
+
+    from cited_mcp.tools.auth import login
+
+    cited_ctx = _make_cited_ctx(token="old-token")
+    ctx = _make_mcp_ctx(cited_ctx)
+
+    mock_server = MagicMock()
+    mock_server.redirect_uri = "http://localhost:12345/callback"
+    mock_server.wait_for_token.return_value = "new-token"
+
+    with (
+        patch("cited_mcp.tools.auth.OAuthCallbackServer", return_value=mock_server),
+        patch("cited_mcp.tools.auth.webbrowser.open"),
+        patch("cited_mcp.tools.auth.TokenStore") as mock_store_cls,
+    ):
+        result = _run(login(ctx, force=True))
+
+    assert result["success"] is True
+    mock_store_cls().delete_token.assert_called_once_with("dev")
+    assert cited_ctx.client.token == "new-token"
+    cited_ctx.client.close()
+
+
+# --- Error hints ---
+
+
+@pytest.mark.usefixtures("_mcp_available")
+@respx.mock
+def test_api_error_403_includes_hint():
+    from cited_mcp.tools.business import create_business
+
+    respx.post(f"{DEV_API}/businesses").mock(
+        return_value=httpx.Response(403, json={"detail": "Plan limit exceeded"})
+    )
+    cited_ctx = _make_cited_ctx()
+    ctx = _make_mcp_ctx(cited_ctx)
+    result = _run(create_business(
+        ctx, "Test", "https://test.com", "A test business description", "technology",
+    ))
+    assert result["error"] is True
+    assert result["status_code"] == 403
+    assert "hint" in result
+    assert "plan" in result["hint"].lower()
+    cited_ctx.client.close()
+
+
+@pytest.mark.usefixtures("_mcp_available")
+@respx.mock
+def test_api_error_422_includes_hint():
+    from cited_mcp.tools.business import create_business
+
+    respx.post(f"{DEV_API}/businesses").mock(
+        return_value=httpx.Response(422, json={"detail": "Invalid website domain"})
+    )
+    cited_ctx = _make_cited_ctx()
+    ctx = _make_mcp_ctx(cited_ctx)
+    result = _run(
+        create_business(ctx, "Test", "https://fake.example.com", "Short", "technology")
+    )
+    assert result["error"] is True
+    assert result["status_code"] == 422
+    assert "hint" in result
+    assert "validation" in result["hint"].lower()
+    cited_ctx.client.close()
+
+
+@pytest.mark.usefixtures("_mcp_available")
+@respx.mock
+def test_api_error_404_no_hint():
+    from cited_mcp.tools.business import get_business
+
+    respx.get(f"{DEV_API}/businesses/bad-id").mock(
+        return_value=httpx.Response(404, json={"detail": "Not found"})
+    )
+    cited_ctx = _make_cited_ctx()
+    ctx = _make_mcp_ctx(cited_ctx)
+    result = _run(get_business(ctx, "bad-id"))
+    assert result["error"] is True
+    assert result["status_code"] == 404
+    assert "hint" not in result
     cited_ctx.client.close()
