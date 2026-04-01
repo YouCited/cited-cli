@@ -18,18 +18,42 @@ from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
 
 @mcp.tool()
 async def check_auth_status(ctx: Context[Any, CitedContext, Any]) -> Any:
-    """Check if the user is authenticated and return their account info."""
+    """Check if the user is authenticated and return their account info.
+
+    Returns the user's profile including current business count,
+    so you can proactively warn about plan limits before attempting operations.
+    """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
     try:
-        return cited_ctx.client.get(endpoints.ME)
+        user = cited_ctx.client.get(endpoints.ME)
     except CitedAPIError as e:
         return _api_error_response(e)
 
+    # Enrich with business count for plan limit awareness
+    try:
+        businesses = cited_ctx.client.get(endpoints.BUSINESSES)
+        user["business_count"] = len(businesses) if isinstance(businesses, list) else 0
+    except CitedAPIError:
+        user["business_count"] = None
+
+    return user
+
+
+def _clear_session(cited_ctx: CitedContext, env: str) -> None:
+    """Clear stored token and in-memory session state."""
+    TokenStore().delete_token(env)
+    cited_ctx.client.token = None
+    cited_ctx.client._client.cookies.delete("advgeo_session")
+
 
 @mcp.tool()
-async def login(ctx: Context[Any, CitedContext, Any], env: str | None = None) -> Any:
+async def login(
+    ctx: Context[Any, CitedContext, Any],
+    env: str | None = None,
+    force: bool = False,
+) -> Any:
     """Log in to Cited by opening a browser window for OAuth authentication.
 
     In remote mode (HTTP transport), authentication is handled automatically via
@@ -38,11 +62,16 @@ async def login(ctx: Context[Any, CitedContext, Any], env: str | None = None) ->
     Args:
         ctx: MCP context
         env: Optional environment override (dev, prod, local)
+        force: If True, clear existing token and force a new login
+            (useful for switching accounts)
     """
     cited_ctx = _get_ctx(ctx)
+    target_env = env or cited_ctx.env
 
-    # If already authenticated (e.g. remote mode with OAuth), skip login
-    if cited_ctx.client.token:
+    if force:
+        _clear_session(cited_ctx, target_env)
+    elif cited_ctx.client.token:
+        # If already authenticated (e.g. remote mode with OAuth), skip login
         try:
             user = cited_ctx.client.get(endpoints.ME)
             return {
@@ -51,8 +80,6 @@ async def login(ctx: Context[Any, CitedContext, Any], env: str | None = None) ->
             }
         except CitedAPIError:
             pass  # Token invalid, proceed with login flow
-
-    target_env = env or cited_ctx.env
 
     callback_server = OAuthCallbackServer(timeout=120.0)
     callback_server.start()
@@ -72,3 +99,16 @@ async def login(ctx: Context[Any, CitedContext, Any], env: str | None = None) ->
     cited_ctx.client.token = token
 
     return {"success": True, "message": f"Logged in successfully (env: {target_env})"}
+
+
+@mcp.tool()
+async def logout(ctx: Context[Any, CitedContext, Any]) -> Any:
+    """Log out of Cited by clearing the stored authentication token.
+
+    Use this when you need to switch accounts or if the current session
+    is invalid. After logging out, use the 'login' tool to authenticate again.
+    """
+    cited_ctx = _get_ctx(ctx)
+    env = cited_ctx.env
+    _clear_session(cited_ctx, env)
+    return {"success": True, "message": f"Logged out successfully (env: {env})"}

@@ -50,10 +50,57 @@ def _auth_check(cited_ctx: CitedContext) -> dict[str, Any] | None:
     return None
 
 
+_ERROR_HINTS: list[tuple[int, str | None, str]] = [
+    (
+        403,
+        "plan",
+        "This account's plan may not allow this operation. "
+        "Check plan limits with 'check_auth_status'. "
+        "Consider upgrading at https://app.youcited.com/settings/billing, "
+        "or use 'logout' then 'login' to switch to a different account.",
+    ),
+    (
+        403,
+        None,
+        "This action is not allowed. Check your plan limits with 'check_auth_status', "
+        "or use 'logout' then 'login' to switch accounts.",
+    ),
+    (
+        422,
+        None,
+        "The request was rejected due to validation errors. "
+        "Check that all fields meet requirements (e.g., website must be a real "
+        "DNS-resolvable domain, description must be at least ~50 characters).",
+    ),
+    (
+        401,
+        None,
+        "Authentication has expired or is invalid. "
+        "Use 'login' with force=True to re-authenticate, "
+        "or 'logout' then 'login' to switch accounts.",
+    ),
+    (
+        429,
+        None,
+        "Rate limited. Wait a moment before retrying this request.",
+    ),
+]
+
+
 def _api_error_response(e: CitedAPIError) -> dict[str, Any]:
-    """Convert CitedAPIError to a structured error dict."""
-    return {
+    """Convert CitedAPIError to a structured error dict with actionable hints."""
+    response: dict[str, Any] = {
         "error": True,
         "status_code": e.status_code,
         "message": e.message,
     }
+
+    for code, substring, hint in _ERROR_HINTS:
+        if e.status_code == code and (
+            substring is None
+            or (e.message and substring.lower() in e.message.lower())
+        ):
+            response["hint"] = hint
+            break
+
+    return response

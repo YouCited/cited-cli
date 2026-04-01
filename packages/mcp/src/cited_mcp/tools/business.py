@@ -45,10 +45,15 @@ async def create_business(
 ) -> Any:
     """Create a new business.
 
+    IMPORTANT: Business creation is subject to plan limits. Use 'check_auth_status'
+    first to see the current plan and how many businesses already exist. If at the
+    limit, consider upgrading or updating an existing business instead.
+
     Args:
         ctx: MCP context
         name: Business name
-        website: Business website (must be a publicly DNS-resolvable domain)
+        website: Business website (must be a publicly DNS-resolvable domain —
+            fabricated domains like example.com will be rejected with a 422 error)
         description: Business description (minimum ~50 characters)
         industry: One of: automotive, beauty, consulting, education, entertainment,
             finance, fitness, government, healthcare, home_services, hospitality,
@@ -114,6 +119,10 @@ async def update_business(
 @mcp.tool()
 async def delete_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Delete a business and all its associated data.
+
+    NOTE: Business deletion may not be available on all plans. If deletion fails
+    with a 403 error, the user may need to upgrade their plan. Use 'check_auth_status'
+    to verify plan capabilities.
 
     Args:
         ctx: MCP context
