@@ -67,12 +67,23 @@ async def get_solution_result(ctx: Context[Any, CitedContext, Any], job_id: str)
 
 
 @mcp.tool()
-async def list_solutions(ctx: Context[Any, CitedContext, Any]) -> Any:
-    """List solution history."""
+async def list_solutions(
+    ctx: Context[Any, CitedContext, Any],
+    business_id: str | None = None,
+) -> Any:
+    """List solution history.
+
+    Args:
+        ctx: MCP context
+        business_id: Optional business ID to filter solutions by
+    """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
     try:
-        return cited_ctx.client.get(endpoints.SOLUTION_HISTORY)
+        params = {}
+        if business_id is not None:
+            params["business_id"] = business_id
+        return cited_ctx.client.get(endpoints.SOLUTION_HISTORY, params=params)
     except CitedAPIError as e:
         return _api_error_response(e)

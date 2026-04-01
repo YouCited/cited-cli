@@ -141,6 +141,7 @@ async def start_audit(
     ctx: Context[Any, CitedContext, Any],
     named_audit_id: str,
     business_id: str | None = None,
+    providers: list[str] | None = None,
 ) -> Any:
     """Start an audit using a template. Returns a job_id to poll for status.
 
@@ -148,6 +149,7 @@ async def start_audit(
         ctx: MCP context
         named_audit_id: The audit template ID to run
         business_id: Optional business ID override
+        providers: Optional list of citation providers to use (e.g. chatgpt, perplexity, gemini)
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
@@ -155,6 +157,8 @@ async def start_audit(
     payload: dict[str, Any] = {"named_audit_id": named_audit_id}
     if business_id is not None:
         payload["business_id"] = business_id
+    if providers is not None:
+        payload["providers"] = providers
     try:
         return cited_ctx.client.post(endpoints.AUDIT_START, json=payload)
     except CitedAPIError as e:
@@ -186,12 +190,23 @@ async def get_audit_result(ctx: Context[Any, CitedContext, Any], job_id: str) ->
 
 
 @mcp.tool()
-async def list_audits(ctx: Context[Any, CitedContext, Any]) -> Any:
-    """List audit history."""
+async def list_audits(
+    ctx: Context[Any, CitedContext, Any],
+    business_id: str | None = None,
+) -> Any:
+    """List audit history.
+
+    Args:
+        ctx: MCP context
+        business_id: Optional business ID to filter audits by
+    """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
     try:
-        return cited_ctx.client.get(endpoints.AUDIT_HISTORY)
+        params = {}
+        if business_id is not None:
+            params["business_id"] = business_id
+        return cited_ctx.client.get(endpoints.AUDIT_HISTORY, params=params)
     except CitedAPIError as e:
         return _api_error_response(e)
