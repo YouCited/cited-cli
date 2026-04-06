@@ -3,9 +3,10 @@ set -euo pipefail
 
 # Deploy the remote MCP server to AWS ECS Fargate.
 #
-# Uses the existing ECS cluster and ALB from the cited backend infrastructure.
-# Creates its own ECR repo, target group, listener rule, task definition, and
-# ECS service — all via AWS CLI (no CDK dependency).
+# Can run in two modes:
+#   1. Full infra — reuses ECS cluster/roles from the cited backend CDK stacks
+#   2. MCP-only  — creates its own lightweight ECS cluster and IAM roles
+#                   (only needs VPC + Networking CDK stacks deployed)
 #
 # Usage:
 #   ./scripts/deploy-mcp.sh dev              # Deploy to dev (mcpdev.youcited.com)
@@ -19,7 +20,7 @@ set -euo pipefail
 # Prerequisites:
 #   - AWS SSO session: aws sso login --profile advgeo-<env>
 #   - Docker running locally
-#   - SSM params from the cited backend CDK (VPC, cluster, ALB, etc.)
+#   - At minimum: VPC + Networking CDK stacks deployed (deploy-mcp-infra.sh)
 #   - For --dev-infra: JWT secret at cited-mcp-prod/jwt-secret in dev account
 
 ENV="${1:-}"
@@ -68,21 +69,166 @@ fi
 
 echo "==> Deploying MCP server to ${ENV} (${MCP_HOST}) [infra: ${INFRA_ENV}]"
 
-# ── Resolve SSM parameters from existing infra ──────────────────────────────
+# ── Helper: read SSM param (returns empty string on failure) ─────────────
+ssm() {
+    aws --profile "$PROFILE" --region "$REGION" \
+        ssm get-parameter --name "$1" --query Parameter.Value --output text 2>/dev/null || echo ""
+}
+
+ssm_put() {
+    aws --profile "$PROFILE" --region "$REGION" \
+        ssm put-parameter --name "$1" --value "$2" --type String --overwrite > /dev/null
+}
+
+# ── Resolve SSM parameters from existing infra ──────────────────────────
 echo "    Resolving infrastructure parameters from ${INFRA_ENV} account..."
-ssm() { aws --profile "$PROFILE" --region "$REGION" ssm get-parameter --name "$1" --query Parameter.Value --output text; }
 
 VPC_ID=$(ssm "/advgeo/${INFRA_ENV}/vpc-id")
 SUBNET_IDS=$(ssm "/advgeo/${INFRA_ENV}/private-subnet-ids")
-ECS_CLUSTER=$(ssm "/advgeo/${INFRA_ENV}/ecs-cluster-arn")
 ECS_SG=$(ssm "/advgeo/${INFRA_ENV}/ecs-security-group-id")
 HTTPS_LISTENER=$(ssm "/advgeo/${INFRA_ENV}/https-listener-arn")
 ACCOUNT_ID=$(aws --profile "$PROFILE" sts get-caller-identity --query Account --output text)
 
-echo "    VPC: ${VPC_ID}"
-echo "    Cluster: ${ECS_CLUSTER}"
+# Validate required infra params
+for param_name in VPC_ID SUBNET_IDS ECS_SG HTTPS_LISTENER; do
+    param_val="${!param_name}"
+    if [[ -z "$param_val" || "$param_val" == "None" ]]; then
+        echo "Error: Missing required SSM parameter for ${param_name}."
+        echo "Deploy minimal infra first: ./scripts/aws/deploy-mcp-infra.sh ${INFRA_ENV}"
+        exit 1
+    fi
+done
 
-# ── ECR repository ──────────────────────────────────────────────────────────
+echo "    VPC: ${VPC_ID}"
+
+# ── ECS cluster (try CDK cluster, fall back to dedicated MCP cluster) ────
+ECS_CLUSTER=$(ssm "/advgeo/${INFRA_ENV}/ecs-cluster-arn")
+
+if [[ -z "$ECS_CLUSTER" || "$ECS_CLUSTER" == "None" ]]; then
+    ECS_CLUSTER=$(ssm "/advgeo/${INFRA_ENV}/mcp-cluster-arn")
+fi
+
+if [[ -z "$ECS_CLUSTER" || "$ECS_CLUSTER" == "None" ]]; then
+    MCP_CLUSTER_NAME="cited-mcp-${INFRA_ENV}"
+    echo "    CDK cluster not found. Creating dedicated MCP cluster: ${MCP_CLUSTER_NAME}"
+
+    ECS_CLUSTER=$(aws --profile "$PROFILE" --region "$REGION" ecs create-cluster \
+        --cluster-name "$MCP_CLUSTER_NAME" \
+        --capacity-providers FARGATE FARGATE_SPOT \
+        --default-capacity-provider-strategy "capacityProvider=FARGATE,weight=1" \
+        --query "cluster.clusterArn" --output text)
+
+    ssm_put "/advgeo/${INFRA_ENV}/mcp-cluster-arn" "$ECS_CLUSTER"
+    echo "    Created cluster: ${ECS_CLUSTER}"
+else
+    echo "    Cluster: ${ECS_CLUSTER}"
+fi
+
+# Extract cluster name from ARN for service commands
+ECS_CLUSTER_NAME=$(echo "$ECS_CLUSTER" | sed 's|.*/||')
+
+# ── IAM roles (try CDK roles via API task def, fall back to dedicated) ───
+resolve_iam_roles() {
+    # Try to get roles from existing API task definition (full infra mode)
+    local api_taskdef
+    api_taskdef=$(aws --profile "$PROFILE" --region "$REGION" ecs describe-services \
+        --cluster "advgeo-${INFRA_ENV}" --services "advgeo-${INFRA_ENV}-api" \
+        --query "services[0].taskDefinition" --output text 2>/dev/null || echo "None")
+
+    if [[ "$api_taskdef" != "None" && -n "$api_taskdef" ]]; then
+        EXEC_ROLE=$(aws --profile "$PROFILE" --region "$REGION" ecs describe-task-definition \
+            --task-definition "$api_taskdef" \
+            --query "taskDefinition.executionRoleArn" --output text)
+        TASK_ROLE=$(aws --profile "$PROFILE" --region "$REGION" ecs describe-task-definition \
+            --task-definition "$api_taskdef" \
+            --query "taskDefinition.taskRoleArn" --output text)
+        echo "    IAM roles: reusing from CDK API task definition"
+        return
+    fi
+
+    # Try SSM-cached MCP roles
+    EXEC_ROLE=$(ssm "/advgeo/${INFRA_ENV}/mcp-exec-role-arn")
+    TASK_ROLE=$(ssm "/advgeo/${INFRA_ENV}/mcp-task-role-arn")
+
+    if [[ -n "$EXEC_ROLE" && "$EXEC_ROLE" != "None" && -n "$TASK_ROLE" && "$TASK_ROLE" != "None" ]]; then
+        # Verify the roles still exist
+        if aws --profile "$PROFILE" --region "$REGION" iam get-role --role-name "cited-mcp-${INFRA_ENV}-exec" &>/dev/null && \
+           aws --profile "$PROFILE" --region "$REGION" iam get-role --role-name "cited-mcp-${INFRA_ENV}-task" &>/dev/null; then
+            echo "    IAM roles: reusing from SSM cache"
+            return
+        fi
+    fi
+
+    # Create dedicated MCP IAM roles
+    echo "    Creating dedicated MCP IAM roles..."
+    create_mcp_iam_roles
+}
+
+create_mcp_iam_roles() {
+    local exec_role_name="cited-mcp-${INFRA_ENV}-exec"
+    local task_role_name="cited-mcp-${INFRA_ENV}-task"
+
+    local trust_policy='{
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Effect": "Allow",
+            "Principal": {"Service": "ecs-tasks.amazonaws.com"},
+            "Action": "sts:AssumeRole"
+        }]
+    }'
+
+    # Execution role (ECR pull, CloudWatch Logs, Secrets Manager)
+    if ! aws --profile "$PROFILE" --region "$REGION" iam get-role --role-name "$exec_role_name" &>/dev/null; then
+        EXEC_ROLE=$(aws --profile "$PROFILE" --region "$REGION" iam create-role \
+            --role-name "$exec_role_name" \
+            --assume-role-policy-document "$trust_policy" \
+            --query "Role.Arn" --output text)
+
+        aws --profile "$PROFILE" --region "$REGION" iam attach-role-policy \
+            --role-name "$exec_role_name" \
+            --policy-arn "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+
+        # Allow reading secrets from Secrets Manager
+        aws --profile "$PROFILE" --region "$REGION" iam put-role-policy \
+            --role-name "$exec_role_name" \
+            --policy-name "SecretsAccess" \
+            --policy-document '{
+                "Version": "2012-10-17",
+                "Statement": [{
+                    "Effect": "Allow",
+                    "Action": ["secretsmanager:GetSecretValue"],
+                    "Resource": "*"
+                }]
+            }'
+
+        echo "    Created execution role: ${exec_role_name}"
+    else
+        EXEC_ROLE=$(aws --profile "$PROFILE" --region "$REGION" iam get-role \
+            --role-name "$exec_role_name" --query "Role.Arn" --output text)
+        echo "    Execution role exists: ${exec_role_name}"
+    fi
+
+    # Task role (minimal — MCP server is stateless)
+    if ! aws --profile "$PROFILE" --region "$REGION" iam get-role --role-name "$task_role_name" &>/dev/null; then
+        TASK_ROLE=$(aws --profile "$PROFILE" --region "$REGION" iam create-role \
+            --role-name "$task_role_name" \
+            --assume-role-policy-document "$trust_policy" \
+            --query "Role.Arn" --output text)
+        echo "    Created task role: ${task_role_name}"
+    else
+        TASK_ROLE=$(aws --profile "$PROFILE" --region "$REGION" iam get-role \
+            --role-name "$task_role_name" --query "Role.Arn" --output text)
+        echo "    Task role exists: ${task_role_name}"
+    fi
+
+    # Cache role ARNs in SSM for next deploy
+    ssm_put "/advgeo/${INFRA_ENV}/mcp-exec-role-arn" "$EXEC_ROLE"
+    ssm_put "/advgeo/${INFRA_ENV}/mcp-task-role-arn" "$TASK_ROLE"
+}
+
+resolve_iam_roles
+
+# ── ECR repository ──────────────────────────────────────────────────────
 ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${SERVICE_NAME}"
 
 if ! aws --profile "$PROFILE" --region "$REGION" ecr describe-repositories --repository-names "$SERVICE_NAME" &>/dev/null; then
@@ -95,7 +241,7 @@ else
     echo "    ECR repository exists: ${SERVICE_NAME}"
 fi
 
-# ── Build and push Docker image ─────────────────────────────────────────────
+# ── Build and push Docker image ─────────────────────────────────────────
 echo "==> Building Docker image..."
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -112,7 +258,7 @@ docker tag "${SERVICE_NAME}:latest" "${ECR_REPO}:latest"
 docker push "${ECR_REPO}:latest"
 IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${ECR_REPO}:latest" 2>/dev/null || echo "${ECR_REPO}:latest")
 
-# ── Target group ────────────────────────────────────────────────────────────
+# ── Target group ────────────────────────────────────────────────────────
 TG_NAME="${SERVICE_NAME}-tg"
 TG_ARN=$(aws --profile "$PROFILE" --region "$REGION" elbv2 describe-target-groups \
     --names "$TG_NAME" --query "TargetGroups[0].TargetGroupArn" --output text 2>/dev/null || echo "None")
@@ -134,7 +280,7 @@ else
     echo "    Target group exists: ${TG_NAME}"
 fi
 
-# ── ALB listener rule (host-header based) ───────────────────────────────────
+# ── ALB listener rule (host-header based) ───────────────────────────────
 RULE_EXISTS=$(aws --profile "$PROFILE" --region "$REGION" elbv2 describe-rules \
     --listener-arn "$HTTPS_LISTENER" \
     --query "Rules[?Conditions[?Field=='host-header' && Values[?contains(@,'${MCP_HOST}')]]]|[0].RuleArn" \
@@ -155,7 +301,7 @@ else
     echo "    Listener rule exists for ${MCP_HOST}"
 fi
 
-# ── Resolve JWT secret ARN ──────────────────────────────────────────────────
+# ── Resolve JWT secret ARN ──────────────────────────────────────────────
 if [[ "$DEV_INFRA" == true ]]; then
     # Cross-account: use dedicated prod JWT secret stored in dev account
     JWT_SECRET_ARN=$(aws --profile "$PROFILE" --region "$REGION" secretsmanager list-secrets \
@@ -174,19 +320,19 @@ if [[ -z "$JWT_SECRET_ARN" || "$JWT_SECRET_ARN" == "None" ]]; then
 fi
 echo "    JWT secret: ${JWT_SECRET_ARN}"
 
-# ── IAM roles (reuse existing execution role, create minimal task role) ─────
-# Get execution role from existing API task definition
-API_TASKDEF=$(aws --profile "$PROFILE" --region "$REGION" ecs describe-services \
-    --cluster advgeo-${INFRA_ENV} --services advgeo-${INFRA_ENV}-api \
-    --query "services[0].taskDefinition" --output text)
-EXEC_ROLE=$(aws --profile "$PROFILE" --region "$REGION" ecs describe-task-definition \
-    --task-definition "$API_TASKDEF" \
-    --query "taskDefinition.executionRoleArn" --output text)
-TASK_ROLE=$(aws --profile "$PROFILE" --region "$REGION" ecs describe-task-definition \
-    --task-definition "$API_TASKDEF" \
-    --query "taskDefinition.taskRoleArn" --output text)
+# ── CloudWatch log group ────────────────────────────────────────────────
+LOG_GROUP="/ecs/cited-mcp-${INFRA_ENV}"
+if ! aws --profile "$PROFILE" --region "$REGION" logs describe-log-groups \
+    --log-group-name-prefix "$LOG_GROUP" --query "logGroups[?logGroupName=='${LOG_GROUP}']" --output text 2>/dev/null | grep -q .; then
+    echo "    Creating log group: ${LOG_GROUP}"
+    aws --profile "$PROFILE" --region "$REGION" logs create-log-group --log-group-name "$LOG_GROUP"
+    aws --profile "$PROFILE" --region "$REGION" logs put-retention-policy \
+        --log-group-name "$LOG_GROUP" --retention-in-days 30
+else
+    echo "    Log group exists: ${LOG_GROUP}"
+fi
 
-# ── ECS task definition ─────────────────────────────────────────────────────
+# ── ECS task definition ─────────────────────────────────────────────────
 echo "==> Registering task definition..."
 TASKDEF_FILE=$(mktemp)
 cat > "$TASKDEF_FILE" <<EOF
@@ -222,7 +368,7 @@ cat > "$TASKDEF_FILE" <<EOF
             "logConfiguration": {
                 "logDriver": "awslogs",
                 "options": {
-                    "awslogs-group": "/ecs/advgeo-${INFRA_ENV}",
+                    "awslogs-group": "${LOG_GROUP}",
                     "awslogs-region": "${REGION}",
                     "awslogs-stream-prefix": "mcp"
                 }
@@ -238,9 +384,9 @@ TASKDEF_ARN=$(aws --profile "$PROFILE" --region "$REGION" ecs register-task-defi
 rm -f "$TASKDEF_FILE"
 echo "    Task definition: ${TASKDEF_ARN}"
 
-# ── ECS service ─────────────────────────────────────────────────────────────
+# ── ECS service ─────────────────────────────────────────────────────────
 SERVICE_EXISTS=$(aws --profile "$PROFILE" --region "$REGION" ecs describe-services \
-    --cluster "advgeo-${INFRA_ENV}" --services "$SERVICE_NAME" \
+    --cluster "$ECS_CLUSTER_NAME" --services "$SERVICE_NAME" \
     --query "services[?status=='ACTIVE']|[0].serviceName" --output text 2>/dev/null || echo "None")
 
 # Format subnet IDs for JSON array
@@ -250,7 +396,7 @@ SUBNET_JSON=$(printf '"%s",' "${SUBNET_ARR[@]}" | sed 's/,$//')
 if [[ "$SERVICE_EXISTS" == "None" || -z "$SERVICE_EXISTS" ]]; then
     echo "==> Creating ECS service: ${SERVICE_NAME}"
     aws --profile "$PROFILE" --region "$REGION" ecs create-service \
-        --cluster "advgeo-${INFRA_ENV}" \
+        --cluster "$ECS_CLUSTER_NAME" \
         --service-name "$SERVICE_NAME" \
         --task-definition "$TASKDEF_ARN" \
         --desired-count 1 \
@@ -262,7 +408,7 @@ if [[ "$SERVICE_EXISTS" == "None" || -z "$SERVICE_EXISTS" ]]; then
 else
     echo "==> Updating ECS service: ${SERVICE_NAME}"
     aws --profile "$PROFILE" --region "$REGION" ecs update-service \
-        --cluster "advgeo-${INFRA_ENV}" \
+        --cluster "$ECS_CLUSTER_NAME" \
         --service "$SERVICE_NAME" \
         --task-definition "$TASKDEF_ARN" \
         --force-new-deployment \
@@ -272,11 +418,12 @@ fi
 echo ""
 echo "==> Deployment initiated!"
 echo "    Service: ${SERVICE_NAME}"
+echo "    Cluster: ${ECS_CLUSTER_NAME}"
 echo "    URL: ${MCP_URL}"
 echo ""
 echo "    Waiting for service to stabilize..."
 aws --profile "$PROFILE" --region "$REGION" ecs wait services-stable \
-    --cluster "advgeo-${INFRA_ENV}" --services "$SERVICE_NAME" && \
+    --cluster "$ECS_CLUSTER_NAME" --services "$SERVICE_NAME" && \
     echo "    ✓ Service is stable!" || \
     echo "    ⚠ Service did not stabilize within timeout. Check ECS console."
 
