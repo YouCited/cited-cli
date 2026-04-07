@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from mcp.server.fastmcp import Context
+from mcp.types import ToolAnnotations
 
 from cited_core.api import endpoints
 from cited_core.errors import CitedAPIError
@@ -11,7 +12,10 @@ from cited_mcp.server import mcp
 from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Start Recommendations",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+)
 async def start_recommendation(ctx: Context[Any, CitedContext, Any], audit_job_id: str) -> Any:
     """Start a recommendation job based on a completed audit.
 
@@ -31,7 +35,10 @@ async def start_recommendation(ctx: Context[Any, CitedContext, Any], audit_job_i
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get Recommendation Status",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def get_recommendation_status(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
     """Check the status of a recommendation job."""
     cited_ctx = _get_ctx(ctx)
@@ -43,7 +50,10 @@ async def get_recommendation_status(ctx: Context[Any, CitedContext, Any], job_id
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get Recommendation Results",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def get_recommendation_result(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
     """Get the full results of a completed recommendation job."""
     cited_ctx = _get_ctx(ctx)
@@ -55,7 +65,10 @@ async def get_recommendation_result(ctx: Context[Any, CitedContext, Any], job_id
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get Recommendation Insights",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def get_recommendation_insights(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
     """Get actionable insights from a recommendation, with source_type and source_id for solutions.
 
@@ -96,7 +109,10 @@ async def get_recommendation_insights(ctx: Context[Any, CitedContext, Any], job_
     return insights
 
 
-@mcp.tool()
+@mcp.tool(
+    title="List Recommendations",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def list_recommendations(
     ctx: Context[Any, CitedContext, Any], audit_job_id: str
 ) -> Any:

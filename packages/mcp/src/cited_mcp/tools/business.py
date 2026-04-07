@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from mcp.server.fastmcp import Context
+from mcp.types import ToolAnnotations
 
 from cited_core.api import endpoints
 from cited_core.errors import CitedAPIError
@@ -11,7 +12,10 @@ from cited_mcp.server import mcp
 from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
 
 
-@mcp.tool()
+@mcp.tool(
+    title="List Businesses",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def list_businesses(ctx: Context[Any, CitedContext, Any]) -> Any:
     """List all businesses for the authenticated user."""
     cited_ctx = _get_ctx(ctx)
@@ -23,7 +27,10 @@ async def list_businesses(ctx: Context[Any, CitedContext, Any]) -> Any:
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get Business Details",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def get_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Get details for a specific business by ID."""
     cited_ctx = _get_ctx(ctx)
@@ -35,7 +42,10 @@ async def get_business(ctx: Context[Any, CitedContext, Any], business_id: str) -
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Create Business",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+)
 async def create_business(
     ctx: Context[Any, CitedContext, Any],
     name: str,
@@ -77,7 +87,10 @@ async def create_business(
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Update Business",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def update_business(
     ctx: Context[Any, CitedContext, Any],
     business_id: str,
@@ -116,7 +129,10 @@ async def update_business(
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Delete Business",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False),
+)
 async def delete_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Delete a business and all its associated data.
 
@@ -138,7 +154,10 @@ async def delete_business(ctx: Context[Any, CitedContext, Any], business_id: str
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Crawl Business Website",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+)
 async def crawl_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Start a crawl job for a business. Returns a job_id you can poll with get_job_status."""
     cited_ctx = _get_ctx(ctx)
@@ -150,7 +169,10 @@ async def crawl_business(ctx: Context[Any, CitedContext, Any], business_id: str)
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get Health Scores",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def get_health_scores(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Get GEO health scores for a business."""
     cited_ctx = _get_ctx(ctx)
