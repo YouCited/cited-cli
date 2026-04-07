@@ -5,6 +5,7 @@ from typing import Any
 
 import anyio
 from mcp.server.fastmcp import Context
+from mcp.types import ToolAnnotations
 
 from cited_core.api import endpoints
 from cited_core.auth.oauth_server import OAuthCallbackServer
@@ -16,7 +17,10 @@ from cited_mcp.server import mcp
 from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Check Auth Status",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def check_auth_status(ctx: Context[Any, CitedContext, Any]) -> Any:
     """Check if the user is authenticated and return their account info.
 
@@ -48,7 +52,10 @@ def _clear_session(cited_ctx: CitedContext, env: str) -> None:
     cited_ctx.client._client.cookies.delete("advgeo_session")
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Log In",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+)
 async def login(
     ctx: Context[Any, CitedContext, Any],
     env: str | None = None,
@@ -101,7 +108,10 @@ async def login(
     return {"success": True, "message": f"Logged in successfully (env: {target_env})"}
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Log Out",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def logout(ctx: Context[Any, CitedContext, Any]) -> Any:
     """Log out of Cited by clearing the stored authentication token.
 

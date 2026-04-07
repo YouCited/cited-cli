@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from mcp.server.fastmcp import Context
+from mcp.types import ToolAnnotations
 
 from cited_core.api import endpoints
 from cited_core.errors import CitedAPIError
@@ -17,7 +18,10 @@ _STATUS_ENDPOINTS = {
 }
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get Job Status",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def get_job_status(
     ctx: Context[Any, CitedContext, Any],
     job_id: str,

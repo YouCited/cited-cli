@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from mcp.server.fastmcp import Context
+from mcp.types import ToolAnnotations
 
 from cited_core.api import endpoints
 from cited_core.errors import CitedAPIError
@@ -11,7 +12,10 @@ from cited_mcp.server import mcp
 from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Start Solution",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+)
 async def start_solution(
     ctx: Context[Any, CitedContext, Any],
     recommendation_job_id: str,
@@ -42,7 +46,10 @@ async def start_solution(
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get Solution Status",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def get_solution_status(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
     """Check the status of a solution generation job."""
     cited_ctx = _get_ctx(ctx)
@@ -54,7 +61,10 @@ async def get_solution_status(ctx: Context[Any, CitedContext, Any], job_id: str)
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get Solution Results",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def get_solution_result(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
     """Get the results of a completed solution generation job."""
     cited_ctx = _get_ctx(ctx)
@@ -66,7 +76,10 @@ async def get_solution_result(ctx: Context[Any, CitedContext, Any], job_id: str)
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="List Solutions",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def list_solutions(
     ctx: Context[Any, CitedContext, Any],
     business_id: str | None = None,

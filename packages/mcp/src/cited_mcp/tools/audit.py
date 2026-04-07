@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from mcp.server.fastmcp import Context
+from mcp.types import ToolAnnotations
 
 from cited_core.api import endpoints
 from cited_core.errors import CitedAPIError
@@ -11,7 +12,10 @@ from cited_mcp.server import mcp
 from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
 
 
-@mcp.tool()
+@mcp.tool(
+    title="List Audit Templates",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def list_audit_templates(
     ctx: Context[Any, CitedContext, Any],
     business_id: str | None = None,
@@ -34,7 +38,10 @@ async def list_audit_templates(
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get Audit Template",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def get_audit_template(ctx: Context[Any, CitedContext, Any], named_audit_id: str) -> Any:
     """Get a specific audit template by ID."""
     cited_ctx = _get_ctx(ctx)
@@ -48,7 +55,10 @@ async def get_audit_template(ctx: Context[Any, CitedContext, Any], named_audit_i
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Create Audit Template",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+)
 async def create_audit_template(
     ctx: Context[Any, CitedContext, Any],
     name: str,
@@ -79,7 +89,10 @@ async def create_audit_template(
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Update Audit Template",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def update_audit_template(
     ctx: Context[Any, CitedContext, Any],
     named_audit_id: str,
@@ -114,7 +127,10 @@ async def update_audit_template(
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Delete Audit Template",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False),
+)
 async def delete_audit_template(
     ctx: Context[Any, CitedContext, Any], named_audit_id: str
 ) -> Any:
@@ -136,7 +152,10 @@ async def delete_audit_template(
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Start Audit",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+)
 async def start_audit(
     ctx: Context[Any, CitedContext, Any],
     named_audit_id: str,
@@ -165,7 +184,10 @@ async def start_audit(
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get Audit Status",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def get_audit_status(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
     """Check the status of a running audit job."""
     cited_ctx = _get_ctx(ctx)
@@ -177,7 +199,10 @@ async def get_audit_status(ctx: Context[Any, CitedContext, Any], job_id: str) ->
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get Audit Results",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def get_audit_result(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
     """Get the results of a completed audit job."""
     cited_ctx = _get_ctx(ctx)
@@ -189,7 +214,10 @@ async def get_audit_result(ctx: Context[Any, CitedContext, Any], job_id: str) ->
         return _api_error_response(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    title="List Audits",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
 async def list_audits(
     ctx: Context[Any, CitedContext, Any],
     business_id: str | None = None,
