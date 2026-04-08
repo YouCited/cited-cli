@@ -101,6 +101,7 @@ cited-mcp-remote
 |------|-------------|
 | `check_auth_status` | Check current authentication status |
 | `login` | Authenticate via browser OAuth flow |
+| `logout` | Clear stored authentication token |
 
 ### Businesses
 | Tool | Description |
@@ -193,6 +194,10 @@ pytest tests/test_mcp_server.py tests/test_mcp_tools.py -v
 ruff check packages/mcp/
 mypy packages/mcp/src --ignore-missing-imports
 ```
+
+## Privacy Policy
+
+See our [Privacy Policy](https://youcited.com/privacy) for details on data collection, usage, storage, and third-party sharing.
 
 ## License
 

@@ -156,7 +156,7 @@ async def delete_business(ctx: Context[Any, CitedContext, Any], business_id: str
 
 @mcp.tool(
     title="Crawl Business Website",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True),
 )
 async def crawl_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Start a crawl job for a business. Returns a job_id you can poll with get_job_status."""
