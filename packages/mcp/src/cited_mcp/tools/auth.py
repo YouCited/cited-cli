@@ -115,10 +115,21 @@ async def login(
 async def logout(ctx: Context[Any, CitedContext, Any]) -> Any:
     """Log out of Cited by clearing the stored authentication token.
 
-    Use this when you need to switch accounts or if the current session
-    is invalid. After logging out, use the 'login' tool to authenticate again.
+    In remote mode (HTTP transport), authentication is managed by the connector —
+    disconnect and reconnect to switch accounts. This tool is for stdio transport.
     """
-    cited_ctx = _get_ctx(ctx)
-    env = cited_ctx.env
-    _clear_session(cited_ctx, env)
+    lc: CitedContext = ctx.request_context.lifespan_context
+
+    # Remote mode: lifespan client has no token; auth is via OAuth connector
+    if not lc.client.token:
+        return {
+            "success": False,
+            "message": (
+                "Authentication is managed by your Claude connector. "
+                "To switch accounts, disconnect and reconnect the Cited connector."
+            ),
+        }
+
+    env = lc.env
+    _clear_session(lc, env)
     return {"success": True, "message": f"Logged out successfully (env: {env})"}
