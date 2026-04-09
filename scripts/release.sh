@@ -141,8 +141,10 @@ import json
 import sys
 import urllib.request
 
-# Get all installed packages except cited-cli itself, pip, setuptools, wheel
-skip = {'cited-cli', 'cited-core', 'pip', 'setuptools', 'wheel', 'pkg_resources'}
+# Get all installed packages except cited-cli itself, pip, setuptools, wheel.
+# cited-core is NOT skipped — it's a sibling PyPI package that the brew venv
+# must install alongside cited-cli (otherwise import fails on first run).
+skip = {'cited-cli', 'pip', 'setuptools', 'wheel', 'pkg_resources'}
 packages = []
 for dist in importlib.metadata.distributions():
     name = dist.metadata['Name']
