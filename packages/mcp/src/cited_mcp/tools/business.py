@@ -9,13 +9,19 @@ from cited_core.api import endpoints
 from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
 from cited_mcp.server import mcp
-from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
+from cited_mcp.tools._helpers import (
+    _api_error_response,
+    _auth_check,
+    _get_ctx,
+    log_tool_call,
+)
 
 
 @mcp.tool(
     title="List Businesses",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def list_businesses(ctx: Context[Any, CitedContext, Any]) -> Any:
     """List all businesses for the authenticated user."""
     cited_ctx = _get_ctx(ctx)
@@ -31,6 +37,7 @@ async def list_businesses(ctx: Context[Any, CitedContext, Any]) -> Any:
     title="Get Business Details",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def get_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Get details for a specific business by ID."""
     cited_ctx = _get_ctx(ctx)
@@ -46,6 +53,7 @@ async def get_business(ctx: Context[Any, CitedContext, Any], business_id: str) -
     title="Create Business",
     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
 )
+@log_tool_call
 async def create_business(
     ctx: Context[Any, CitedContext, Any],
     name: str,
@@ -91,6 +99,7 @@ async def create_business(
     title="Update Business",
     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def update_business(
     ctx: Context[Any, CitedContext, Any],
     business_id: str,
@@ -133,6 +142,7 @@ async def update_business(
     title="Delete Business",
     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def delete_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Delete a business and all its associated data.
 
@@ -158,6 +168,7 @@ async def delete_business(ctx: Context[Any, CitedContext, Any], business_id: str
     title="Crawl Business Website",
     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True),
 )
+@log_tool_call
 async def crawl_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Start a crawl job for a business. Returns a job_id you can poll with get_job_status."""
     cited_ctx = _get_ctx(ctx)
@@ -173,6 +184,7 @@ async def crawl_business(ctx: Context[Any, CitedContext, Any], business_id: str)
     title="Get Health Scores",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def get_health_scores(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Get GEO health scores for a business."""
     cited_ctx = _get_ctx(ctx)

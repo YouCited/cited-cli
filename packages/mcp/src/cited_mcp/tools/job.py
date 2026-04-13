@@ -9,7 +9,12 @@ from cited_core.api import endpoints
 from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
 from cited_mcp.server import mcp
-from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
+from cited_mcp.tools._helpers import (
+    _api_error_response,
+    _auth_check,
+    _get_ctx,
+    log_tool_call,
+)
 
 _STATUS_ENDPOINTS = {
     "audit": endpoints.AUDIT_STATUS,
@@ -22,6 +27,7 @@ _STATUS_ENDPOINTS = {
     title="Get Job Status",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def get_job_status(
     ctx: Context[Any, CitedContext, Any],
     job_id: str,

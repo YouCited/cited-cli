@@ -14,13 +14,19 @@ from cited_core.config.constants import FRONTEND_URLS
 from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
 from cited_mcp.server import mcp
-from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
+from cited_mcp.tools._helpers import (
+    _api_error_response,
+    _auth_check,
+    _get_ctx,
+    log_tool_call,
+)
 
 
 @mcp.tool(
     title="Check Auth Status",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def check_auth_status(ctx: Context[Any, CitedContext, Any]) -> Any:
     """Check if the user is authenticated and return their account info.
 
@@ -56,6 +62,7 @@ def _clear_session(cited_ctx: CitedContext, env: str) -> None:
     title="Log In",
     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
 )
+@log_tool_call
 async def login(
     ctx: Context[Any, CitedContext, Any],
     env: str | None = None,
@@ -112,6 +119,7 @@ async def login(
     title="Log Out",
     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def logout(ctx: Context[Any, CitedContext, Any]) -> Any:
     """Log out of Cited by clearing the stored authentication token.
 

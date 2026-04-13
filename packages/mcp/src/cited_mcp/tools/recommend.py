@@ -9,13 +9,19 @@ from cited_core.api import endpoints
 from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
 from cited_mcp.server import mcp
-from cited_mcp.tools._helpers import _api_error_response, _auth_check, _get_ctx
+from cited_mcp.tools._helpers import (
+    _api_error_response,
+    _auth_check,
+    _get_ctx,
+    log_tool_call,
+)
 
 
 @mcp.tool(
     title="Start Recommendations",
     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
 )
+@log_tool_call
 async def start_recommendation(ctx: Context[Any, CitedContext, Any], audit_job_id: str) -> Any:
     """Start a recommendation job based on a completed audit.
 
@@ -39,6 +45,7 @@ async def start_recommendation(ctx: Context[Any, CitedContext, Any], audit_job_i
     title="Get Recommendation Status",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def get_recommendation_status(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
     """Check the status of a recommendation job."""
     cited_ctx = _get_ctx(ctx)
@@ -54,6 +61,7 @@ async def get_recommendation_status(ctx: Context[Any, CitedContext, Any], job_id
     title="Get Recommendation Results",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def get_recommendation_result(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
     """Get the full results of a completed recommendation job."""
     cited_ctx = _get_ctx(ctx)
@@ -69,6 +77,7 @@ async def get_recommendation_result(ctx: Context[Any, CitedContext, Any], job_id
     title="Get Recommendation Insights",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def get_recommendation_insights(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
     """Get actionable insights from a recommendation, with source_type and source_id for solutions.
 
@@ -113,6 +122,7 @@ async def get_recommendation_insights(ctx: Context[Any, CitedContext, Any], job_
     title="List Recommendations",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
+@log_tool_call
 async def list_recommendations(
     ctx: Context[Any, CitedContext, Any], audit_job_id: str
 ) -> Any:
