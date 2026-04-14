@@ -10,3 +10,4 @@ class CitedContext:
     client: CitedClient
     env: str
     api_url: str
+    default_business_id: str | None = None

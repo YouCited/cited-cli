@@ -86,8 +86,10 @@ def test_list_businesses():
     cited_ctx = _make_cited_ctx()
     ctx = _make_mcp_ctx(cited_ctx)
     result = _run(list_businesses(ctx))
-    assert isinstance(result, list)
-    assert result[0]["id"] == "b1"
+    # list responses are wrapped with _request_id by log_tool_call
+    assert isinstance(result, dict)
+    assert result["data"][0]["id"] == "b1"
+    assert "_request_id" in result
     cited_ctx.client.close()
 
 

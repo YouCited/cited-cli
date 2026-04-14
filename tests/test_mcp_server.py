@@ -41,6 +41,7 @@ EXPECTED_TOOLS = [
     "get_solution_result",
     "list_solutions",
     "get_job_status",
+    "get_usage_stats",
 ]
 
 

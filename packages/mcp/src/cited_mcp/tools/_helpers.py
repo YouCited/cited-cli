@@ -3,9 +3,13 @@ from __future__ import annotations
 import functools
 import json
 import logging
+import os
 import time
+import uuid
+from collections import deque
 from typing import Any
 
+import httpx
 import jwt as pyjwt
 from mcp.server.fastmcp import Context
 
@@ -14,6 +18,93 @@ from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
 
 logger = logging.getLogger("cited_mcp.usage")
+
+# ---------------------------------------------------------------------------
+# Response size guardrails
+# ---------------------------------------------------------------------------
+
+_MAX_RESPONSE_BYTES = 75_000  # ~25k tokens, with margin
+
+
+def _truncate_response(data: Any, max_bytes: int = _MAX_RESPONSE_BYTES) -> Any:
+    """Truncate a tool response if its JSON serialisation exceeds *max_bytes*.
+
+    For dict responses: repeatedly halves the longest top-level list until the
+    payload fits.  For list responses: slices the list to fit.  Adds metadata
+    fields so the caller knows data was trimmed.
+    """
+    raw = json.dumps(data, default=str)
+    if len(raw.encode()) <= max_bytes:
+        return data
+
+    if isinstance(data, list):
+        total = len(data)
+        while len(json.dumps(data, default=str).encode()) > max_bytes and len(data) > 1:
+            data = data[: len(data) // 2]
+        return {
+            "data": data,
+            "_truncated": True,
+            "_total_count": total,
+            "_hint": f"Showing {len(data)} of {total} items. Use limit/offset for pagination.",
+        }
+
+    if isinstance(data, dict):
+        # Find list-valued fields and iteratively shrink the longest
+        list_fields = {
+            k: v for k, v in data.items() if isinstance(v, list) and len(v) > 0
+        }
+        truncated_fields: list[str] = []
+        attempts = 0
+        while (
+            len(json.dumps(data, default=str).encode()) > max_bytes
+            and list_fields
+            and attempts < 20
+        ):
+            longest_key = max(list_fields, key=lambda k: len(list_fields[k]))
+            original_len = len(list_fields[longest_key])
+            new_len = max(1, original_len // 2)
+            data[longest_key] = list_fields[longest_key][:new_len]
+            list_fields[longest_key] = data[longest_key]
+            if longest_key not in truncated_fields:
+                truncated_fields.append(longest_key)
+            if new_len <= 1:
+                del list_fields[longest_key]
+            attempts += 1
+        if truncated_fields:
+            data["_truncated"] = True
+            data["_truncated_fields"] = truncated_fields
+        return data
+
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Per-user rate limiting
+# ---------------------------------------------------------------------------
+
+_RATE_LIMIT = int(os.environ.get("CITED_RATE_LIMIT", "60"))
+_RATE_WINDOW = 60  # seconds
+_rate_limits: dict[str, deque[float]] = {}
+
+
+def _check_rate_limit(user: str) -> dict[str, Any] | None:
+    """Return an error dict if *user* has exceeded the rate limit, else None."""
+    if _RATE_LIMIT <= 0:
+        return None
+    now = time.monotonic()
+    window = _rate_limits.setdefault(user, deque())
+    # Evict expired entries
+    while window and now - window[0] >= _RATE_WINDOW:
+        window.popleft()
+    if len(window) >= _RATE_LIMIT:
+        retry_after = int(_RATE_WINDOW - (now - window[0])) + 1
+        return {
+            "error": True,
+            "message": "Rate limited. Please wait before making more requests.",
+            "retry_after_seconds": retry_after,
+        }
+    window.append(now)
+    return None
 
 
 def _get_ctx(ctx: Context[Any, CitedContext, Any]) -> CitedContext:
@@ -40,7 +131,12 @@ def _get_ctx(ctx: Context[Any, CitedContext, Any]) -> CitedContext:
                 base_url=lc.api_url,
                 token=access_token.user_jwt,
             )
-            return CitedContext(client=user_client, env=lc.env, api_url=lc.api_url)
+            return CitedContext(
+                client=user_client,
+                env=lc.env,
+                api_url=lc.api_url,
+                default_business_id=lc.default_business_id,
+            )
     except ImportError:
         pass
 
@@ -55,6 +151,13 @@ def _auth_check(cited_ctx: CitedContext) -> dict[str, Any] | None:
             "message": "Not authenticated. Use the 'login' tool or set CITED_TOKEN env var.",
         }
     return None
+
+
+def _resolve_business_id(
+    cited_ctx: CitedContext, business_id: str | None
+) -> str | None:
+    """Return *business_id* if provided, else the session default."""
+    return business_id or cited_ctx.default_business_id
 
 
 _ERROR_HINTS: list[tuple[int, str | None, str]] = [
@@ -128,7 +231,7 @@ def _extract_user(token: str | None) -> str:
 
 
 def log_tool_call(func):  # noqa: ANN001, ANN201
-    """Decorator that emits a structured JSON log line per tool call."""
+    """Decorator: rate-limits, logs, and catches transport errors per tool call."""
 
     @functools.wraps(func)
     async def wrapper(
@@ -139,7 +242,24 @@ def log_tool_call(func):  # noqa: ANN001, ANN201
         tool_name = func.__name__
         token = _resolve_token(ctx)
         user = _extract_user(token)
+        request_id = uuid.uuid4().hex[:12]
         start = time.monotonic()
+
+        # Rate limit check
+        if rl_err := _check_rate_limit(user):
+            logger.info(
+                json.dumps(
+                    {
+                        "event": "rate_limited",
+                        "request_id": request_id,
+                        "tool": tool_name,
+                        "user": user,
+                    }
+                )
+            )
+            rl_err["_request_id"] = request_id
+            return rl_err
+
         try:
             result = await func(ctx, *args, **kwargs)
             duration_ms = int((time.monotonic() - start) * 1000)
@@ -150,6 +270,7 @@ def log_tool_call(func):  # noqa: ANN001, ANN201
                 json.dumps(
                     {
                         "event": "tool_call",
+                        "request_id": request_id,
                         "tool": tool_name,
                         "user": user,
                         "duration_ms": duration_ms,
@@ -157,13 +278,71 @@ def log_tool_call(func):  # noqa: ANN001, ANN201
                     }
                 )
             )
+            # Inject request_id into response
+            if isinstance(result, dict):
+                result["_request_id"] = request_id
+            elif isinstance(result, list):
+                result = {
+                    "data": result,
+                    "_request_id": request_id,
+                }
             return result
+
+        except httpx.TimeoutException:
+            duration_ms = int((time.monotonic() - start) * 1000)
+            logger.info(
+                json.dumps(
+                    {
+                        "event": "tool_call",
+                        "request_id": request_id,
+                        "tool": tool_name,
+                        "user": user,
+                        "duration_ms": duration_ms,
+                        "success": False,
+                        "error_type": "timeout",
+                    }
+                )
+            )
+            return {
+                "error": True,
+                "message": (
+                    "The request timed out. The Cited API may be "
+                    "temporarily slow — please try again in a moment."
+                ),
+                "_request_id": request_id,
+            }
+
+        except httpx.ConnectError:
+            duration_ms = int((time.monotonic() - start) * 1000)
+            logger.info(
+                json.dumps(
+                    {
+                        "event": "tool_call",
+                        "request_id": request_id,
+                        "tool": tool_name,
+                        "user": user,
+                        "duration_ms": duration_ms,
+                        "success": False,
+                        "error_type": "connection_error",
+                    }
+                )
+            )
+            return {
+                "error": True,
+                "message": (
+                    "Could not connect to the Cited API. "
+                    "The service may be temporarily unavailable."
+                ),
+                "_request_id": request_id,
+            }
+
         except Exception as exc:
             duration_ms = int((time.monotonic() - start) * 1000)
             logger.info(
                 json.dumps(
                     {
                         "event": "tool_call",
+                        "request_id": request_id,
                         "tool": tool_name,
                         "user": user,
                         "duration_ms": duration_ms,

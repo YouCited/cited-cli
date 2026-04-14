@@ -13,6 +13,7 @@ from cited_mcp.tools._helpers import (
     _api_error_response,
     _auth_check,
     _get_ctx,
+    _truncate_response,
     log_tool_call,
 )
 
@@ -79,7 +80,10 @@ async def get_solution_result(ctx: Context[Any, CitedContext, Any], job_id: str)
     if err := _auth_check(cited_ctx):
         return err
     try:
-        return cited_ctx.client.get(endpoints.SOLUTION_RESULT.format(job_id=job_id))
+        result = cited_ctx.client.get(
+            endpoints.SOLUTION_RESULT.format(job_id=job_id)
+        )
+        return _truncate_response(result)
     except CitedAPIError as e:
         return _api_error_response(e)
 
@@ -92,18 +96,22 @@ async def get_solution_result(ctx: Context[Any, CitedContext, Any], job_id: str)
 async def list_solutions(
     ctx: Context[Any, CitedContext, Any],
     business_id: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
 ) -> Any:
     """List solution history.
 
     Args:
         ctx: MCP context
         business_id: Optional business ID to filter solutions by
+        limit: Maximum number of results (default 50)
+        offset: Number of results to skip (default 0)
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
     try:
-        params = {}
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
         if business_id is not None:
             params["business_id"] = business_id
         return cited_ctx.client.get(endpoints.SOLUTION_HISTORY, params=params)

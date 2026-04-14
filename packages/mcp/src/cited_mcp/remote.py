@@ -141,6 +141,18 @@ def create_remote_server() -> FastMCP:
     async def health_check(request: Request) -> Response:
         return JSONResponse({"status": "ok"})
 
+    @remote_mcp.custom_route("/robots.txt", methods=["GET"])  # type: ignore[untyped-decorator]
+    async def robots_txt(request: Request) -> Response:
+        return Response(
+            content=(
+                "User-agent: *\n"
+                "Disallow: /oauth/\n"
+                "Allow: /health\n"
+                "Allow: /robots.txt\n"
+            ),
+            media_type="text/plain",
+        )
+
     # Now import tools — they'll register on remote_mcp via server_module.mcp
     server_module.register_tools()
 

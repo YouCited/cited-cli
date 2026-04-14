@@ -22,13 +22,29 @@ from cited_mcp.tools._helpers import (
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
 @log_tool_call
-async def list_businesses(ctx: Context[Any, CitedContext, Any]) -> Any:
-    """List all businesses for the authenticated user."""
+async def list_businesses(
+    ctx: Context[Any, CitedContext, Any],
+    limit: int = 50,
+    offset: int = 0,
+) -> Any:
+    """List all businesses for the authenticated user.
+
+    Args:
+        ctx: MCP context
+        limit: Maximum number of results (default 50)
+        offset: Number of results to skip (default 0)
+    """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
     try:
-        return cited_ctx.client.get(endpoints.BUSINESSES)
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        result = cited_ctx.client.get(endpoints.BUSINESSES, params=params)
+        # Auto-set default business when there's exactly one
+        lc: CitedContext = ctx.request_context.lifespan_context
+        if isinstance(result, list) and len(result) == 1:
+            lc.default_business_id = result[0].get("id")
+        return result
     except CitedAPIError as e:
         return _api_error_response(e)
 
@@ -194,3 +210,51 @@ async def get_health_scores(ctx: Context[Any, CitedContext, Any], business_id: s
         return cited_ctx.client.get(endpoints.HEALTH_SCORES.format(business_id=business_id))
     except CitedAPIError as e:
         return _api_error_response(e)
+
+
+@mcp.tool(
+    title="Get Usage Stats",
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+)
+@log_tool_call
+async def get_usage_stats(ctx: Context[Any, CitedContext, Any]) -> Any:
+    """Get account usage statistics: plan info, business count, and audit count.
+
+    Useful for checking plan utilization before starting new operations.
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+
+    stats: dict[str, Any] = {}
+    try:
+        user = cited_ctx.client.get(endpoints.ME)
+        stats["plan"] = user.get("plan", "unknown")
+        stats["email"] = user.get("email")
+    except CitedAPIError:
+        stats["plan"] = "unknown"
+
+    try:
+        businesses = cited_ctx.client.get(endpoints.BUSINESSES)
+        stats["business_count"] = (
+            len(businesses) if isinstance(businesses, list) else 0
+        )
+    except CitedAPIError:
+        stats["business_count"] = None
+
+    try:
+        audits = cited_ctx.client.get(
+            endpoints.AUDIT_HISTORY, params={"limit": 100}
+        )
+        stats["audit_count"] = (
+            len(audits) if isinstance(audits, list) else 0
+        )
+    except CitedAPIError:
+        stats["audit_count"] = None
+
+    return stats

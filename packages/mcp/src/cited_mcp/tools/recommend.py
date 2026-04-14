@@ -13,6 +13,7 @@ from cited_mcp.tools._helpers import (
     _api_error_response,
     _auth_check,
     _get_ctx,
+    _truncate_response,
     log_tool_call,
 )
 
@@ -68,7 +69,10 @@ async def get_recommendation_result(ctx: Context[Any, CitedContext, Any], job_id
     if err := _auth_check(cited_ctx):
         return err
     try:
-        return cited_ctx.client.get(endpoints.RECOMMEND_RESULT.format(job_id=job_id))
+        result = cited_ctx.client.get(
+            endpoints.RECOMMEND_RESULT.format(job_id=job_id)
+        )
+        return _truncate_response(result)
     except CitedAPIError as e:
         return _api_error_response(e)
 
@@ -115,7 +119,7 @@ async def get_recommendation_insights(ctx: Context[Any, CitedContext, Any], job_
         item["source_id"] = item.get("id", item.get("category", ""))
     insights["priority_actions"] = result.get("priority_actions", [])
 
-    return insights
+    return _truncate_response(insights)
 
 
 @mcp.tool(
@@ -124,20 +128,27 @@ async def get_recommendation_insights(ctx: Context[Any, CitedContext, Any], job_
 )
 @log_tool_call
 async def list_recommendations(
-    ctx: Context[Any, CitedContext, Any], audit_job_id: str
+    ctx: Context[Any, CitedContext, Any],
+    audit_job_id: str,
+    limit: int = 50,
+    offset: int = 0,
 ) -> Any:
     """List recommendation history for a specific audit.
 
     Args:
         ctx: MCP context
         audit_job_id: The audit job ID to list recommendations for
+        limit: Maximum number of results (default 50)
+        offset: Number of results to skip (default 0)
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
     try:
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
         return cited_ctx.client.get(
-            endpoints.RECOMMEND_HISTORY.format(audit_job_id=audit_job_id)
+            endpoints.RECOMMEND_HISTORY.format(audit_job_id=audit_job_id),
+            params=params,
         )
     except CitedAPIError as e:
         return _api_error_response(e)
