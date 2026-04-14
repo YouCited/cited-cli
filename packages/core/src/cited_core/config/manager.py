@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import stat
 import tomllib
 from typing import Any
 
@@ -24,6 +26,7 @@ class ConfigManager:
 
     def _ensure_config_dir(self) -> None:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        os.chmod(CONFIG_DIR, stat.S_IRWXU)
 
     def _load(self) -> dict[str, Any]:
         if not CONFIG_FILE.exists():
@@ -34,6 +37,7 @@ class ConfigManager:
     def _save(self) -> None:
         with open(CONFIG_FILE, "wb") as f:
             tomli_w.dump(self._data, f)
+        os.chmod(CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
 
     def get(self, key: str, profile: str = "default") -> Any:
         section = self._data.get(profile, self._data.get("default", {}))

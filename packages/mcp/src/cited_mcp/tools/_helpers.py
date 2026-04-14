@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import hashlib
 import json
 import logging
 import os
@@ -217,8 +218,15 @@ def _resolve_token(
     return None
 
 
+def _rate_limit_key(token: str | None) -> str:
+    """Derive a tamper-proof rate-limit key from the raw token."""
+    if not token:
+        return "anonymous"
+    return hashlib.sha256(token.encode()).hexdigest()[:16]
+
+
 def _extract_user(token: str | None) -> str:
-    """Decode user email from a JWT without verifying signature."""
+    """Decode user email from a JWT without verifying signature (for logging only)."""
     if not token:
         return "anonymous"
     try:
@@ -241,12 +249,13 @@ def log_tool_call(func):  # noqa: ANN001, ANN201
     ) -> Any:
         tool_name = func.__name__
         token = _resolve_token(ctx)
+        rl_key = _rate_limit_key(token)
         user = _extract_user(token)
         request_id = uuid.uuid4().hex[:12]
         start = time.monotonic()
 
         # Rate limit check
-        if rl_err := _check_rate_limit(user):
+        if rl_err := _check_rate_limit(rl_key):
             logger.info(
                 json.dumps(
                     {

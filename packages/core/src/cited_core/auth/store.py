@@ -53,8 +53,13 @@ class TokenStore:
 
     # --- file fallback ---
 
-    def _ensure_creds_file(self) -> dict[str, str]:
+    @staticmethod
+    def _ensure_config_dir() -> None:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        os.chmod(CONFIG_DIR, stat.S_IRWXU)
+
+    def _ensure_creds_file(self) -> dict[str, str]:
+        self._ensure_config_dir()
         if CREDENTIALS_FILE.exists():
             with open(CREDENTIALS_FILE) as f:
                 data: dict[str, str] = json.load(f)
@@ -62,10 +67,10 @@ class TokenStore:
         return {}
 
     def _write_creds(self, data: dict[str, str]) -> None:
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        with open(CREDENTIALS_FILE, "w") as f:
+        self._ensure_config_dir()
+        fd = os.open(CREDENTIALS_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
             json.dump(data, f, indent=2)
-        os.chmod(CREDENTIALS_FILE, stat.S_IRUSR | stat.S_IWUSR)
 
     def _save_file(self, env: str, token: str) -> None:
         data = self._ensure_creds_file()
