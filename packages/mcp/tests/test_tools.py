@@ -57,19 +57,21 @@ def make_ctx(
 
 
 @pytest.fixture(autouse=True)
-def _seed_tier_cache():
-    """Pre-seed the tier cache so plan gating doesn't call /auth/me on mocked clients."""
-    from cited_mcp.tools._helpers import _tier_cache
+def _seed_tier_cache_and_reset_rate_limits():
+    """Pre-seed tier cache and reset rate limiter between tests."""
+    from cited_mcp.tools._helpers import _tier_cache, _rate_limits
     import time
 
     # Use "pro" tier for all test users so no tools are gated
     _tier_cache.clear()
+    _rate_limits.clear()
     # The cache key is sha256(token)[:16] — pre-seed for "test-token"
     import hashlib
     cache_key = hashlib.sha256(b"test-token").hexdigest()[:16]
     _tier_cache[cache_key] = ("pro", time.monotonic() + 3600)
     yield
     _tier_cache.clear()
+    _rate_limits.clear()
 
 
 @pytest.fixture
@@ -87,9 +89,16 @@ def unauth_ctx():
 # Ensure tools are registered before importing them
 create_stdio_server()
 
+from cited_mcp.tools.agent import (  # noqa: E402
+    buyer_fit_query,
+    get_business_facts,
+)
+from cited_mcp.tools.analytics import get_analytics_trends  # noqa: E402
 from cited_mcp.tools.audit import (  # noqa: E402
     create_audit_template,
     delete_audit_template,
+    export_audit,
+    get_audit_question_detail,
     get_audit_result,
     get_audit_status,
     list_audit_templates,
@@ -97,7 +106,7 @@ from cited_mcp.tools.audit import (  # noqa: E402
     start_audit,
     update_audit_template,
 )
-from cited_mcp.tools.auth import check_auth_status, login, logout  # noqa: E402
+from cited_mcp.tools.auth import check_auth_status, login, logout, ping  # noqa: E402
 from cited_mcp.tools.business import (  # noqa: E402
     crawl_business,
     create_business,
@@ -108,7 +117,8 @@ from cited_mcp.tools.business import (  # noqa: E402
     list_businesses,
     update_business,
 )
-from cited_mcp.tools.job import get_job_status  # noqa: E402
+from cited_mcp.tools.hq import get_business_hq  # noqa: E402
+from cited_mcp.tools.job import cancel_job, get_job_status  # noqa: E402
 from cited_mcp.tools.recommend import (  # noqa: E402
     get_recommendation_insights,
     get_recommendation_result,
@@ -121,6 +131,7 @@ from cited_mcp.tools.solution import (  # noqa: E402
     get_solution_status,
     list_solutions,
     start_solution,
+    start_solutions_batch,
 )
 
 
@@ -423,6 +434,56 @@ class TestSolutionTools:
         result = run(get_solution_result(ctx, job_id="s1"))
         assert "solution" in result
 
+    def test_get_solution_result_strips_chat_history(self, ctx):
+        """chat_history should be stripped — no MCP affordance for it."""
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "solution_plan": "Do X",
+            "chat_history": [{"role": "assistant", "content": "Ready?"}],
+            "artifacts": [],
+        }
+
+        result = run(get_solution_result(ctx, job_id="s1"))
+        assert "chat_history" not in result
+        assert result["solution_plan"] == "Do X"
+
+    def test_get_solution_result_absolute_download_path(self):
+        """download_path should be absolute, not relative."""
+        solution_ctx = make_ctx(api_url="https://api.youcited.com")
+        client = solution_ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "artifacts": [
+                {
+                    "id": "a1",
+                    "download_path": "/solutions/j1/artifacts/a1/download",
+                }
+            ],
+        }
+
+        result = run(get_solution_result(solution_ctx, job_id="j1"))
+        dp = result["artifacts"][0]["download_path"]
+        assert dp == "https://api.youcited.com/solutions/j1/artifacts/a1/download"
+
+    def test_start_solutions_batch(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = [
+            {"source_type": "head_to_head", "source_id": "a.com", "job_id": "s1"},
+            {"source_type": "head_to_head", "source_id": "b.com", "job_id": "s2"},
+        ]
+
+        result = run(start_solutions_batch(
+            ctx,
+            recommendation_job_id="r1",
+            items=[
+                {"source_type": "head_to_head", "source_id": "a.com"},
+                {"source_type": "head_to_head", "source_id": "b.com"},
+            ],
+        ))
+        assert result["data"][0]["job_id"] == "s1"
+        payload = client.post.call_args[1]["json"]
+        assert len(payload["items"]) == 2
+        assert payload["items"][0]["recommendation_job_id"] == "r1"
+
     def test_list_solutions(self, ctx):
         client = ctx.request_context.lifespan_context.client
         client.get.return_value = [{"job_id": "s1"}, {"job_id": "s2"}]
@@ -456,6 +517,14 @@ class TestJobTools:
         result = run(get_job_status(ctx, job_id="j1"))
         assert result["status"] == "completed"
         assert result["job_type"] == "recommendation"
+
+    def test_cancel_job(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = None
+
+        result = run(cancel_job(ctx, job_id="j1", job_type="audit"))
+        assert result["success"] is True
+        assert result["job_type"] == "audit"
 
     def test_get_job_status_not_found(self, ctx):
         client = ctx.request_context.lifespan_context.client
@@ -644,6 +713,144 @@ class TestErrorHandling:
         assert result["error"] is True
         assert result["status_code"] == 401
         assert "expired" in result["hint"].lower()
+
+
+# ---------------------------------------------------------------------------
+# New tools: ping, audit detail, HQ, analytics, agent, export
+# ---------------------------------------------------------------------------
+
+
+class TestPing:
+    def test_ping_returns_ok(self, ctx):
+        result = run(ping(ctx))
+        assert result["status"] == "ok"
+        assert result["server"] == "cited-mcp"
+
+    def test_ping_works_without_auth(self, unauth_ctx):
+        result = run(ping(unauth_ctx))
+        assert result["status"] == "ok"
+
+
+class TestAuditResultModes:
+    def test_audit_result_summary_by_default(self, ctx):
+        """Default mode should pass fields=summary to the API."""
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"overall_citation_rate": 75, "question_ids": ["q1"]}
+
+        result = run(get_audit_result(ctx, job_id="j1"))
+        assert result["overall_citation_rate"] == 75
+        call_params = client.get.call_args[1].get("params", {})
+        assert call_params.get("fields") == "summary"
+
+    def test_audit_result_full_mode(self, ctx):
+        """full=True should NOT pass fields=summary."""
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"citations_pulled": [{"id": "c1"}]}
+
+        result = run(get_audit_result(ctx, job_id="j1", full=True))
+        assert "citations_pulled" in result
+        call_params = client.get.call_args[1].get("params", {})
+        assert "fields" not in call_params
+
+    def test_audit_question_detail(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "id": "q1",
+            "question_text": "Test question?",
+            "coverage_score": 0.8,
+            "citations": [{"id": "c1"}],
+        }
+
+        result = run(get_audit_question_detail(ctx, job_id="j1", question_id="q1"))
+        assert result["question_text"] == "Test question?"
+
+    def test_export_audit(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"url": "https://example.com/report.pdf"}
+
+        result = run(export_audit(ctx, job_id="j1"))
+        assert "url" in result
+
+    def test_create_template_with_include_business_name(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = {"id": "t1", "include_business_name": True}
+
+        result = run(create_audit_template(
+            ctx, name="Test", business_id="b1", include_business_name=True,
+        ))
+        payload = client.post.call_args[1]["json"]
+        assert payload["include_business_name"] is True
+
+
+class TestNewToolModules:
+    def test_get_business_hq(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"health_scores": {"overall": 80}}
+
+        result = run(get_business_hq(ctx, business_id="b1"))
+        assert result["health_scores"]["overall"] == 80
+
+    def test_get_analytics_trends(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"trends": [{"date": "2026-04-01", "score": 75}]}
+
+        result = run(get_analytics_trends(ctx, business_id="b1"))
+        assert result["trends"][0]["score"] == 75
+
+    def test_get_business_facts(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"facts": [{"key": "founded", "value": "2020"}]}
+
+        result = run(get_business_facts(ctx, business_id="b1"))
+        assert result["facts"][0]["key"] == "founded"
+
+    def test_buyer_fit_query(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = {"fit_score": 0.85, "reasons": ["strong match"]}
+
+        result = run(buyer_fit_query(ctx, query="best GEO tool"))
+        assert result["fit_score"] == 0.85
+        payload = client.post.call_args[1]["json"]
+        assert payload["query"] == "best GEO tool"
+
+    def test_agent_tool_requires_business_id(self, ctx):
+        """Agent tools should return error if no business_id and no default."""
+        client = ctx.request_context.lifespan_context.client
+        # No default_business_id set on context
+        result = run(get_business_facts(ctx))
+        assert result["error"] is True
+        assert "business_id" in result["message"]
+
+
+# ---------------------------------------------------------------------------
+# Error response structure (new fields: error_type, retriable)
+# ---------------------------------------------------------------------------
+
+
+class TestStructuredErrorResponses:
+    def test_timeout_has_error_type_and_retriable(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.side_effect = httpx.TimeoutException("timed out")
+
+        result = run(list_businesses(ctx))
+        assert result["error_type"] == "upstream_timeout"
+        assert result["retriable"] is True
+
+    def test_connect_error_has_error_type_and_retriable(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.side_effect = httpx.ConnectError("refused")
+
+        result = run(get_business(ctx, business_id="b1"))
+        assert result["error_type"] == "connection_error"
+        assert result["retriable"] is True
+
+    def test_generic_exception_has_error_type_and_retriable(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.side_effect = RuntimeError("unexpected")
+
+        result = run(list_businesses(ctx))
+        assert result["error_type"] == "RuntimeError"
+        assert result["retriable"] is True
 
 
 # ---------------------------------------------------------------------------
