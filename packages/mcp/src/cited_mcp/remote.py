@@ -24,12 +24,12 @@ logger = logging.getLogger(__name__)
 
 
 class _PatchRegistrationMiddleware:
-    """ASGI middleware that patches OAuth client registration requests.
+    """ASGI middleware that patches and validates OAuth client registrations.
 
-    The MCP SDK (v1.27) requires grant_types to include both
-    "authorization_code" and "refresh_token". Some clients (e.g. Claude's
-    Custom Connectors) only send "authorization_code". This middleware
-    adds "refresh_token" to grant_types before the SDK's validation runs.
+    1. Adds "refresh_token" to grant_types (MCP SDK v1.27 requires both
+       authorization_code and refresh_token, but Custom Connectors only send one).
+    2. Validates redirect_uris against the allowlist — rejects registrations
+       that would redirect tokens to untrusted domains.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -41,6 +41,8 @@ class _PatchRegistrationMiddleware:
             return
 
         import json as _json
+
+        from cited_mcp.auth_provider import _ALLOWED_REDIRECT_PREFIXES
 
         body_parts: list[bytes] = []
         patched = False
@@ -56,11 +58,45 @@ class _PatchRegistrationMiddleware:
                 full_body = b"".join(body_parts)
                 try:
                     data = _json.loads(full_body)
+
+                    # Validate redirect URIs against allowlist
+                    for uri in data.get("redirect_uris", []):
+                        if not any(
+                            uri.startswith(prefix)
+                            for prefix in _ALLOWED_REDIRECT_PREFIXES
+                        ):
+                            logger.warning(
+                                "Registration rejected: disallowed redirect_uri %s",
+                                uri,
+                            )
+                            # Return a 400 error directly
+                            error_body = _json.dumps({
+                                "error": "invalid_redirect_uri",
+                                "error_description": (
+                                    f"Redirect URI '{uri}' is not allowed. "
+                                    "Only localhost and approved domains are accepted."
+                                ),
+                            }).encode()
+                            await send({
+                                "type": "http.response.start",
+                                "status": 400,
+                                "headers": [
+                                    [b"content-type", b"application/json"],
+                                ],
+                            })
+                            await send({
+                                "type": "http.response.body",
+                                "body": error_body,
+                            })
+                            # Don't forward to the app
+                            patched = True
+                            return {"type": "http.request", "body": b"", "more_body": False}
+
+                    # Patch grant_types
                     grant_types = data.get("grant_types", [])
                     if "refresh_token" not in grant_types:
                         data["grant_types"] = list(grant_types) + ["refresh_token"]
-                        full_body = _json.dumps(data).encode()
-                        logger.debug("Patched registration: added refresh_token to grant_types")
+                    full_body = _json.dumps(data).encode()
                 except (ValueError, KeyError):
                     pass
                 patched = True
