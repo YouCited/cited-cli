@@ -17,3 +17,4 @@ env/
 htmlcov/
 .env
 ~/.cited/
+.DS_Store
