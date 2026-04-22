@@ -45,6 +45,16 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 **Monitor over time:**
 > "Show me the health scores for my business and compare them to my last audit. What has improved and what still needs work?"
 
+## Plan Requirements
+
+Tools are gated by subscription tier. If a tool is above the user's plan, it returns an upgrade message with a billing link.
+
+- **Growth** (entry tier): Read-only access — list/get businesses, run audits, view recommendations
+- **Scale**: Full write access — create/update/delete businesses and templates, generate solutions
+- **Pro**: Everything + usage statistics
+
+Always call `check_auth_status` first — it shows the user's plan and remaining limits.
+
 ## Tips
 
 - Always call `check_auth_status` first to verify authentication and plan limits

@@ -183,6 +183,28 @@ Claude will chain the tools automatically:
 6. `get_recommendation_insights` → display actionable results
 7. `start_solution` → generate implementation steps for top issues
 
+## Plan-Based Tool Access
+
+Tools are gated by subscription tier. All tiers can read data; write operations require higher plans.
+
+| Tier | Tools Available |
+|------|----------------|
+| **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list), all recommendation tools, job status — **19 tools** |
+| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools — **29 tools** |
+| **Pro** | Everything in Scale + usage stats — **30 tools** |
+
+When a user calls a tool above their plan, the server returns a structured error with an upgrade link:
+
+```json
+{
+  "error": true,
+  "message": "The 'create_business' tool requires the Scale plan or higher.",
+  "upgrade_url": "https://app.youcited.com/settings/billing",
+  "required_tier": "scale",
+  "current_tier": "growth"
+}
+```
+
 ## Environment Variables
 
 | Variable | Description |

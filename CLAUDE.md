@@ -54,11 +54,14 @@ cited mcp serve              # Via CLI (requires cited-cli[mcp])
 - `config/constants.py` — `ENVIRONMENTS`, `CONFIG_DIR`, `VALID_INDUSTRIES`, etc.
 - `errors.py` — `CitedAPIError`, `ExitCode`, `exit_code_for_status()`
 
-**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 28 tools:
+**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 30 tools:
 - `server.py` — `FastMCP` instance, lifespan, `run_server()`
 - `tools/` — auth, business, audit, recommend, solution, job tool modules
+- `plan_gating.py` — Per-plan tool access control (growth/scale/pro tiers)
+- `auth_provider.py` — OAuth provider with stateless JWT tokens and user JWT expiry detection
 - Supports `CITED_TOKEN` and `CITED_AGENT_API_KEY` env vars
 - Includes browser OAuth `login` tool for Claude Desktop users
+- Remote server (`remote.py`) runs stateless HTTP with Fargate Spot auto-scaling
 
 **`cited-cli`** (`src/cited_cli/`) — Typer CLI:
 - Imports core modules from `cited_core.*` (not `cited_cli.api.*`)
