@@ -234,6 +234,28 @@ async def get_audit_result(ctx: Context[Any, CitedContext, Any], job_id: str) ->
 
 
 @mcp.tool(
+    title="Export Audit PDF",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
+@log_tool_call
+async def export_audit(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
+    """Export a completed audit as a PDF report. Returns the download URL.
+
+    Args:
+        ctx: MCP context
+        job_id: The completed audit job ID
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        result = cited_ctx.client.get(endpoints.AUDIT_EXPORT_PDF.format(job_id=job_id))
+        return result
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
     title="List Audits",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )

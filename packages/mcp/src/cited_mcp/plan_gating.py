@@ -34,11 +34,22 @@ _SCALE_TOOLS: set[str] = {
     "get_solution_status",
     "get_solution_result",
     "list_solutions",
+    "export_audit",
+    "cancel_job",
 }
 
 # Tools restricted to pro+ tier
 _PRO_TOOLS: set[str] = {
     "get_usage_stats",
+    "get_business_facts",
+    "get_business_claims",
+    "get_competitive_comparison",
+    "get_semantic_health",
+    "buyer_fit_query",
+    "get_business_hq",
+    "get_analytics_trends",
+    "get_analytics_summary",
+    "compare_audits",
 }
 
 # Tier hierarchy (higher index = more access)
@@ -123,6 +134,9 @@ _BASE_TOOLS: set[str] = {
     "list_recommendations",
     "get_job_status",
 }
+
+# Verify all registered tools are accounted for in the tier sets.
+# This is checked by the drift detection test in test_plan_gating.py.
 
 
 def tools_for_tier(tier: str | None) -> set[str]:
