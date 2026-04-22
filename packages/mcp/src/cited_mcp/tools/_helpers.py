@@ -248,6 +248,36 @@ def _extract_user(token: str | None) -> str:
         return "unknown"
 
 
+# ---------------------------------------------------------------------------
+# Per-user tier cache (avoids /auth/me call on every tool invocation)
+# ---------------------------------------------------------------------------
+
+_TIER_CACHE_TTL = 300  # 5 minutes
+_tier_cache: dict[str, tuple[str, float]] = {}  # rl_key -> (tier, expires_at)
+
+
+def _get_user_tier(cited_ctx: CitedContext, cache_key: str) -> str | None:
+    """Return the user's subscription tier, using a short-lived cache.
+
+    Falls back to None (treated as free) if the API call fails.
+    """
+    now = time.monotonic()
+    cached = _tier_cache.get(cache_key)
+    if cached and now < cached[1]:
+        return cached[0]
+
+    try:
+        user = cited_ctx.client.get("/auth/me")
+        tier = user.get("subscription_tier", "free")
+        _tier_cache[cache_key] = (tier, now + _TIER_CACHE_TTL)
+        return tier
+    except Exception:
+        # If /auth/me fails, use cached value (even if stale) or default to None
+        if cached:
+            return cached[0]
+        return None
+
+
 def log_tool_call(func):  # noqa: ANN001, ANN201
     """Decorator: rate-limits, logs, and catches transport errors per tool call."""
 
@@ -278,6 +308,31 @@ def log_tool_call(func):  # noqa: ANN001, ANN201
             )
             rl_err["_request_id"] = request_id
             return rl_err
+
+        # Plan gating check (skip for auth tools — must always be accessible)
+        from cited_mcp.plan_gating import is_tool_allowed, upgrade_message
+
+        _AUTH_TOOLS = {"check_auth_status", "login", "logout"}
+        if tool_name not in _AUTH_TOOLS and token:
+            cited_ctx = _get_ctx(ctx)
+            if cited_ctx.client.token:
+                user_tier = _get_user_tier(cited_ctx, rl_key)
+                if not is_tool_allowed(tool_name, user_tier):
+                    gate_err = upgrade_message(tool_name, user_tier)
+                    gate_err["_request_id"] = request_id
+                    logger.info(
+                        json.dumps(
+                            {
+                                "event": "plan_gated",
+                                "request_id": request_id,
+                                "tool": tool_name,
+                                "user": user,
+                                "current_tier": user_tier,
+                                "required_tier": gate_err["required_tier"],
+                            }
+                        )
+                    )
+                    return gate_err
 
         try:
             result = await func(ctx, *args, **kwargs)

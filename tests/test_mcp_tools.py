@@ -24,6 +24,14 @@ def _mcp_available():
     import cited_mcp.server as server_mod
     if server_mod.mcp is None:
         server_mod.create_stdio_server()
+    # Pre-seed tier cache so plan gating doesn't make unexpected /auth/me calls
+    import hashlib
+    import time
+    from cited_mcp.tools._helpers import _tier_cache
+    cache_key = hashlib.sha256(b"test-token").hexdigest()[:16]
+    _tier_cache[cache_key] = ("pro", time.monotonic() + 3600)
+    yield
+    _tier_cache.clear()
 
 
 def _make_cited_ctx(token: str | None = "test-token") -> CitedContext:

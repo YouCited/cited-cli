@@ -55,6 +55,22 @@ def make_ctx(
     return FakeContext(request_context=FakeRequestContext(lifespan_context=cited_ctx))
 
 
+@pytest.fixture(autouse=True)
+def _seed_tier_cache():
+    """Pre-seed the tier cache so plan gating doesn't call /auth/me on mocked clients."""
+    from cited_mcp.tools._helpers import _tier_cache
+    import time
+
+    # Use "pro" tier for all test users so no tools are gated
+    _tier_cache.clear()
+    # The cache key is sha256(token)[:16] — pre-seed for "test-token"
+    import hashlib
+    cache_key = hashlib.sha256(b"test-token").hexdigest()[:16]
+    _tier_cache[cache_key] = ("pro", time.monotonic() + 3600)
+    yield
+    _tier_cache.clear()
+
+
 @pytest.fixture
 def ctx():
     """Authenticated context fixture."""
