@@ -718,6 +718,48 @@ class TestPlanGatingIntegration:
 # ---------------------------------------------------------------------------
 
 
+class TestDecoratorErrorHandling:
+    """Verify the log_tool_call decorator catches ALL exceptions as structured errors."""
+
+    def test_exception_in_plan_gating_returns_structured_error(self):
+        """If _get_ctx raises during plan gating, should return error dict, not crash."""
+        import hashlib
+        import time
+        from unittest.mock import patch
+
+        from cited_mcp.tools._helpers import _tier_cache
+
+        # Set up a context where the plan gating will call _get_ctx
+        gated_ctx = make_ctx(token="gating-test-token")
+        cache_key = hashlib.sha256(b"gating-test-token").hexdigest()[:16]
+        _tier_cache[cache_key] = ("growth", time.monotonic() + 3600)
+
+        # Mock _get_ctx to raise an exception (simulating OAuth failure)
+        with patch(
+            "cited_mcp.tools._helpers._get_ctx",
+            side_effect=RuntimeError("OAuth context unavailable"),
+        ):
+            # Call a non-auth tool — plan gating will call _get_ctx
+            result = run(list_businesses(gated_ctx))
+
+        # Should get a structured error, NOT a bare exception
+        assert result["error"] is True
+        assert result["error_type"] == "RuntimeError"
+        assert result["retriable"] is True
+        assert "_request_id" in result
+
+    def test_generic_exception_returns_structured_error(self):
+        """Any uncaught exception in the tool should return structured error."""
+        ctx = make_ctx()
+        client = ctx.request_context.lifespan_context.client
+        client.get.side_effect = RuntimeError("Unexpected internal error")
+
+        result = run(list_businesses(ctx))
+        assert result["error"] is True
+        assert result["retriable"] is True
+        assert "_request_id" in result
+
+
 class TestTransportErrors:
     def test_timeout_returns_error(self, ctx):
         """httpx.TimeoutException should return a structured error, not crash."""

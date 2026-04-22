@@ -31,11 +31,17 @@ async def start_solution(
 ) -> Any:
     """Start generating a solution for a specific recommendation insight.
 
+    For multiple solutions at once, use start_solutions_batch instead.
+
     Args:
         ctx: MCP context
         recommendation_job_id: The recommendation job ID
-        source_type: One of: question_insight, head_to_head, strengthening_tip, priority_action
-        source_id: The source identifier (question_id, competitor_domain, category, etc.)
+        source_type: One of: question_insight, head_to_head,
+            strengthening_tip, priority_action
+        source_id: The source identifier — use the source_id value
+            from get_recommendation_insights (question_id for
+            question_insight, competitor_domain for head_to_head,
+            category for strengthening_tip)
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
@@ -65,8 +71,10 @@ async def start_solutions_batch(
 ) -> Any:
     """Start multiple solutions in one call (max 10).
 
-    More efficient than calling start_solution repeatedly. All items
-    must reference the same recommendation job.
+    Use this to fan out solutions across all question_insights,
+    head_to_head competitors, or strengthening_tips from a single
+    recommendation. Much more efficient than sequential start_solution
+    calls. All items must reference the same recommendation job.
 
     Args:
         ctx: MCP context
@@ -118,7 +126,11 @@ async def get_solution_status(ctx: Context[Any, CitedContext, Any], job_id: str)
 )
 @log_tool_call
 async def get_solution_result(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
-    """Get the results of a completed solution generation job."""
+    """Get the results of a completed solution generation job.
+
+    Returns solution plan, artifacts (with inline content for text files),
+    and metadata. Artifact download_path URLs are absolute.
+    """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
@@ -126,6 +138,16 @@ async def get_solution_result(ctx: Context[Any, CitedContext, Any], job_id: str)
         result = cited_ctx.client.get(
             endpoints.SOLUTION_RESULT.format(job_id=job_id)
         )
+        if isinstance(result, dict):
+            # Strip chat_history — no MCP tool to respond to it
+            result.pop("chat_history", None)
+            # Make download_path absolute so agents can fetch directly
+            for artifact in result.get("artifacts", []):
+                dp = artifact.get("download_path")
+                if dp and dp.startswith("/"):
+                    artifact["download_path"] = (
+                        f"{cited_ctx.api_url}{dp}"
+                    )
         return _truncate_response(result)
     except CitedAPIError as e:
         return _api_error_response(e)

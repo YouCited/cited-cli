@@ -188,10 +188,13 @@ async def delete_business(ctx: Context[Any, CitedContext, Any], business_id: str
 async def crawl_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Crawl a business's website to gather content and brand signals.
 
-    Run this after creating a business and before the first audit — the
-    crawl populates the data that audits and recommendations analyze.
-    Re-crawl when the website changes significantly. Returns a job_id
-    to poll with get_job_status. Typical crawl time: 1-3 minutes.
+    When to call: optionally after creating a business, or when the
+    website has changed significantly and you want fresh data before
+    an audit. Note: audits and solutions will trigger a crawl
+    automatically if one is needed, so explicit crawling is not
+    required for the standard workflow.
+
+    Returns a job_id to poll with get_job_status. Typical time: 1-3 min.
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):

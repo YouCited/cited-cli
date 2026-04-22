@@ -309,32 +309,34 @@ def log_tool_call(func):  # noqa: ANN001, ANN201
             rl_err["_request_id"] = request_id
             return rl_err
 
-        # Plan gating check (skip for auth tools — must always be accessible)
-        from cited_mcp.plan_gating import is_tool_allowed, upgrade_message
-
-        _AUTH_TOOLS = {"check_auth_status", "login", "logout"}
-        if tool_name not in _AUTH_TOOLS and token:
-            cited_ctx = _get_ctx(ctx)
-            if cited_ctx.client.token:
-                user_tier = _get_user_tier(cited_ctx, rl_key)
-                if not is_tool_allowed(tool_name, user_tier):
-                    gate_err = upgrade_message(tool_name, user_tier)
-                    gate_err["_request_id"] = request_id
-                    logger.info(
-                        json.dumps(
-                            {
-                                "event": "plan_gated",
-                                "request_id": request_id,
-                                "tool": tool_name,
-                                "user": user,
-                                "current_tier": user_tier,
-                                "required_tier": gate_err["required_tier"],
-                            }
-                        )
-                    )
-                    return gate_err
-
         try:
+            # Plan gating check (skip for auth tools — must always be accessible)
+            from cited_mcp.plan_gating import is_tool_allowed, upgrade_message
+
+            _AUTH_TOOLS = {"check_auth_status", "login", "logout"}
+            if tool_name not in _AUTH_TOOLS and token:
+                cited_ctx = _get_ctx(ctx)
+                if cited_ctx.client.token:
+                    user_tier = _get_user_tier(cited_ctx, rl_key)
+                    if not is_tool_allowed(tool_name, user_tier):
+                        gate_err = upgrade_message(tool_name, user_tier)
+                        gate_err["_request_id"] = request_id
+                        logger.info(
+                            json.dumps(
+                                {
+                                    "event": "plan_gated",
+                                    "request_id": request_id,
+                                    "tool": tool_name,
+                                    "user": user,
+                                    "current_tier": user_tier,
+                                    "required_tier": gate_err[
+                                        "required_tier"
+                                    ],
+                                }
+                            )
+                        )
+                        return gate_err
+
             result = await func(ctx, *args, **kwargs)
             duration_ms = int((time.monotonic() - start) * 1000)
             is_error = isinstance(result, dict) and result.get(
@@ -379,10 +381,12 @@ def log_tool_call(func):  # noqa: ANN001, ANN201
             )
             return {
                 "error": True,
+                "error_type": "upstream_timeout",
                 "message": (
                     "The request timed out. The Cited API may be "
                     "temporarily slow — please try again in a moment."
                 ),
+                "retriable": True,
                 "_request_id": request_id,
             }
 
@@ -403,10 +407,12 @@ def log_tool_call(func):  # noqa: ANN001, ANN201
             )
             return {
                 "error": True,
+                "error_type": "connection_error",
                 "message": (
                     "Could not connect to the Cited API. "
                     "The service may be temporarily unavailable."
                 ),
+                "retriable": True,
                 "_request_id": request_id,
             }
 
@@ -425,7 +431,16 @@ def log_tool_call(func):  # noqa: ANN001, ANN201
                     }
                 )
             )
-            raise
+            return {
+                "error": True,
+                "error_type": type(exc).__name__,
+                "message": (
+                    "An unexpected error occurred. "
+                    "This is usually transient — please retry."
+                ),
+                "retriable": True,
+                "_request_id": request_id,
+            }
 
     return wrapper
 

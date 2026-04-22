@@ -15,50 +15,47 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 - `check_auth_status` — Verify authentication and check plan limits
 - `list_businesses` — See existing businesses
 - `create_business` — Add a new business (requires name, website, description)
-- `crawl_business` — Crawl the business website to gather data for analysis
+- `crawl_business` — Optional: force a fresh website crawl. Audits and solutions trigger crawls automatically if needed.
 
 ### 2. Run an Audit
 - `create_audit_template` — Define what questions to audit (e.g., "What is [business]?", "Best [industry] tools")
-- `start_audit` — Launch the audit using a template
-- `get_audit_status` — Poll until the audit completes (typically 2-4 minutes)
-- `get_audit_result` — Retrieve visibility scores, citation rates, and competitor data
+- `start_audit` — Launch the audit using a template (2-4 minutes). Poll `get_audit_status` every 30-60 seconds.
+- `get_audit_result` — Returns a summary by default (aggregate KPIs, competitor leaderboard, question IDs). Use `full=True` for detailed per-question citations — warning: full results can be very large.
 
 ### 3. Generate Recommendations
 - `start_recommendation` — Analyze audit results and generate improvement recommendations
-- `get_recommendation_insights` — Get structured insights with question-level analysis, competitor head-to-head comparisons, and strengthening tips. Each insight includes `source_type` and `source_id` needed for the next step.
+- `get_recommendation_insights` — Get structured insights with `source_type` and `source_id` needed for solutions:
+  - `question_insight` → source_id is the `question_id`
+  - `head_to_head` → source_id is the `competitor_domain`
+  - `strengthening_tip` → source_id is the `category`
 
 ### 4. Create Solutions
-- `start_solution` — Generate implementation artifacts (schema markup, content templates, outreach playbooks) for a specific insight
-- `get_solution_result` — Retrieve the solution with downloadable artifacts
+- `start_solution` — Generate a solution for a single insight
+- `start_solutions_batch` — **Preferred**: generate up to 10 solutions in one call. Pass all insights from step 3 to fan out efficiently.
+- `get_solution_result` — Retrieve the solution with artifacts (inline content for text files, absolute download URLs)
 
-## Example Prompts
-
-**Run a full GEO audit:**
-> "List my businesses, then run a GEO audit on [business name]. When it's done, show me my visibility scores and which competitors are being cited instead of me."
-
-**Competitive analysis:**
-> "Run an audit on my business for these questions: 'Best CRM software for small business', 'Top sales automation tools', 'What is [my product]?'. Then generate recommendations and show me the head-to-head comparisons with my top competitors."
-
-**Generate solutions:**
-> "Look at my latest audit recommendations and generate solutions for the top 3 highest-risk insights. I want to see the schema markup and content changes I need to make."
-
-**Monitor over time:**
-> "Show me the health scores for my business and compare them to my last audit. What has improved and what still needs work?"
+### 5. Monitor & Analyze (Pro plan)
+- `get_business_hq` — Comprehensive dashboard with health scores, personas, products
+- `get_analytics_trends` — KPI trends over time
+- `get_analytics_summary` — Aggregated analytics
+- `compare_audits` — Compare an audit against its baseline
+- Agent API: `get_business_facts`, `get_business_claims`, `get_competitive_comparison`, `get_semantic_health`, `buyer_fit_query`
 
 ## Plan Requirements
 
 Tools are gated by subscription tier. If a tool is above the user's plan, it returns an upgrade message with a billing link.
 
-- **Growth** (entry tier): Read-only access — list/get businesses, run audits, view recommendations
-- **Scale**: Full write access — create/update/delete businesses and templates, generate solutions
-- **Pro**: Everything + usage statistics
+- **Growth** (entry tier): Read-only — list/get businesses, run audits, view recommendations (19 tools)
+- **Scale**: Full write access — create/update/delete, solutions, export, cancel (32 tools)
+- **Pro**: Everything + HQ dashboard, analytics, agent API (42 tools)
 
 Always call `check_auth_status` first — it shows the user's plan and remaining limits.
 
 ## Tips
 
 - Always call `check_auth_status` first to verify authentication and plan limits
-- Audits take 2-4 minutes — poll `get_audit_status` every 15 seconds
+- Audits take 2-4 minutes — poll `get_audit_status` every 30-60 seconds (not every 10-15s)
 - Use `get_recommendation_insights` (not `get_recommendation_result`) for structured, actionable data
-- Solutions have a concurrency limit of 3 — wait for one batch to complete before starting more
-- Each insight's `source_type` and `source_id` map directly to `start_solution` parameters
+- Use `start_solutions_batch` to generate multiple solutions in one call instead of sequential `start_solution` calls
+- Solution artifacts include inline `content` for text-based files and absolute `download_path` URLs
+- If a tool returns an error with `"retriable": true`, wait a moment and try again — transient errors are automatically surfaced with error details
