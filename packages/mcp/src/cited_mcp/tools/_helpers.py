@@ -24,7 +24,7 @@ logger = logging.getLogger("cited_mcp.usage")
 # Response size guardrails
 # ---------------------------------------------------------------------------
 
-_MAX_RESPONSE_BYTES = 75_000  # ~25k tokens, with margin
+_MAX_RESPONSE_BYTES = 50_000  # ~16k tokens, safe for all MCP hosts
 
 
 def _truncate_response(data: Any, max_bytes: int = _MAX_RESPONSE_BYTES) -> Any:

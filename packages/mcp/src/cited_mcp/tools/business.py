@@ -186,7 +186,13 @@ async def delete_business(ctx: Context[Any, CitedContext, Any], business_id: str
 )
 @log_tool_call
 async def crawl_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
-    """Start a crawl job for a business. Returns a job_id you can poll with get_job_status."""
+    """Crawl a business's website to gather content and brand signals.
+
+    Run this after creating a business and before the first audit — the
+    crawl populates the data that audits and recommendations analyze.
+    Re-crawl when the website changes significantly. Returns a job_id
+    to poll with get_job_status. Typical crawl time: 1-3 minutes.
+    """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err

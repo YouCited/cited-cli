@@ -180,11 +180,15 @@ async def start_audit(
 ) -> Any:
     """Start an audit using a template. Returns a job_id to poll for status.
 
+    Typical audit time: 2-4 minutes. Poll get_audit_status every 30-60s.
+
     Args:
         ctx: MCP context
         named_audit_id: The audit template ID to run
         business_id: Optional business ID override
-        providers: Optional list of citation providers to use (e.g. chatgpt, perplexity, gemini)
+        providers: Optional list of providers (case-insensitive):
+            chatgpt, perplexity, gemini, claude, copilot.
+            Omit to use all available on the user's plan.
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
