@@ -39,18 +39,31 @@ def _user_jwt_expired(user_jwt: str) -> bool:
         return True
 
 
-class _PermissiveRedirectClient(OAuthClientInformationFull):
-    """Client that accepts any localhost or HTTPS redirect_uri.
+# Allowed redirect URI prefixes for OAuth clients.
+# localhost: mcp-remote and local development
+# claude.ai: Claude Desktop Custom Connectors
+# youcited.com: our own frontend/MCP server callbacks
+_ALLOWED_REDIRECT_PREFIXES = (
+    "http://localhost",
+    "http://127.0.0.1",
+    "https://claude.ai/",
+    "https://youcited.com/",
+    "https://app.youcited.com/",
+    "https://mcp.youcited.com/",
+)
 
-    Security relies on PKCE (code_challenge), not redirect_uri matching.
-    This supports both mcp-remote (dynamic localhost ports) and Claude's
-    Custom Connectors (https://claude.ai/oauth/callback).
+
+class _AllowlistedRedirectClient(OAuthClientInformationFull):
+    """Client that validates redirect URIs against a whitelist.
+
+    Accepts localhost (any port) for mcp-remote/Cursor and specific
+    HTTPS domains for Claude Custom Connectors and Cited services.
     """
 
     def validate_redirect_uri(self, redirect_uri: AnyUrl | None) -> AnyUrl:
         if redirect_uri is not None:
             uri = str(redirect_uri)
-            if uri.startswith("http://localhost") or uri.startswith("https://"):
+            if any(uri.startswith(prefix) for prefix in _ALLOWED_REDIRECT_PREFIXES):
                 return redirect_uri
         return super().validate_redirect_uri(redirect_uri)
 
@@ -175,7 +188,7 @@ class CitedOAuthProvider(
         # on every deploy. The permissive redirect client accepts localhost (mcp-remote)
         # and any HTTPS URI (Claude Custom Connectors).
         logger.info("Auto-accepting unknown client_id: %s", client_id[:12])
-        client_info = _PermissiveRedirectClient(
+        client_info = _AllowlistedRedirectClient(
             client_id=client_id,
             client_id_issued_at=int(time.time()),
             redirect_uris=[AnyUrl("http://localhost")],

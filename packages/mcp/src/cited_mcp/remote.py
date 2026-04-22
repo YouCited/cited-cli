@@ -11,6 +11,7 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import construct_redirect_uri
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -120,6 +121,13 @@ def create_remote_server() -> FastMCP:
         host=host,
         port=port,
         stateless_http=True,
+        transport_security=TransportSecuritySettings(
+            allowed_origins=[
+                "https://claude.ai",
+                "https://api.anthropic.com",
+                mcp_url,
+            ],
+        ),
         lifespan=cited_remote_lifespan,
         auth_server_provider=auth_provider,
         auth=AuthSettings(
@@ -147,6 +155,30 @@ def create_remote_server() -> FastMCP:
         if not user_token or not state_jwt:
             return JSONResponse(
                 {"error": "Missing token or state parameter"},
+                status_code=400,
+            )
+
+        # Validate user_token is a well-formed, non-expired JWT from the backend.
+        # We can't verify the signature (different secret), but we can reject
+        # malformed tokens, expired tokens, and tokens missing required claims.
+        try:
+            user_claims = jwt.decode(
+                user_token,
+                options={"verify_signature": False, "verify_exp": True},
+            )
+            if "sub" not in user_claims or "email" not in user_claims:
+                return JSONResponse(
+                    {"error": "Invalid user token: missing required claims"},
+                    status_code=400,
+                )
+        except jwt.ExpiredSignatureError:
+            return JSONResponse(
+                {"error": "User token has expired. Please log in again."},
+                status_code=400,
+            )
+        except jwt.InvalidTokenError:
+            return JSONResponse(
+                {"error": "Invalid user token format."},
                 status_code=400,
             )
 
