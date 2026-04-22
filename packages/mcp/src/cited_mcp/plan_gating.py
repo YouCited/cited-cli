@@ -115,6 +115,7 @@ def upgrade_message(tool_name: str, current_tier: str | None) -> dict[str, Any]:
 
 # All base tools (available to every tier including free/growth)
 _BASE_TOOLS: set[str] = {
+    "ping",
     "check_auth_status",
     "login",
     "logout",

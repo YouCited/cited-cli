@@ -313,7 +313,7 @@ def log_tool_call(func):  # noqa: ANN001, ANN201
             # Plan gating check (skip for auth tools — must always be accessible)
             from cited_mcp.plan_gating import is_tool_allowed, upgrade_message
 
-            _AUTH_TOOLS = {"check_auth_status", "login", "logout"}
+            _AUTH_TOOLS = {"ping", "check_auth_status", "login", "logout"}
             if tool_name not in _AUTH_TOOLS and token:
                 cited_ctx = _get_ctx(ctx)
                 if cited_ctx.client.token:

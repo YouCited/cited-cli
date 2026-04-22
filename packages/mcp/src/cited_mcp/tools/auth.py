@@ -60,6 +60,19 @@ def _check_pending_login(cited_ctx: CitedContext) -> bool:
 
 
 @mcp.tool(
+    title="Ping",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+)
+async def ping(ctx: Context[Any, CitedContext, Any]) -> Any:
+    """Lightweight readiness check — no auth required, no API calls.
+
+    Returns immediately to confirm the MCP server is responsive.
+    Call this before starting a workflow to verify connectivity.
+    """
+    return {"status": "ok", "server": "cited-mcp"}
+
+
+@mcp.tool(
     title="Check Auth Status",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )

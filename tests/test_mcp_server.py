@@ -13,6 +13,7 @@ def _mcp_available():
 
 EXPECTED_TOOLS = [
     # Auth
+    "ping",
     "check_auth_status",
     "login",
     "logout",
