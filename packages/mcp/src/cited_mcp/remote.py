@@ -71,6 +71,7 @@ def create_remote_server() -> FastMCP:
         instructions="Cited GEO platform — audit, optimize, and monitor AI search presence",
         host=host,
         port=port,
+        stateless_http=True,
         lifespan=cited_remote_lifespan,
         auth_server_provider=auth_provider,
         auth=AuthSettings(

@@ -20,12 +20,38 @@ from pydantic import AnyUrl
 logger = logging.getLogger(__name__)
 
 
-class _PermissiveLocalhostClient(OAuthClientInformationFull):
-    """Client that accepts any localhost redirect_uri (dynamic ports)."""
+def _user_jwt_expired(user_jwt: str) -> bool:
+    """Check if the backend user JWT has expired.
+
+    Decodes WITHOUT signature verification (we don't have the backend's secret).
+    Only inspects the ``exp`` claim to detect expiry.
+    """
+    try:
+        payload = pyjwt.decode(
+            user_jwt,
+            options={"verify_signature": False, "verify_exp": True},
+        )
+        return False  # decode succeeded → not expired
+    except pyjwt.ExpiredSignatureError:
+        return True
+    except pyjwt.InvalidTokenError:
+        # Malformed token — treat as expired to force re-auth
+        return True
+
+
+class _PermissiveRedirectClient(OAuthClientInformationFull):
+    """Client that accepts any localhost or HTTPS redirect_uri.
+
+    Security relies on PKCE (code_challenge), not redirect_uri matching.
+    This supports both mcp-remote (dynamic localhost ports) and Claude's
+    Custom Connectors (https://claude.ai/oauth/callback).
+    """
 
     def validate_redirect_uri(self, redirect_uri: AnyUrl | None) -> AnyUrl:
-        if redirect_uri is not None and str(redirect_uri).startswith("http://localhost"):
-            return redirect_uri
+        if redirect_uri is not None:
+            uri = str(redirect_uri)
+            if uri.startswith("http://localhost") or uri.startswith("https://"):
+                return redirect_uri
         return super().validate_redirect_uri(redirect_uri)
 
 # Token lifetimes
@@ -146,10 +172,10 @@ class CitedOAuthProvider(
 
         # Accept unknown client IDs (e.g. old UUID-format registrations lost on restart).
         # Security relies on PKCE, not client identity — this avoids forcing re-registration
-        # on every deploy. We use http://localhost as a permissive redirect_uri since Claude
-        # Desktop uses dynamic localhost ports for OAuth callbacks.
+        # on every deploy. The permissive redirect client accepts localhost (mcp-remote)
+        # and any HTTPS URI (Claude Custom Connectors).
         logger.info("Auto-accepting unknown client_id: %s", client_id[:12])
-        client_info = _PermissiveLocalhostClient(
+        client_info = _PermissiveRedirectClient(
             client_id=client_id,
             client_id_issued_at=int(time.time()),
             redirect_uris=[AnyUrl("http://localhost")],
@@ -246,12 +272,21 @@ class CitedOAuthProvider(
             return None
         if payload.get("sub") != client.client_id:
             return None
+
+        user_jwt = payload.get("user_jwt", "")
+        if _user_jwt_expired(user_jwt):
+            logger.info(
+                "Refresh token rejected: embedded user JWT has expired — "
+                "client must re-authenticate"
+            )
+            return None
+
         return CitedRefreshToken(
             token=refresh_token,
             client_id=payload["sub"],
             scopes=payload.get("scopes", []),
             expires_at=payload.get("exp"),
-            user_jwt=payload["user_jwt"],
+            user_jwt=user_jwt,
         )
 
     async def exchange_refresh_token(
@@ -273,12 +308,18 @@ class CitedOAuthProvider(
         payload = self._decode_token(token)
         if not payload or payload.get("typ") != "access":
             return None
+
+        user_jwt = payload.get("user_jwt", "")
+        if _user_jwt_expired(user_jwt):
+            logger.info("Access token rejected: embedded user JWT has expired")
+            return None
+
         return CitedAccessToken(
             token=token,
             client_id=payload["sub"],
             scopes=payload.get("scopes", []),
             expires_at=payload.get("exp"),
-            user_jwt=payload["user_jwt"],
+            user_jwt=user_jwt,
             resource=payload.get("resource"),
         )
 

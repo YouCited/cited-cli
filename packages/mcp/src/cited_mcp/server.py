@@ -59,8 +59,12 @@ def create_stdio_server() -> FastMCP:
     """Create the stdio MCP server and register all tools.
 
     Sets the module-level `mcp` variable so tool modules can find it.
+    Idempotent — returns the existing server if already created.
     """
     import cited_mcp.server as _self
+
+    if _self.mcp is not None:
+        return _self.mcp
 
     _self.mcp = FastMCP(
         "cited",

@@ -113,8 +113,18 @@ def _get_ctx(ctx: Context[Any, CitedContext, Any]) -> CitedContext:
 
     For remote transport (OAuth), replaces the lifespan client with a per-request
     client that carries the authenticated user's JWT.
+    Also checks for a pending login that may have completed in the background.
     """
     lc: CitedContext = ctx.request_context.lifespan_context
+
+    # Check if a pending login flow completed (non-blocking)
+    if not lc.client.token:
+        try:
+            from cited_mcp.tools.auth import _check_pending_login
+
+            _check_pending_login(lc)
+        except ImportError:
+            pass
 
     # If lifespan client already has a token (stdio transport), return as-is
     if lc.client.token:

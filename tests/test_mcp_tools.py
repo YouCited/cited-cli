@@ -20,6 +20,10 @@ def _mcp_available():
         import mcp  # noqa: F401
     except ImportError:
         pytest.skip("mcp not installed")
+    # Ensure the MCP server instance is created so tools can register
+    import cited_mcp.server as server_mod
+    if server_mod.mcp is None:
+        server_mod.create_stdio_server()
 
 
 def _make_cited_ctx(token: str | None = "test-token") -> CitedContext:
@@ -295,13 +299,18 @@ def test_login_force_clears_token():
     from unittest.mock import MagicMock, patch
 
     from cited_mcp.tools.auth import login
+    import cited_mcp.tools.auth as auth_mod
+
+    # Ensure no stale pending login from other tests
+    auth_mod._pending_login = None
+    auth_mod._pending_login_env = None
 
     cited_ctx = _make_cited_ctx(token="old-token")
     ctx = _make_mcp_ctx(cited_ctx)
 
     mock_server = MagicMock()
     mock_server.redirect_uri = "http://localhost:12345/callback"
-    mock_server.wait_for_token.return_value = "new-token"
+    mock_server.token = None  # No token yet (non-blocking flow)
 
     with (
         patch("cited_mcp.tools.auth.OAuthCallbackServer", return_value=mock_server),
@@ -310,9 +319,15 @@ def test_login_force_clears_token():
     ):
         result = _run(login(ctx, force=True))
 
-    assert result["success"] is True
+    # Non-blocking login returns a URL instead of blocking
+    assert result["action_required"] is True
+    assert "login_url" in result
+    # force=True clears the old token
     mock_store_cls().delete_token.assert_called_once_with("dev")
-    assert cited_ctx.client.token == "new-token"
+
+    # Clean up
+    auth_mod._pending_login = None
+    auth_mod._pending_login_env = None
     cited_ctx.client.close()
 
 
