@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
 from cited_core.api.client import CitedClient
@@ -582,38 +583,32 @@ class TestAuthTools:
         assert "Already authenticated" in result["message"]
 
     def test_pending_login_auto_detected_by_other_tools(self):
-        """Other tools should auto-detect a completed pending login."""
+        """_check_pending_login should capture token and set it on the client."""
         import cited_mcp.tools.auth as auth_mod
         from cited_core.auth.oauth_server import OAuthCallbackServer
         import unittest.mock
 
-        # Set up: unauthenticated context with a pending login that captured a token
-        fake_ctx = make_ctx(token=None)
+        # Create a real CitedContext (not mocked) so token assignment works
+        cited_ctx = CitedContext(
+            client=MagicMock(spec=CitedClient),
+            env="dev",
+            api_url="https://dev.youcited.com",
+        )
+        cited_ctx.client.token = None
+        cited_ctx.client._client = MagicMock()
+
+        # Set up pending login with a captured token
         server = OAuthCallbackServer(timeout=5)
         server.token = "auto-detected-jwt"
         auth_mod._pending_login = server
         auth_mod._pending_login_env = "dev"
 
-        # Mock TokenStore
         with unittest.mock.patch("cited_mcp.tools.auth.TokenStore"):
-            # Call list_businesses — it should auto-detect the pending login
-            client = fake_ctx.request_context.lifespan_context.client
-            client.get.return_value = [{"id": "b1", "name": "My Biz"}]
-            # The client mock needs token set to trigger the auto-detection path
-            client.token = None
+            result = auth_mod._check_pending_login(cited_ctx)
 
-            # After _check_pending_login runs, it sets client.token
-            # We need to make the mock respond to token assignment
-            def set_token(value):
-                client.token = value if value else None
-
-            type(client).token = unittest.mock.PropertyMock(
-                side_effect=[None, None, "auto-detected-jwt", "auto-detected-jwt"]
-            )
-
-        # Clean up
-        auth_mod._pending_login = None
-        auth_mod._pending_login_env = None
+        assert result is True
+        assert cited_ctx.client.token == "auto-detected-jwt"
+        assert auth_mod._pending_login is None
 
 
 # ---------------------------------------------------------------------------
@@ -649,6 +644,161 @@ class TestErrorHandling:
         assert result["error"] is True
         assert result["status_code"] == 401
         assert "expired" in result["hint"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Plan gating integration (decorator actually blocks)
+# ---------------------------------------------------------------------------
+
+
+class TestPlanGatingIntegration:
+    """Verify the log_tool_call decorator enforces plan gating end-to-end."""
+
+    def test_growth_user_blocked_from_create_business(self):
+        """A growth-tier user should get an upgrade message for create_business."""
+        import hashlib
+        import time
+        from cited_mcp.tools._helpers import _tier_cache
+
+        growth_ctx = make_ctx(token="growth-user-token")
+        cache_key = hashlib.sha256(b"growth-user-token").hexdigest()[:16]
+        _tier_cache[cache_key] = ("growth", time.monotonic() + 3600)
+
+        client = growth_ctx.request_context.lifespan_context.client
+        client.post.return_value = {"id": "should-not-reach"}
+
+        result = run(create_business(
+            growth_ctx, name="X", website="x", description="x" * 60,
+        ))
+        assert result["error"] is True
+        assert result["required_tier"] == "scale"
+        assert "upgrade" in result["hint"].lower()
+        # The actual API should NOT have been called
+        client.post.assert_not_called()
+
+    def test_scale_user_allowed_create_business(self):
+        """A scale-tier user should successfully call create_business."""
+        import hashlib
+        import time
+        from cited_mcp.tools._helpers import _tier_cache
+
+        scale_ctx = make_ctx(token="scale-user-token")
+        cache_key = hashlib.sha256(b"scale-user-token").hexdigest()[:16]
+        _tier_cache[cache_key] = ("scale", time.monotonic() + 3600)
+
+        client = scale_ctx.request_context.lifespan_context.client
+        client.post.return_value = {"id": "new-id", "name": "Created"}
+
+        result = run(create_business(
+            scale_ctx, name="Biz", website="https://biz.com",
+            description="A business description long enough",
+        ))
+        assert result["id"] == "new-id"
+        client.post.assert_called_once()
+
+    def test_growth_user_can_list_businesses(self):
+        """Growth-tier users can still use base tools."""
+        import hashlib
+        import time
+        from cited_mcp.tools._helpers import _tier_cache
+
+        growth_ctx = make_ctx(token="growth-user-token2")
+        cache_key = hashlib.sha256(b"growth-user-token2").hexdigest()[:16]
+        _tier_cache[cache_key] = ("growth", time.monotonic() + 3600)
+
+        client = growth_ctx.request_context.lifespan_context.client
+        client.get.return_value = [{"id": "b1"}]
+
+        result = run(list_businesses(growth_ctx))
+        assert "data" in result
+
+
+# ---------------------------------------------------------------------------
+# Timeout and connection error handling
+# ---------------------------------------------------------------------------
+
+
+class TestTransportErrors:
+    def test_timeout_returns_error(self, ctx):
+        """httpx.TimeoutException should return a structured error, not crash."""
+        client = ctx.request_context.lifespan_context.client
+        client.get.side_effect = httpx.TimeoutException("timed out")
+
+        result = run(list_businesses(ctx))
+        assert result["error"] is True
+        assert "timed out" in result["message"].lower()
+        assert "_request_id" in result
+
+    def test_connect_error_returns_error(self, ctx):
+        """httpx.ConnectError should return a structured error."""
+        client = ctx.request_context.lifespan_context.client
+        client.get.side_effect = httpx.ConnectError("connection refused")
+
+        result = run(get_business(ctx, business_id="b1"))
+        assert result["error"] is True
+        assert "connect" in result["message"].lower()
+        assert "_request_id" in result
+
+
+# ---------------------------------------------------------------------------
+# Tier cache behavior
+# ---------------------------------------------------------------------------
+
+
+class TestTierCache:
+    def test_cache_returns_cached_value(self):
+        """Cached tier should be returned without API call."""
+        import time
+        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        _tier_cache["cache-test-key"] = ("scale", time.monotonic() + 3600)
+
+        mock_ctx = CitedContext(
+            client=MagicMock(spec=CitedClient),
+            env="dev",
+            api_url="https://dev.youcited.com",
+        )
+
+        result = _get_user_tier(mock_ctx, "cache-test-key")
+        assert result == "scale"
+        mock_ctx.client.get.assert_not_called()
+
+    def test_cache_miss_calls_api(self):
+        """On cache miss, should call /auth/me and cache the result."""
+        import time
+        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        _tier_cache.pop("new-user-key", None)
+
+        mock_ctx = CitedContext(
+            client=MagicMock(spec=CitedClient),
+            env="dev",
+            api_url="https://dev.youcited.com",
+        )
+        mock_ctx.client.get.return_value = {"subscription_tier": "pro"}
+
+        result = _get_user_tier(mock_ctx, "new-user-key")
+        assert result == "pro"
+        mock_ctx.client.get.assert_called_once_with("/auth/me")
+        assert "new-user-key" in _tier_cache
+
+    def test_cache_fallback_on_api_failure(self):
+        """On API failure with stale cache, should return stale value."""
+        import time
+        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        # Set an expired cache entry
+        _tier_cache["stale-key"] = ("growth", time.monotonic() - 100)
+
+        mock_ctx = CitedContext(
+            client=MagicMock(spec=CitedClient),
+            env="dev",
+            api_url="https://dev.youcited.com",
+        )
+        mock_ctx.client.get.side_effect = Exception("API down")
+
+        result = _get_user_tier(mock_ctx, "stale-key")
+        assert result == "growth"  # stale value used as fallback
 
 
 # ---------------------------------------------------------------------------

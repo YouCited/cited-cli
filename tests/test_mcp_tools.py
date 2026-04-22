@@ -47,7 +47,7 @@ def _make_mcp_ctx(cited_ctx: CitedContext) -> Any:
 
 
 def _run(coro: Any) -> Any:
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 # --- Auth check ---
