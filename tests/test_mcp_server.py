@@ -37,6 +37,7 @@ EXPECTED_TOOLS = [
     "get_audit_status",
     "get_audit_result",
     "list_audits",
+    "get_audit_question_detail",
     "export_audit",
     # Recommendations
     "start_recommendation",

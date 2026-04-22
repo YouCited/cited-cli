@@ -35,6 +35,7 @@ _SCALE_TOOLS: set[str] = {
     "get_solution_status",
     "get_solution_result",
     "list_solutions",
+    "get_audit_question_detail",
     "export_audit",
     "cancel_job",
 }

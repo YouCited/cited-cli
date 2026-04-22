@@ -1,6 +1,6 @@
 # cited-mcp
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 42 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 44 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
 
@@ -214,8 +214,8 @@ Tools are gated by subscription tier. All tiers can read data; write operations 
 | Tier | Tools Available |
 |------|----------------|
 | **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list), all recommendation tools, job status — **19 tools** |
-| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, batch solutions, export audit, cancel job — **32 tools** |
-| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **42 tools** |
+| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, batch solutions, export audit, cancel job — **33 tools** |
+| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **44 tools** |
 
 When a user calls a tool above their plan, the server returns a structured error with an upgrade link:
 

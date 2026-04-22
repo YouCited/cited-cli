@@ -26,10 +26,11 @@ CLI_ONLY = {
 }
 
 MCP_ONLY = {
-    "ping",                 # Lightweight readiness check — CLI users run `cited status` instead
-    "get_usage_stats",      # Aggregated stats — CLI users can check via auth status + business list
-    "get_job_status",       # MCP uses get_job_status (probes types); CLI uses job watch (live polling)
-    "start_solutions_batch",  # Bulk operation — CLI users call solution start in a loop
+    "ping",                     # Lightweight readiness check — CLI users run `cited status` instead
+    "get_usage_stats",          # Aggregated stats — CLI uses auth status + business list
+    "get_job_status",           # MCP probes types; CLI uses job watch (live polling)
+    "get_audit_question_detail",  # Drill-down from summary — CLI uses audit result (full)
+    "start_solutions_batch",    # Bulk operation — CLI users call solution start in a loop
 }
 
 

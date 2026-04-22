@@ -43,6 +43,7 @@ AUDIT_HISTORY = "/audit/history"
 AUDIT_CANCEL = "/audit/{job_id}/cancel"
 AUDIT_DELETE = "/audit/{job_id}"
 AUDIT_PROVIDERS = "/audit/{job_id}/providers"
+AUDIT_QUESTION_DETAIL = "/audit/{job_id}/question/{question_id}"
 
 # Recommendations
 RECOMMEND_START = "/recommendations/start"

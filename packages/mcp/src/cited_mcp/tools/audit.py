@@ -78,6 +78,7 @@ async def create_audit_template(
     business_id: str,
     description: str | None = None,
     questions: list[str] | None = None,
+    include_business_name: bool = False,
 ) -> Any:
     """Create a new audit template.
 
@@ -87,6 +88,9 @@ async def create_audit_template(
         business_id: Business ID to associate with
         description: Optional template description
         questions: Optional list of audit questions
+        include_business_name: If True, generated questions will include
+            the business name (e.g., "How does Acme handle X?").
+            Default False produces broader discovery-style questions.
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
@@ -96,6 +100,8 @@ async def create_audit_template(
         payload["description"] = description
     if questions is not None:
         payload["questions"] = [{"question": q} for q in questions]
+    if include_business_name:
+        payload["include_business_name"] = True
     try:
         return cited_ctx.client.post(endpoints.NAMED_AUDITS, json=payload)
     except CitedAPIError as e:
@@ -253,6 +259,40 @@ async def get_audit_result(
             endpoints.AUDIT_RESULT.format(job_id=job_id), params=params
         )
         return _truncate_response(result)
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
+    title="Get Audit Question Detail",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+)
+@log_tool_call
+async def get_audit_question_detail(
+    ctx: Context[Any, CitedContext, Any],
+    job_id: str,
+    question_id: str,
+) -> Any:
+    """Get detailed data for a single audit question with citations and sources.
+
+    Use after get_audit_result (summary mode) to drill into a specific
+    question. The question_id comes from the question_ids array in the
+    summary response.
+
+    Args:
+        ctx: MCP context
+        job_id: The audit job ID
+        question_id: The question ID from the summary's question_ids array
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        return cited_ctx.client.get(
+            endpoints.AUDIT_QUESTION_DETAIL.format(
+                job_id=job_id, question_id=question_id
+            )
+        )
     except CitedAPIError as e:
         return _api_error_response(e)
 
