@@ -54,7 +54,7 @@ cited mcp serve              # Via CLI (requires cited-cli[mcp])
 - `config/constants.py` — `ENVIRONMENTS`, `CONFIG_DIR`, `VALID_INDUSTRIES`, etc.
 - `errors.py` — `CitedAPIError`, `ExitCode`, `exit_code_for_status()`
 
-**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 30 tools:
+**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 41 tools:
 - `server.py` — `FastMCP` instance, lifespan, `run_server()`
 - `tools/` — auth, business, audit, recommend, solution, job tool modules
 - `plan_gating.py` — Per-plan tool access control (growth/scale/pro tiers)
@@ -115,6 +115,17 @@ This gives `cited audit template list|get|create|update|delete` while `cited aud
 **Adding a new command to an existing group:** Add a function decorated with `@<group>_app.command()` in the relevant command file. Follow the `_get_client()` → try/except `CitedAPIError` → `print_result()` pattern.
 
 **Audit template workflow:** The typical flow is create → review → refine → run audit. Auto-generated questions are rarely perfect, so `audit template update` is a common operation. The `--question` flags on `update` **replace all** existing questions (matching the web editor's save behavior). Omit `--question` to keep existing questions unchanged while updating name/description. Backend endpoint: `PUT /named-audits/{id}` with `NamedAuditUpdate` schema.
+
+## CLI / MCP Feature Parity
+
+**Every new feature must be added to BOTH the CLI and MCP server.** A test (`tests/test_feature_parity.py`) enforces this — it compares all CLI commands against MCP tools and fails if a command exists in one but not the other.
+
+When adding a new feature:
+1. Add the CLI command in `src/cited_cli/commands/`
+2. Add the MCP tool in `packages/mcp/src/cited_mcp/tools/`
+3. Add the tool to `plan_gating.py` (in the appropriate tier set)
+4. Update the `_CLI_TO_MCP` mapping in `tests/test_feature_parity.py`
+5. If the feature is intentionally one-interface-only, add it to `CLI_ONLY` or `MCP_ONLY` with a comment explaining why
 
 ## Key Conventions
 

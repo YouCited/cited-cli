@@ -12,9 +12,11 @@ def _mcp_available():
 
 
 EXPECTED_TOOLS = [
+    # Auth
     "check_auth_status",
     "login",
     "logout",
+    # Businesses
     "list_businesses",
     "get_business",
     "create_business",
@@ -22,26 +24,45 @@ EXPECTED_TOOLS = [
     "delete_business",
     "crawl_business",
     "get_health_scores",
+    "get_usage_stats",
+    # Audit templates
     "list_audit_templates",
     "get_audit_template",
     "create_audit_template",
     "update_audit_template",
     "delete_audit_template",
+    # Audits
     "start_audit",
     "get_audit_status",
     "get_audit_result",
     "list_audits",
+    "export_audit",
+    # Recommendations
     "start_recommendation",
     "get_recommendation_status",
     "get_recommendation_result",
     "get_recommendation_insights",
     "list_recommendations",
+    # Solutions
     "start_solution",
     "get_solution_status",
     "get_solution_result",
     "list_solutions",
+    # Jobs
     "get_job_status",
-    "get_usage_stats",
+    "cancel_job",
+    # HQ
+    "get_business_hq",
+    # Analytics
+    "get_analytics_trends",
+    "get_analytics_summary",
+    "compare_audits",
+    # Agent API
+    "get_business_facts",
+    "get_business_claims",
+    "get_competitive_comparison",
+    "get_semantic_health",
+    "buyer_fit_query",
 ]
 
 

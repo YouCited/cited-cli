@@ -1,6 +1,6 @@
 # cited-mcp
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 30 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 41 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
 
@@ -144,6 +144,7 @@ cited-mcp-remote
 | `get_audit_status` | Check audit job status |
 | `get_audit_result` | Get completed audit results |
 | `list_audits` | List all audits |
+| `export_audit` | Export a completed audit as a PDF report |
 
 ### Recommendations
 | Tool | Description |
@@ -166,6 +167,28 @@ cited-mcp-remote
 | Tool | Description |
 |------|-------------|
 | `get_job_status` | Check status of any job by type and ID |
+| `cancel_job` | Cancel a running job |
+
+### HQ Dashboard
+| Tool | Description |
+|------|-------------|
+| `get_business_hq` | Get comprehensive business dashboard with health scores, personas, products |
+
+### Analytics
+| Tool | Description |
+|------|-------------|
+| `get_analytics_trends` | Get KPI trends over time |
+| `get_analytics_summary` | Get aggregated analytics summary |
+| `compare_audits` | Compare an audit against its baseline |
+
+### Agent API
+| Tool | Description |
+|------|-------------|
+| `get_business_facts` | Get structured business facts |
+| `get_business_claims` | Get verifiable claims about a business |
+| `get_competitive_comparison` | Get competitive analysis data |
+| `get_semantic_health` | Get semantic readiness signals |
+| `buyer_fit_query` | Run a buyer-fit simulation query |
 
 ## Example Workflow
 
@@ -190,8 +213,8 @@ Tools are gated by subscription tier. All tiers can read data; write operations 
 | Tier | Tools Available |
 |------|----------------|
 | **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list), all recommendation tools, job status — **19 tools** |
-| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools — **29 tools** |
-| **Pro** | Everything in Scale + usage stats — **30 tools** |
+| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, export audit, cancel job — **31 tools** |
+| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **41 tools** |
 
 When a user calls a tool above their plan, the server returns a structured error with an upgrade link:
 

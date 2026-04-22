@@ -126,7 +126,19 @@ class TestToolsForTier:
     def test_enterprise_same_as_pro(self):
         assert tools_for_tier("enterprise") == tools_for_tier("pro")
 
-    def test_pro_has_30_tools(self):
-        # All 30 tools should be available to pro
+    def test_pro_has_all_tools(self):
+        # All tools should be available to pro
         tools = tools_for_tier("pro")
-        assert len(tools) == 30
+        assert len(tools) == 41
+
+    def test_all_registered_tools_are_in_tier_sets(self):
+        """Every registered MCP tool must appear in exactly one tier set."""
+        from cited_mcp.server import create_stdio_server
+
+        server = create_stdio_server()
+        registered = {t.name for t in server._tool_manager.list_tools()}
+        in_tiers = tools_for_tier("pro")  # pro gets everything
+        missing = registered - in_tiers
+        assert missing == set(), f"Tools registered but not in any tier set: {missing}"
+        extra = in_tiers - registered
+        assert extra == set(), f"Tools in tier sets but not registered: {extra}"
