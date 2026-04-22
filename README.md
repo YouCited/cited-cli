@@ -73,11 +73,24 @@ cited register --email you@example.com --name "Your Name" --password "Secret123!
 
 ## MCP Server
 
-This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 28 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, and create solutions on your behalf.
+This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 30 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, and create solutions on your behalf.
 
-### Claude Desktop (remote — recommended)
+### Claude Desktop (Custom Connector — recommended)
 
-No local install required. Add this to your Claude Desktop config (`Settings → Developer → Edit Config`):
+No local install required. Claude connects to Cited's hosted MCP server directly:
+
+1. Open Claude Desktop → **Settings** → **Customize > Connectors**
+2. Click **"+"** → **"Add custom connector"**
+3. Enter URL: `https://mcp.youcited.com/mcp`
+4. Click **Add**
+
+Your browser will open for authentication on first use. See [Anthropic's connector guide](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp) for details.
+
+> **Requires:** Claude Pro, Max, Team, or Enterprise plan.
+
+### Claude Desktop (Developer Config — alternative)
+
+If Custom Connectors aren't available, use the developer config with `mcp-remote`:
 
 ```json
 {
@@ -90,7 +103,7 @@ No local install required. Add this to your Claude Desktop config (`Settings →
 }
 ```
 
-Restart Claude Desktop. A browser window will open for authentication on first use.
+Add to `Settings → Developer → Edit Config`, then restart Claude Desktop.
 
 > **Prerequisite:** [Node.js](https://nodejs.org) (LTS) must be installed for `npx`.
 
@@ -143,8 +156,8 @@ Claude will chain the tools automatically — `list_businesses` → `start_audit
 
 | Category | Tools |
 |----------|-------|
-| **Auth** | `check_auth_status`, `login` |
-| **Businesses** | `list_businesses`, `get_business`, `create_business`, `update_business`, `delete_business`, `crawl_business`, `get_health_scores` |
+| **Auth** | `check_auth_status`, `login`, `logout` |
+| **Businesses** | `list_businesses`, `get_business`, `create_business`, `update_business`, `delete_business`, `crawl_business`, `get_health_scores`, `get_usage_stats` |
 | **Audit Templates** | `list_audit_templates`, `get_audit_template`, `create_audit_template`, `update_audit_template`, `delete_audit_template` |
 | **Audits** | `start_audit`, `get_audit_status`, `get_audit_result`, `list_audits` |
 | **Recommendations** | `start_recommendation`, `get_recommendation_status`, `get_recommendation_result`, `get_recommendation_insights`, `list_recommendations` |

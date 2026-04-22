@@ -19,7 +19,7 @@ Use the Cited MCP tools to create a new business and prepare it for GEO auditing
 
 3. **Trigger crawl**: Call `crawl_business` with the `business_id` from the create response. Save the returned `job_id`.
 
-4. **Poll crawl status**: Call `get_job_status` with `job_id` and `job_type="audit"` (crawl jobs use the same status endpoint pattern). Wait for completion.
+4. **Poll crawl status**: Call `get_job_status` with just the `job_id` (omit `job_type` — it will auto-detect the correct type). Wait for completion.
 
 5. **Check health scores**: Call `get_health_scores` with the `business_id` to see the initial GEO health assessment.
 

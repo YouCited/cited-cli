@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Monorepo for the [Cited](https://youcited.com) GEO platform tooling. Contains three Python packages:
 
 - **`cited-core`** (`packages/core/`) — Shared library: API client, auth, config, endpoints, errors. No CLI or MCP dependencies.
-- **`cited-mcp`** (`packages/mcp/`) — Standalone MCP server with 28 tools. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
+- **`cited-mcp`** (`packages/mcp/`) — Standalone MCP server with 30 tools. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
 - **`cited-cli`** (root `src/cited_cli/`) — Typer + Rich CLI. Depends on `cited-core` + `typer` + `rich`. Optional dep on `cited-mcp` for `cited mcp serve`.
 
 Also contains `cited-plugins/` — a Claude Code plugin (skills, commands, agents) that references the MCP server via `uvx cited-mcp`.

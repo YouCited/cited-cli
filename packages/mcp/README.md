@@ -1,6 +1,6 @@
 # cited-mcp
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 28 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 30 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
 
@@ -16,9 +16,22 @@ uvx cited-mcp
 
 ## Usage
 
-### Claude Desktop (remote server — recommended)
+### Claude Desktop (Custom Connector — recommended)
 
-No local install required. Add this to your Claude Desktop config (`Settings → Developer → Edit Config`):
+No local install required. Claude connects to Cited's hosted MCP server directly:
+
+1. Open Claude Desktop → **Settings** → **Customize > Connectors**
+2. Click **"+"** → **"Add custom connector"**
+3. Enter URL: `https://mcp.youcited.com/mcp`
+4. Click **Add**
+
+Your browser will open for authentication on first use. See [Anthropic's connector guide](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp) for details.
+
+> **Requires:** Claude Pro, Max, Team, or Enterprise plan.
+
+### Claude Desktop (Developer Config — alternative)
+
+If Custom Connectors aren't available, use the developer config with `mcp-remote`:
 
 ```json
 {
@@ -31,7 +44,7 @@ No local install required. Add this to your Claude Desktop config (`Settings →
 }
 ```
 
-Restart Claude Desktop. A browser window will open for authentication on first use.
+Add to `Settings → Developer → Edit Config`, then restart Claude Desktop.
 
 > **Prerequisite:** [Node.js](https://nodejs.org) must be installed for `npx`.
 
@@ -113,6 +126,7 @@ cited-mcp-remote
 | `delete_business` | Delete a business |
 | `crawl_business` | Start a website crawl for a business |
 | `get_health_scores` | Get GEO health scores for a business |
+| `get_usage_stats` | Get account usage statistics and plan info |
 
 ### Audit Templates
 | Tool | Description |
@@ -188,7 +202,7 @@ pip install -e packages/core
 pip install -e "packages/mcp[dev]"
 
 # Run tests
-pytest tests/test_mcp_server.py tests/test_mcp_tools.py -v
+pytest tests/test_mcp_tools.py tests/test_mcp_server.py packages/mcp/tests/ -v
 
 # Lint and type check
 ruff check packages/mcp/
