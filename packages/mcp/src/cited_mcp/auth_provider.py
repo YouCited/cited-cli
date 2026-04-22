@@ -27,7 +27,7 @@ def _user_jwt_expired(user_jwt: str) -> bool:
     Only inspects the ``exp`` claim to detect expiry.
     """
     try:
-        payload = pyjwt.decode(
+        pyjwt.decode(
             user_jwt,
             options={"verify_signature": False, "verify_exp": True},
         )

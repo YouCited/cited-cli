@@ -21,7 +21,7 @@ from cited_mcp.tools._helpers import (
 
 @mcp.tool(
     title="Get Analytics Trends",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_analytics_trends(
@@ -50,7 +50,7 @@ async def get_analytics_trends(
 
 @mcp.tool(
     title="Get Analytics Summary",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_analytics_summary(
@@ -79,7 +79,7 @@ async def get_analytics_summary(
 
 @mcp.tool(
     title="Compare Audits",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def compare_audits(

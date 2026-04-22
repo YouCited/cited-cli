@@ -20,7 +20,7 @@ from cited_mcp.tools._helpers import (
 
 @mcp.tool(
     title="Start Recommendations",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def start_recommendation(ctx: Context[Any, CitedContext, Any], audit_job_id: str) -> Any:
@@ -44,7 +44,7 @@ async def start_recommendation(ctx: Context[Any, CitedContext, Any], audit_job_i
 
 @mcp.tool(
     title="Get Recommendation Status",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_recommendation_status(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
@@ -60,7 +60,7 @@ async def get_recommendation_status(ctx: Context[Any, CitedContext, Any], job_id
 
 @mcp.tool(
     title="Get Recommendation Results",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_recommendation_result(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
@@ -79,7 +79,7 @@ async def get_recommendation_result(ctx: Context[Any, CitedContext, Any], job_id
 
 @mcp.tool(
     title="Get Recommendation Insights",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_recommendation_insights(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
@@ -124,7 +124,7 @@ async def get_recommendation_insights(ctx: Context[Any, CitedContext, Any], job_
 
 @mcp.tool(
     title="List Recommendations",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def list_recommendations(

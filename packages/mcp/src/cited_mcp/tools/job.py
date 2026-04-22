@@ -25,7 +25,7 @@ _STATUS_ENDPOINTS = {
 
 @mcp.tool(
     title="Get Job Status",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_job_status(
@@ -76,7 +76,7 @@ _CANCEL_ENDPOINTS = {
 
 @mcp.tool(
     title="Cancel Job",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def cancel_job(

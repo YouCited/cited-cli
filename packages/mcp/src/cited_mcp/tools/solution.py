@@ -20,7 +20,7 @@ from cited_mcp.tools._helpers import (
 
 @mcp.tool(
     title="Start Solution",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def start_solution(
@@ -55,7 +55,7 @@ async def start_solution(
 
 @mcp.tool(
     title="Get Solution Status",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_solution_status(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
@@ -71,7 +71,7 @@ async def get_solution_status(ctx: Context[Any, CitedContext, Any], job_id: str)
 
 @mcp.tool(
     title="Get Solution Results",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_solution_result(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
@@ -90,7 +90,7 @@ async def get_solution_result(ctx: Context[Any, CitedContext, Any], job_id: str)
 
 @mcp.tool(
     title="List Solutions",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def list_solutions(

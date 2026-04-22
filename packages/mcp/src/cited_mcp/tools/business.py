@@ -19,7 +19,7 @@ from cited_mcp.tools._helpers import (
 
 @mcp.tool(
     title="List Businesses",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def list_businesses(
@@ -51,7 +51,7 @@ async def list_businesses(
 
 @mcp.tool(
     title="Get Business Details",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
@@ -67,7 +67,7 @@ async def get_business(ctx: Context[Any, CitedContext, Any], business_id: str) -
 
 @mcp.tool(
     title="Create Business",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def create_business(
@@ -113,7 +113,7 @@ async def create_business(
 
 @mcp.tool(
     title="Update Business",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def update_business(
@@ -156,7 +156,7 @@ async def update_business(
 
 @mcp.tool(
     title="Delete Business",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def delete_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
@@ -182,7 +182,7 @@ async def delete_business(ctx: Context[Any, CitedContext, Any], business_id: str
 
 @mcp.tool(
     title="Crawl Business Website",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True),  # noqa: E501
 )
 @log_tool_call
 async def crawl_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
@@ -198,7 +198,7 @@ async def crawl_business(ctx: Context[Any, CitedContext, Any], business_id: str)
 
 @mcp.tool(
     title="Get Health Scores",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_health_scores(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:

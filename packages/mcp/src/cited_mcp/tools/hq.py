@@ -21,7 +21,7 @@ from cited_mcp.tools._helpers import (
 
 @mcp.tool(
     title="Get Business HQ Dashboard",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_business_hq(

@@ -20,7 +20,7 @@ from cited_mcp.tools._helpers import (
 
 @mcp.tool(
     title="List Audit Templates",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def list_audit_templates(
@@ -51,7 +51,7 @@ async def list_audit_templates(
 
 @mcp.tool(
     title="Get Audit Template",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_audit_template(ctx: Context[Any, CitedContext, Any], named_audit_id: str) -> Any:
@@ -69,7 +69,7 @@ async def get_audit_template(ctx: Context[Any, CitedContext, Any], named_audit_i
 
 @mcp.tool(
     title="Create Audit Template",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def create_audit_template(
@@ -104,7 +104,7 @@ async def create_audit_template(
 
 @mcp.tool(
     title="Update Audit Template",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def update_audit_template(
@@ -143,7 +143,7 @@ async def update_audit_template(
 
 @mcp.tool(
     title="Delete Audit Template",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def delete_audit_template(
@@ -169,7 +169,7 @@ async def delete_audit_template(
 
 @mcp.tool(
     title="Start Audit",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def start_audit(
@@ -202,7 +202,7 @@ async def start_audit(
 
 @mcp.tool(
     title="Get Audit Status",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_audit_status(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
@@ -218,7 +218,7 @@ async def get_audit_status(ctx: Context[Any, CitedContext, Any], job_id: str) ->
 
 @mcp.tool(
     title="Get Audit Results",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_audit_result(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
@@ -235,7 +235,7 @@ async def get_audit_result(ctx: Context[Any, CitedContext, Any], job_id: str) ->
 
 @mcp.tool(
     title="Export Audit PDF",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def export_audit(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
@@ -257,7 +257,7 @@ async def export_audit(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any
 
 @mcp.tool(
     title="List Audits",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def list_audits(

@@ -21,14 +21,14 @@ from cited_mcp.tools._helpers import (
 
 @mcp.tool(
     title="Get Business Facts",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_business_facts(
     ctx: Context[Any, CitedContext, Any],
     business_id: str | None = None,
 ) -> Any:
-    """Get structured business facts — key data points about the business extracted from crawl and audit data.
+    """Get structured business facts — key data points extracted from crawl and audit data.
 
     Args:
         ctx: MCP context
@@ -50,14 +50,14 @@ async def get_business_facts(
 
 @mcp.tool(
     title="Get Business Claims",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_business_claims(
     ctx: Context[Any, CitedContext, Any],
     business_id: str | None = None,
 ) -> Any:
-    """Get verifiable claims about a business — statements that can be fact-checked against crawl data.
+    """Get verifiable claims about a business that can be fact-checked.
 
     Args:
         ctx: MCP context
@@ -79,14 +79,14 @@ async def get_business_claims(
 
 @mcp.tool(
     title="Get Competitive Comparison",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_competitive_comparison(
     ctx: Context[Any, CitedContext, Any],
     business_id: str | None = None,
 ) -> Any:
-    """Get competitive comparison data — how the business stacks up against competitors in AI search results.
+    """Get competitive comparison — how the business stacks up against competitors.
 
     Args:
         ctx: MCP context
@@ -108,14 +108,14 @@ async def get_competitive_comparison(
 
 @mcp.tool(
     title="Get Semantic Health",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def get_semantic_health(
     ctx: Context[Any, CitedContext, Any],
     business_id: str | None = None,
 ) -> Any:
-    """Get semantic readiness signals — how well the business's content is structured for AI understanding.
+    """Get semantic readiness signals for AI understanding of business content.
 
     Args:
         ctx: MCP context
@@ -137,7 +137,7 @@ async def get_semantic_health(
 
 @mcp.tool(
     title="Buyer Fit Query",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=True),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=True),  # noqa: E501
 )
 @log_tool_call
 async def buyer_fit_query(

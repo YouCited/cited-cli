@@ -61,7 +61,7 @@ def _check_pending_login(cited_ctx: CitedContext) -> bool:
 
 @mcp.tool(
     title="Check Auth Status",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def check_auth_status(ctx: Context[Any, CitedContext, Any]) -> Any:
@@ -101,7 +101,7 @@ def _clear_session(cited_ctx: CitedContext, env: str) -> None:
 
 @mcp.tool(
     title="Log In",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def login(
@@ -244,7 +244,7 @@ async def login(
 
 @mcp.tool(
     title="Log Out",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
 async def logout(ctx: Context[Any, CitedContext, Any]) -> Any:
