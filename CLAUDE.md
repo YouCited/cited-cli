@@ -37,8 +37,8 @@ cited --help
 cited-mcp                    # Standalone binary (from cited-mcp package)
 cited mcp serve              # Via CLI (requires cited-cli[mcp])
 
-# Release (publishes cited-core → cited-mcp → cited-cli to PyPI)
-./scripts/release.sh 0.3.2
+# Release and deploy scripts are in the private infra repo:
+# ~/repos/cited-mcp-infra (github.com/YouCited/cited-mcp-infra)
 ```
 
 ## Architecture
@@ -128,9 +128,14 @@ This gives `cited audit template list|get|create|update|delete` while `cited aud
 - **User config** lives at `~/.cited/config.toml`; version is in `src/cited_cli/__init__.py`
 - **Version** single source of truth is `packages/core/src/cited_core/__init__.py`. The CLI and MCP packages import it via `from cited_core import __version__`. The `version =` field in all three `pyproject.toml` files must also be bumped (the release script handles this).
 
-## Releasing
+## Releasing & Deployment
 
-`scripts/release.sh <version>` handles the full release pipeline. It bumps the version in both `pyproject.toml` and `__init__.py`, commits, tags `v<version>`, pushes (triggering the GitHub Actions release workflow), waits for the release, then regenerates the Homebrew formula in `~/repos/homebrew-cited` with the new tarball URL, SHA256, and all Python dependency resource blocks (resolved from PyPI). Finally it commits and pushes the tap update.
+Release, deploy, and infrastructure scripts live in the **private** repo `~/repos/cited-mcp-infra` ([YouCited/cited-mcp-infra](https://github.com/YouCited/cited-mcp-infra)):
+
+- `scripts/release.sh <version>` — Bumps version, publishes to PyPI, updates Homebrew tap
+- `scripts/deploy-mcp.sh <env>` — Deploys MCP server to AWS ECS Fargate
+- `scripts/cleanup_dev.py` — Removes test data from dev environment
+- `docker/Dockerfile` — Docker image for the remote MCP server
 
 **Prerequisites:** clean git state on `main`, `gh` CLI authenticated, `.venv` with cited-cli installed, `~/repos/homebrew-cited` cloned.
 

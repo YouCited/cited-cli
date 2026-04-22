@@ -460,20 +460,14 @@ cited auth status   # Should fail with exit code 2
 
 ### Automated cleanup script
 
-If you forget to clean up (or a run fails partway through), use the cleanup script to find and remove test assets:
+If you forget to clean up (or a run fails partway through), use the cleanup script from the [private infra repo](https://github.com/YouCited/cited-mcp-infra):
 
 ```bash
 # Dry run — see what would be deleted
-python3 scripts/cleanup_dev.py --dry-run
-
-# Interactive — prompts you to pick which businesses to delete
-python3 scripts/cleanup_dev.py
+python3 ~/repos/cited-mcp-infra/scripts/cleanup_dev.py --dry-run
 
 # Auto — deletes all businesses matching test name patterns (no prompts)
-python3 scripts/cleanup_dev.py --auto
-
-# Target a different environment
-python3 scripts/cleanup_dev.py --env prod --dry-run
+python3 ~/repos/cited-mcp-infra/scripts/cleanup_dev.py --auto
 ```
 
 The script detects test businesses by name patterns ("E2E Test", "CLI Test", etc.), deletes associated audit templates first, then the business itself.

@@ -572,20 +572,4 @@ mypy src/cited_cli/ --ignore-missing-imports
 
 ## Releasing
 
-A single script handles the full release pipeline — version bump, GitHub release, and Homebrew tap update:
-
-```bash
-./scripts/release.sh 0.2.0
-```
-
-This will:
-1. Bump the version in `pyproject.toml` and `src/cited_cli/__init__.py`
-2. Commit, tag `v0.2.0`, and push to origin (triggers GitHub Actions release)
-3. Wait for the GitHub release to be created
-4. Download the tarball, compute SHA256, and resolve all Python dependency hashes from PyPI
-5. Regenerate `Formula/cited.rb` in `~/repos/homebrew-cited` with the updated formula
-6. Commit and push the tap update
-
-After the script completes, users can update with `brew update && brew upgrade cited`.
-
-**Prerequisites:** `gh` CLI authenticated, `.venv` with cited-cli installed, `~/repos/homebrew-cited` cloned.
+Release and deployment scripts are in a [private infrastructure repo](https://github.com/YouCited/cited-mcp-infra). See that repo's README for release and deploy instructions.
