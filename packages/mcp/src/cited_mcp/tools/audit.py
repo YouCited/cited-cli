@@ -225,13 +225,33 @@ async def get_audit_status(ctx: Context[Any, CitedContext, Any], job_id: str) ->
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
-async def get_audit_result(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
-    """Get the results of a completed audit job."""
+async def get_audit_result(
+    ctx: Context[Any, CitedContext, Any],
+    job_id: str,
+    full: bool = False,
+) -> Any:
+    """Get the results of a completed audit job.
+
+    By default returns a summary with aggregate KPIs, competitor
+    leaderboard, and question IDs. Use full=True to get all detail
+    data (citations, questions, keyword clusters) — warning: full
+    results can be very large (50KB+).
+
+    Args:
+        ctx: MCP context
+        job_id: The completed audit job ID
+        full: If True, return full detail data. Default is summary.
+    """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
     try:
-        result = cited_ctx.client.get(endpoints.AUDIT_RESULT.format(job_id=job_id))
+        params: dict[str, Any] = {}
+        if not full:
+            params["fields"] = "summary"
+        result = cited_ctx.client.get(
+            endpoints.AUDIT_RESULT.format(job_id=job_id), params=params
+        )
         return _truncate_response(result)
     except CitedAPIError as e:
         return _api_error_response(e)

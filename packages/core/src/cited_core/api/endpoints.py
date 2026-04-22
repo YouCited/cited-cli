@@ -55,6 +55,7 @@ RECOMMEND_DELETE = "/recommendations/{job_id}"
 
 # Solutions
 SOLUTION_REQUEST = "/solutions/request"
+SOLUTION_REQUEST_BATCH = "/solutions/request-batch"
 SOLUTION_CREATE = "/solutions/create"
 SOLUTION_PRIORITY_ACTION = "/solutions/priority-action"
 SOLUTION_STATUS = "/solutions/{job_id}/status"

@@ -54,6 +54,49 @@ async def start_solution(
 
 
 @mcp.tool(
+    title="Start Solutions Batch",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),  # noqa: E501
+)
+@log_tool_call
+async def start_solutions_batch(
+    ctx: Context[Any, CitedContext, Any],
+    recommendation_job_id: str,
+    items: list[dict[str, str]],
+) -> Any:
+    """Start multiple solutions in one call (max 10).
+
+    More efficient than calling start_solution repeatedly. All items
+    must reference the same recommendation job.
+
+    Args:
+        ctx: MCP context
+        recommendation_job_id: The recommendation job ID (shared by all items)
+        items: List of dicts, each with "source_type" and "source_id" keys.
+            Example: [{"source_type": "head_to_head", "source_id": "competitor.com"},
+                       {"source_type": "strengthening_tip", "source_id": "llms_txt"}]
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        payload = {
+            "items": [
+                {
+                    "recommendation_job_id": recommendation_job_id,
+                    "source_type": item["source_type"],
+                    "source_id": item["source_id"],
+                }
+                for item in items
+            ]
+        }
+        return cited_ctx.client.post(
+            endpoints.SOLUTION_REQUEST_BATCH, json=payload
+        )
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
     title="Get Solution Status",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )

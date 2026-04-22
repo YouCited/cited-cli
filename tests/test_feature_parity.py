@@ -26,8 +26,9 @@ CLI_ONLY = {
 }
 
 MCP_ONLY = {
-    "get_usage_stats",  # Aggregated stats — CLI users can check via auth status + business list
-    "get_job_status",   # MCP uses get_job_status (probes types); CLI uses job watch (live polling)
+    "get_usage_stats",      # Aggregated stats — CLI users can check via auth status + business list
+    "get_job_status",       # MCP uses get_job_status (probes types); CLI uses job watch (live polling)
+    "start_solutions_batch",  # Bulk operation — CLI users call solution start in a loop
 }
 
 

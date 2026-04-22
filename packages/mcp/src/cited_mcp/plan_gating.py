@@ -31,6 +31,7 @@ _SCALE_TOOLS: set[str] = {
     "update_audit_template",
     "delete_audit_template",
     "start_solution",
+    "start_solutions_batch",
     "get_solution_status",
     "get_solution_result",
     "list_solutions",

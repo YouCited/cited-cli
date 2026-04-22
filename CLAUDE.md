@@ -54,7 +54,7 @@ cited mcp serve              # Via CLI (requires cited-cli[mcp])
 - `config/constants.py` — `ENVIRONMENTS`, `CONFIG_DIR`, `VALID_INDUSTRIES`, etc.
 - `errors.py` — `CitedAPIError`, `ExitCode`, `exit_code_for_status()`
 
-**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 41 tools:
+**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 42 tools:
 - `server.py` — `FastMCP` instance, lifespan, `run_server()`
 - `tools/` — auth, business, audit, recommend, solution, job tool modules
 - `plan_gating.py` — Per-plan tool access control (growth/scale/pro tiers)

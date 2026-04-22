@@ -45,6 +45,7 @@ EXPECTED_TOOLS = [
     "list_recommendations",
     # Solutions
     "start_solution",
+    "start_solutions_batch",
     "get_solution_status",
     "get_solution_result",
     "list_solutions",
