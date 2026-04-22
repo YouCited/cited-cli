@@ -13,12 +13,60 @@ from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, Re
 from mcp.server.fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from cited_core.api.client import CitedClient
 from cited_mcp.auth_provider import CitedAccessToken, CitedOAuthProvider
 from cited_mcp.context import CitedContext
 
 logger = logging.getLogger(__name__)
+
+
+class _PatchRegistrationMiddleware:
+    """ASGI middleware that patches OAuth client registration requests.
+
+    The MCP SDK (v1.27) requires grant_types to include both
+    "authorization_code" and "refresh_token". Some clients (e.g. Claude's
+    Custom Connectors) only send "authorization_code". This middleware
+    adds "refresh_token" to grant_types before the SDK's validation runs.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["path"] != "/register":
+            await self.app(scope, receive, send)
+            return
+
+        import json as _json
+
+        body_parts: list[bytes] = []
+        patched = False
+
+        async def patching_receive() -> dict:
+            nonlocal patched
+            message = await receive()
+            if message["type"] == "http.request" and not patched:
+                raw = message.get("body", b"")
+                body_parts.append(raw)
+                if message.get("more_body", False):
+                    return message
+                full_body = b"".join(body_parts)
+                try:
+                    data = _json.loads(full_body)
+                    grant_types = data.get("grant_types", [])
+                    if "refresh_token" not in grant_types:
+                        data["grant_types"] = list(grant_types) + ["refresh_token"]
+                        full_body = _json.dumps(data).encode()
+                        logger.debug("Patched registration: added refresh_token to grant_types")
+                except (ValueError, KeyError):
+                    pass
+                patched = True
+                message = {**message, "body": full_body}
+            return message
+
+        await self.app(scope, patching_receive, send)
 
 
 @asynccontextmanager
@@ -162,10 +210,27 @@ def create_remote_server() -> FastMCP:
 
 def run_remote_server() -> None:
     """Start the remote MCP server with Streamable HTTP transport and OAuth."""
+    import uvicorn
+
     if "JWT_SECRET" not in os.environ:
         raise SystemExit("JWT_SECRET environment variable is required")
     server = create_remote_server()
-    server.run(transport="streamable-http")
+
+    # Wrap the Starlette app with the registration-patching middleware
+    # so Custom Connectors that omit refresh_token in grant_types still work.
+    starlette_app = server.streamable_http_app()
+    patched_app = _PatchRegistrationMiddleware(starlette_app)
+
+    config = uvicorn.Config(
+        patched_app,
+        host=server.settings.host,
+        port=server.settings.port,
+        log_level=server.settings.log_level.lower(),
+    )
+    uvicorn_server = uvicorn.Server(config)
+
+    import anyio
+    anyio.run(uvicorn_server.serve)
 
 
 if __name__ == "__main__":
