@@ -68,7 +68,7 @@ class _AllowlistedRedirectClient(OAuthClientInformationFull):
         return super().validate_redirect_uri(redirect_uri)
 
 # Token lifetimes
-ACCESS_TOKEN_TTL = 86400  # 24 hours — long enough for any conversation session
+ACCESS_TOKEN_TTL = 86400 * 7  # 7 days — matches backend JWT TTL
 REFRESH_TOKEN_TTL = 86400 * 7  # 7 days (matches backend JWT TTL)
 
 
