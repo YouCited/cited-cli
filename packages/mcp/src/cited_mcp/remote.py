@@ -162,6 +162,12 @@ def create_remote_server() -> FastMCP:
                 "https://api.anthropic.com",
                 mcp_url,
             ],
+            allowed_hosts=[
+                "mcp.youcited.com",
+                "mcpdev.youcited.com",
+                "localhost",
+                "127.0.0.1",
+            ],
         ),
         lifespan=cited_remote_lifespan,
         auth_server_provider=auth_provider,
