@@ -141,13 +141,19 @@ async def get_solution_result(ctx: Context[Any, CitedContext, Any], job_id: str)
         if isinstance(result, dict):
             # Strip chat_history — no MCP tool to respond to it
             result.pop("chat_history", None)
-            # Make download_path absolute so agents can fetch directly
+            # Normalize download_path to absolute URLs consistently
+            api_base = cited_ctx.api_url.rstrip("/")
             for artifact in result.get("artifacts", []):
                 dp = artifact.get("download_path")
-                if dp and dp.startswith("/"):
-                    artifact["download_path"] = (
-                        f"{cited_ctx.api_url}{dp}"
-                    )
+                if not dp:
+                    continue
+                if dp.startswith("/"):
+                    # Relative path → make absolute
+                    artifact["download_path"] = f"{api_base}{dp}"
+                elif not dp.startswith("http"):
+                    # Bare path → make absolute
+                    artifact["download_path"] = f"{api_base}/{dp}"
+                # Already absolute URLs are left as-is
         return _truncate_response(result)
     except CitedAPIError as e:
         return _api_error_response(e)
