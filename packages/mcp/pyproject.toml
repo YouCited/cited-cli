@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Cited", email = "support@youcited.com" }]
 dependencies = [
     "cited-core>=0.3.4",
-    "mcp>=1.26.0",
+    "mcp>=1.27.0",
     "PyJWT>=2.8.0",
 ]
 
