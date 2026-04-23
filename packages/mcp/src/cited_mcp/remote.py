@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -231,10 +230,10 @@ def create_remote_server() -> FastMCP:
                 status_code=400,
             )
 
-        # Generate authorization code and store it
-        code = secrets.token_urlsafe(32)
-        auth_provider.store_auth_code(
-            code=code,
+        # Generate a stateless auth code (signed JWT) so it survives
+        # container restarts and deploy rollovers.
+        code = auth_provider.store_auth_code(
+            code="",  # ignored — store_auth_code generates a JWT
             user_jwt=user_token,
             client_id=state["client_id"],
             code_challenge=state["code_challenge"],
