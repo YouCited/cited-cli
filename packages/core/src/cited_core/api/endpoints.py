@@ -91,3 +91,7 @@ AGENT_CLAIMS = "/agent/v1/business/{business_id}/claims"
 AGENT_COMPARISON = "/agent/v1/business/{business_id}/comparison"
 AGENT_SEMANTIC_HEALTH = "/agent/v1/business/{business_id}/semantic-health"
 AGENT_BUYER_FIT = "/agent/v1/query/buyer-fit"
+
+# Billing (agentic payments)
+BILLING_PRICING = "/billing/pricing"
+BILLING_AGENT_UPGRADE = "/billing/agent-upgrade"

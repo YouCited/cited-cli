@@ -60,6 +60,9 @@ EXPECTED_TOOLS = [
     "get_analytics_trends",
     "get_analytics_summary",
     "compare_audits",
+    # Billing
+    "get_pricing",
+    "upgrade_plan",
     # Agent API
     "get_business_facts",
     "get_business_claims",

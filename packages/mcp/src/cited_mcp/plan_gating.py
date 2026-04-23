@@ -91,20 +91,32 @@ def required_tier_for_tool(tool_name: str) -> str | None:
     return _TOOL_MIN_TIER.get(tool_name)
 
 
+_PLAN_PRICING: dict[str, int] = {
+    "growth": 39,
+    "scale": 99,
+    "pro": 299,
+}
+
+
 def upgrade_message(tool_name: str, current_tier: str | None) -> dict[str, Any]:
     """Return a structured error message for a gated tool."""
     min_tier = _TOOL_MIN_TIER.get(tool_name, "growth")
+    price = _PLAN_PRICING.get(min_tier)
     return {
         "error": True,
+        "payment_required": True,
         "message": (
-            f"The '{tool_name}' tool requires the {min_tier.title()} plan or higher. "
-            f"Your current plan is {(current_tier or 'free').title()}."
+            f"The '{tool_name}' tool requires the {min_tier.title()} plan "
+            f"(${price}/mo). Your current plan is "
+            f"{(current_tier or 'free').title()}."
         ),
         "upgrade_url": "https://app.youcited.com/settings/billing",
         "hint": (
-            f"Upgrade to {min_tier.title()} at https://app.youcited.com/settings/billing "
-            f"to unlock this feature."
+            f"Call upgrade_plan(target_tier='{min_tier}') to upgrade, "
+            f"or visit https://app.youcited.com/settings/billing"
         ),
+        "upgrade_tier": min_tier,
+        "upgrade_price_usd": price,
         "required_tier": min_tier,
         "current_tier": current_tier or "free",
     }
@@ -120,6 +132,8 @@ _BASE_TOOLS: set[str] = {
     "check_auth_status",
     "login",
     "logout",
+    "get_pricing",
+    "upgrade_plan",
     "list_businesses",
     "get_business",
     "crawl_business",

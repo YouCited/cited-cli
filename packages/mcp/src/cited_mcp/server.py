@@ -50,6 +50,7 @@ def register_tools() -> None:
     import cited_mcp.tools.agent  # noqa: I001, E402, F401
     import cited_mcp.tools.analytics  # noqa: E402, F401
     import cited_mcp.tools.auth  # noqa: E402, F401
+    import cited_mcp.tools.billing  # noqa: E402, F401
     import cited_mcp.tools.audit  # noqa: E402, F401
     import cited_mcp.tools.business  # noqa: E402, F401
     import cited_mcp.tools.hq  # noqa: E402, F401
