@@ -47,7 +47,8 @@ def register_tools() -> None:
 
     Must be called after `cited_mcp.server.mcp` is set to a valid FastMCP instance.
     """
-    import cited_mcp.tools.agent  # noqa: I001, E402, F401
+    import cited_mcp.tools.action_plan  # noqa: I001, E402, F401
+    import cited_mcp.tools.agent  # noqa: E402, F401
     import cited_mcp.tools.analytics  # noqa: E402, F401
     import cited_mcp.tools.auth  # noqa: E402, F401
     import cited_mcp.tools.billing  # noqa: E402, F401
