@@ -730,6 +730,100 @@ class TestPing:
         result = run(ping(unauth_ctx))
         assert result["status"] == "ok"
 
+    def test_ping_includes_server_version(self, ctx):
+        from cited_core import __version__
+
+        result = run(ping(ctx))
+        assert result["server_version"] == __version__
+
+    def test_ping_includes_tools_fingerprint(self, ctx):
+        result = run(ping(ctx))
+        assert "tools_fingerprint" in result
+        fp = result["tools_fingerprint"]
+        assert isinstance(fp, str) and len(fp) == 12
+        int(fp, 16)  # 12-char lowercase hex
+
+    def test_ping_includes_tools_count(self, ctx):
+        result = run(ping(ctx))
+        assert isinstance(result["tools_count"], int)
+        assert result["tools_count"] > 0
+
+    def test_ping_fingerprint_deterministic_across_calls(self, ctx):
+        first = run(ping(ctx))
+        second = run(ping(ctx))
+        assert first["tools_fingerprint"] == second["tools_fingerprint"]
+
+
+class TestToolsFingerprint:
+    """Direct coverage of the fingerprint hash and registry hookup."""
+
+    def test_hash_deterministic(self):
+        from cited_mcp.server import _hash_tool_surface
+
+        items = [("a", "desc", "{}"), ("b", "desc2", '{"x":1}')]
+        assert _hash_tool_surface(items) == _hash_tool_surface(items)
+
+    def test_hash_order_independent(self):
+        from cited_mcp.server import _hash_tool_surface
+
+        forward = [("a", "d1", "{}"), ("b", "d2", "{}")]
+        reverse = [("b", "d2", "{}"), ("a", "d1", "{}")]
+        assert _hash_tool_surface(forward) == _hash_tool_surface(reverse)
+
+    def test_hash_changes_when_name_changes(self):
+        from cited_mcp.server import _hash_tool_surface
+
+        a = [("foo", "desc", "{}")]
+        b = [("bar", "desc", "{}")]
+        assert _hash_tool_surface(a) != _hash_tool_surface(b)
+
+    def test_hash_changes_when_description_changes(self):
+        from cited_mcp.server import _hash_tool_surface
+
+        a = [("foo", "old description", "{}")]
+        b = [("foo", "new description", "{}")]
+        assert _hash_tool_surface(a) != _hash_tool_surface(b)
+
+    def test_hash_changes_when_input_schema_changes(self):
+        from cited_mcp.server import _hash_tool_surface
+
+        a = [("foo", "desc", '{"properties":{"x":{"type":"string"}}}')]
+        b = [("foo", "desc", '{"properties":{"x":{"type":"integer"}}}')]
+        assert _hash_tool_surface(a) != _hash_tool_surface(b)
+
+    def test_compute_uses_registered_tools(self):
+        """compute_tools_fingerprint reflects the live tool registry."""
+        from cited_mcp.server import compute_tools_fingerprint
+        from cited_mcp.server import mcp as registered_mcp
+
+        first = compute_tools_fingerprint(registered_mcp)
+        second = compute_tools_fingerprint(registered_mcp)
+        assert first == second
+        assert isinstance(first, str) and len(first) == 12
+
+    def test_fingerprint_changes_when_tool_added(self):
+        """Adding a tool to the live registry produces a different fingerprint."""
+        from cited_mcp.server import compute_tools_fingerprint
+        from cited_mcp.server import mcp as registered_mcp
+
+        before = compute_tools_fingerprint(registered_mcp)
+
+        async def __synthetic_test_tool() -> str:
+            """Synthetic tool used only by tests."""
+            return "ok"
+
+        registered_mcp._tool_manager.add_tool(
+            __synthetic_test_tool, name="__synthetic_test_tool"
+        )
+        try:
+            after = compute_tools_fingerprint(registered_mcp)
+            assert before != after
+        finally:
+            del registered_mcp._tool_manager._tools["__synthetic_test_tool"]
+
+        restored = compute_tools_fingerprint(registered_mcp)
+        assert restored == before
+
 
 class TestAuditResultModes:
     def test_audit_result_summary_by_default(self, ctx):

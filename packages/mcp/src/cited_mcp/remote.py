@@ -277,6 +277,7 @@ def create_remote_server() -> FastMCP:
 
     # Now import tools — they'll register on remote_mcp via server_module.mcp
     server_module.register_tools()
+    server_module.cache_tool_surface(remote_mcp)
 
     return remote_mcp
 
@@ -291,6 +292,10 @@ def run_remote_server() -> None:
 
     # Wrap the Starlette app with the registration-patching middleware
     # so Custom Connectors that omit refresh_token in grant_types still work.
+    # Keep streamable HTTP in SSE mode (the FastMCP default; do NOT enable
+    # is_json_response). SSE-mode responses stream JSON-RPC messages over the
+    # body so tool handlers can deliver notifications/tools/list_changed via
+    # `await ctx.session.send_tool_list_changed()` even with stateless_http=True.
     starlette_app = server.streamable_http_app()
     patched_app = _PatchRegistrationMiddleware(starlette_app)
 

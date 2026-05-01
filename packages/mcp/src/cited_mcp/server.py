@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 
 from mcp.server.fastmcp import FastMCP
@@ -18,6 +20,57 @@ from cited_mcp.context import CitedContext
 # For stdio: set by run_server() before tool imports.
 # For remote: set by remote.py before tool imports.
 mcp: FastMCP = None  # type: ignore[assignment]
+
+# Tool surface snapshot, populated once after register_tools() by
+# cache_tool_surface(). Exposed via the `ping` tool so agent skills can detect
+# stale MCP-client tool caches without relying on tools/list_changed.
+_TOOLS_FINGERPRINT: str | None = None
+_TOOLS_COUNT: int = 0
+
+
+def _hash_tool_surface(items: Iterable[tuple[str, str, str]]) -> str:
+    """Return a 12-char fingerprint over (name, description, schema_json) tuples.
+
+    Pure function — order-independent, deterministic. Extracted so the hash
+    algorithm is testable without standing up a FastMCP instance.
+    """
+    serialized = json.dumps(sorted(items))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:12]
+
+
+def compute_tools_fingerprint(server: FastMCP) -> str:
+    """Hash the registered tool surface (name + description + input schema).
+
+    Any change a client would notice — added/removed tool, edited docstring,
+    edited parameter schema — produces a different fingerprint.
+    """
+    items = (
+        (
+            tool.name,
+            tool.description or "",
+            json.dumps(tool.parameters or {}, sort_keys=True),
+        )
+        for tool in server._tool_manager.list_tools()
+    )
+    return _hash_tool_surface(items)
+
+
+def cache_tool_surface(server: FastMCP) -> None:
+    """Populate module-level fingerprint/count caches. Call once post-register."""
+    import cited_mcp.server as _self
+
+    _self._TOOLS_FINGERPRINT = compute_tools_fingerprint(server)
+    _self._TOOLS_COUNT = len(server._tool_manager.list_tools())
+
+
+def get_tools_fingerprint() -> str | None:
+    """Cached fingerprint computed at startup, or None before registration."""
+    return _TOOLS_FINGERPRINT
+
+
+def get_tools_count() -> int:
+    """Cached tool count from startup, or 0 before registration."""
+    return _TOOLS_COUNT
 
 
 @asynccontextmanager
@@ -76,6 +129,7 @@ def create_stdio_server() -> FastMCP:
         lifespan=cited_lifespan,
     )
     register_tools()
+    cache_tool_surface(_self.mcp)
     return _self.mcp
 
 

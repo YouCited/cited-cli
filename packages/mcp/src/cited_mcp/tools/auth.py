@@ -66,10 +66,23 @@ def _check_pending_login(cited_ctx: CitedContext) -> bool:
 async def ping(ctx: Context[Any, CitedContext, Any]) -> Any:
     """Lightweight readiness check — no auth required, no API calls.
 
-    Returns immediately to confirm the MCP server is responsive.
-    Call this before starting a workflow to verify connectivity.
+    Returns server identity, version, and a fingerprint over the registered
+    tool surface (name + description + input schema). Agent skills can stash
+    `tools_fingerprint` and re-check it later in the conversation to detect
+    when an MCP client has a stale tool cache after a Cited release; if the
+    fingerprint differs from a prior value, call `whats_new(since_fingerprint=
+    <prior>)` to see what changed.
     """
-    return {"status": "ok", "server": "cited-mcp"}
+    from cited_core import __version__
+    from cited_mcp.server import get_tools_count, get_tools_fingerprint
+
+    return {
+        "status": "ok",
+        "server": "cited-mcp",
+        "server_version": __version__,
+        "tools_fingerprint": get_tools_fingerprint(),
+        "tools_count": get_tools_count(),
+    }
 
 
 @mcp.tool(
