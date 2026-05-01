@@ -13,7 +13,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from cited_core.api.client import CitedClient
 from cited_mcp.auth_provider import CitedAccessToken, CitedOAuthProvider
@@ -46,7 +46,7 @@ class _PatchRegistrationMiddleware:
         body_parts: list[bytes] = []
         patched = False
 
-        async def patching_receive() -> dict:
+        async def patching_receive() -> Message:
             nonlocal patched
             message = await receive()
             if message["type"] == "http.request" and not patched:

@@ -283,7 +283,7 @@ class CitedOAuthProvider(
                 "redirect_uri_provided_explicitly", True
             ),
             scopes=payload.get("scopes", []),
-            expires_at=payload.get("exp"),
+            expires_at=float(payload.get("exp") or 0),
             user_jwt=payload["user_jwt"],
             resource=payload.get("resource"),
         )
