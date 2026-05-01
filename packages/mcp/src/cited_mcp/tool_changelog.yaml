@@ -7,6 +7,12 @@
 #
 # Entries are listed newest-first. Append new entries to the top.
 #
+# Fingerprint history starts at 0.3.5 (the release that introduced this file).
+# Sessions that stashed a tools_fingerprint from a pre-0.3.5 server will hit
+# the "fingerprint not recognized" branch and receive the full changelog with
+# a _note. Pre-0.3.5 entries are not backfilled — the fingerprint algorithm
+# requires a live tool registry, which we can't reconstruct retroactively.
+#
 # Adding an entry (release process):
 #   1. Add the new top entry with `fingerprint: PENDING`.
 #   2. After bumping versions and registering tools, run the helper that prints
@@ -17,7 +23,7 @@
 versions:
   - version: "0.3.5"
     released: "2026-05-01"
-    fingerprint: "509456d6c889"
+    fingerprint: "30dfe348eb13"
     tools_added:
       - name: whats_new
         description: |

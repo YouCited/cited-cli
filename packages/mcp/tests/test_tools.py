@@ -970,19 +970,87 @@ class TestWhatsNew:
         assert "current_version" in result
         assert "current_fingerprint" in result
 
-    def test_load_changelog_missing_file_returns_empty(self, tmp_path, monkeypatch):
+    def test_load_changelog_missing_file(self, tmp_path, monkeypatch):
         from cited_mcp.tools import changelog as cl
 
         monkeypatch.setattr(cl, "_CHANGELOG_PATH", tmp_path / "nonexistent.yaml")
-        assert cl._load_changelog() == {"versions": []}
+        data, err = cl._load_changelog()
+        assert data == {"versions": []}
+        assert err is not None
+        assert "not found" in err
 
-    def test_load_changelog_malformed_returns_empty(self, tmp_path, monkeypatch):
+    def test_load_changelog_invalid_structure(self, tmp_path, monkeypatch):
         from cited_mcp.tools import changelog as cl
 
         bad = tmp_path / "tool_changelog.yaml"
         bad.write_text("this is just a string, not a versions dict")
         monkeypatch.setattr(cl, "_CHANGELOG_PATH", bad)
-        assert cl._load_changelog() == {"versions": []}
+        data, err = cl._load_changelog()
+        assert data == {"versions": []}
+        assert err is not None
+        assert "invalid structure" in err
+
+    def test_load_changelog_yaml_parse_error_does_not_raise(
+        self, tmp_path, monkeypatch
+    ):
+        """Blast-radius guard: a parse error must NOT propagate up to module
+        import / register_tools / server startup."""
+        from cited_mcp.tools import changelog as cl
+
+        bad = tmp_path / "tool_changelog.yaml"
+        # Real-world parse error: bad indent + unclosed bracket
+        bad.write_text(
+            'versions:\n'
+            '  - version: "0.4.0"\n'
+            '      malformed_indent: true\n'
+            '      [unclosed bracket\n'
+        )
+        monkeypatch.setattr(cl, "_CHANGELOG_PATH", bad)
+        # Critical: this MUST NOT raise
+        data, err = cl._load_changelog()
+        assert data == {"versions": []}
+        assert err is not None
+        assert "parse error" in err.lower()
+
+    def test_whats_new_surfaces_changelog_load_error(self, ctx, monkeypatch):
+        """Blast-radius (c): when the changelog couldn't be loaded, whats_new
+        returns a structured error rather than a 500 or a silent empty diff."""
+        from cited_mcp.tools import changelog as cl
+
+        monkeypatch.setattr(cl, "_CHANGELOG", {"versions": []})
+        monkeypatch.setattr(
+            cl,
+            "_CHANGELOG_LOAD_ERROR",
+            "changelog YAML parse error: ParserError",
+        )
+        result = run(whats_new(ctx))
+        assert result["error"] is True
+        assert result["error_type"] == "changelog_unavailable"
+        assert "ParserError" in result["message"]
+        assert "Disconnect and reconnect" in result["message"]
+        assert result["tools_added"] == []
+        assert result["tools_changed"] == []
+        assert result["tools_removed"] == []
+        # current_version / current_fingerprint still populated so the agent
+        # can correlate with ping
+        assert "current_version" in result
+        assert "current_fingerprint" in result
+
+    def test_ping_unaffected_by_broken_changelog(self, ctx, monkeypatch):
+        """Blast-radius (b): ping doesn't read changelog state — but pin this
+        invariant explicitly so a future refactor doesn't quietly couple them."""
+        from cited_mcp.tools import changelog as cl
+
+        monkeypatch.setattr(cl, "_CHANGELOG", {"versions": []})
+        monkeypatch.setattr(
+            cl,
+            "_CHANGELOG_LOAD_ERROR",
+            "changelog YAML parse error: ParserError",
+        )
+        result = run(ping(ctx))
+        assert result["status"] == "ok"
+        assert result["server"] == "cited-mcp"
+        assert "tools_fingerprint" in result
 
 
 class TestAuditResultModes:

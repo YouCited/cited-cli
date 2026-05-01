@@ -19,24 +19,46 @@ from cited_mcp.server import get_tools_fingerprint, mcp
 _CHANGELOG_PATH = Path(__file__).parent.parent / "tool_changelog.yaml"
 
 
-def _load_changelog() -> dict[str, Any]:
+def _load_changelog() -> tuple[dict[str, Any], str | None]:
     """Load and validate the tool changelog from yaml.
 
-    Returns an empty changelog if the file is missing or malformed — the tool
-    stays importable in environments where the data file isn't packaged
-    correctly, and whats_new returns "no entries" rather than crashing.
+    Returns ``(changelog_dict, error_message)``. ``error_message`` is non-None
+    when the changelog could not be loaded for the stated reason; in that case
+    ``changelog_dict`` is ``{"versions": []}`` so callers can keep operating.
+
+    Failure modes covered:
+      * ``FileNotFoundError`` — file missing (e.g. data file not packaged)
+      * ``yaml.YAMLError``   — file present but syntactically invalid
+      * ``OSError``          — read failures (permissions, etc.)
+      * structural validation — file parses but isn't a dict with a
+        ``versions`` list at the root
+
+    Server startup is intentionally insulated from any of these: the module
+    imports cleanly, the tool stays registered, ping is unaffected, and
+    ``whats_new`` surfaces ``_CHANGELOG_LOAD_ERROR`` in its response so the
+    agent has a clear "diff is unreliable" signal to act on.
     """
     try:
         with _CHANGELOG_PATH.open() as f:
             data = yaml.safe_load(f) or {}
     except FileNotFoundError:
-        return {"versions": []}
+        return {"versions": []}, "changelog file not found at expected path"
+    except yaml.YAMLError as e:
+        return (
+            {"versions": []},
+            f"changelog YAML parse error: {type(e).__name__}",
+        )
+    except OSError as e:
+        return {"versions": []}, f"changelog read error: {e}"
     if not isinstance(data, dict) or not isinstance(data.get("versions"), list):
-        return {"versions": []}
-    return data
+        return (
+            {"versions": []},
+            "changelog file has invalid structure (expected 'versions' list at root)",
+        )
+    return data, None
 
 
-_CHANGELOG = _load_changelog()
+_CHANGELOG, _CHANGELOG_LOAD_ERROR = _load_changelog()
 
 
 def _entries_since_fingerprint(
@@ -114,6 +136,11 @@ async def whats_new(
         added_in_version / changed_in_version / removed_in_version field).
       * Unrecognized fingerprint OR version → returns the full changelog
         history with a `_note` explaining the diff is unbounded.
+      * Changelog file missing or corrupt → returns a structured error with
+        `error: true`, `error_type: "changelog_unavailable"`, and an empty
+        diff. The MCP server itself stays up and `ping` continues to work;
+        this branch only signals that whats_new can't compute a diff right
+        now. Disconnect/reconnect the connector and try again, or report.
 
     `since_fingerprint` takes precedence over `since_version` when both are
     passed (fingerprints are more precise — they cover docstring and schema
@@ -139,6 +166,22 @@ async def whats_new(
         "current_fingerprint": current_fp,
         "since": since_fingerprint or since_version,
     }
+
+    if _CHANGELOG_LOAD_ERROR is not None:
+        return {
+            **base,
+            "error": True,
+            "error_type": "changelog_unavailable",
+            "message": (
+                f"Tool changelog could not be loaded: {_CHANGELOG_LOAD_ERROR}. "
+                "Cannot compute a diff. Disconnect and reconnect the Cited "
+                "connector to pick up the latest tools, or contact support if "
+                "this persists."
+            ),
+            "tools_added": [],
+            "tools_changed": [],
+            "tools_removed": [],
+        }
 
     matched: list[dict[str, Any]] | None = None
 
