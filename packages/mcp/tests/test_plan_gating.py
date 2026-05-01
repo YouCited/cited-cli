@@ -127,9 +127,10 @@ class TestToolsForTier:
         assert tools_for_tier("enterprise") == tools_for_tier("pro")
 
     def test_pro_has_all_tools(self):
-        # All tools should be available to pro
+        # All tools should be available to pro. Bump this count whenever a tool
+        # is added/removed to/from any tier set.
         tools = tools_for_tier("pro")
-        assert len(tools) == 46
+        assert len(tools) == 47
 
     def test_all_registered_tools_are_in_tier_sets(self):
         """Every registered MCP tool must appear in exactly one tier set."""

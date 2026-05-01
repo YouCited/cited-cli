@@ -1,6 +1,6 @@
 # cited-mcp
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 44 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 47 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
 
@@ -113,12 +113,14 @@ Cited adds new tools regularly. To access new tools after a release, **disconnec
 
 ## Tools
 
-### Auth
+### Auth & meta
 | Tool | Description |
 |------|-------------|
+| `ping` | Readiness check — returns server version, tool count, and tool-surface fingerprint |
 | `check_auth_status` | Check current authentication status |
 | `login` | Authenticate via browser OAuth flow |
 | `logout` | Clear stored authentication token |
+| `whats_new` | Diff the current tool surface against a prior fingerprint or version |
 
 ### Businesses
 | Tool | Description |
@@ -219,7 +221,7 @@ Tools are gated by subscription tier. All tiers can read data; write operations 
 |------|----------------|
 | **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list), all recommendation tools, job status — **19 tools** |
 | **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, batch solutions, export audit, cancel job — **33 tools** |
-| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **44 tools** |
+| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **47 tools** |
 
 When a user calls a tool above their plan, the server returns a structured error with an upgrade link:
 

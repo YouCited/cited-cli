@@ -73,7 +73,7 @@ cited register --email you@example.com --name "Your Name" --password "Secret123!
 
 ## MCP Server
 
-This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 42 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, and create solutions on your behalf.
+This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 47 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, and create solutions on your behalf.
 
 ### Claude Desktop (Custom Connector — recommended)
 
