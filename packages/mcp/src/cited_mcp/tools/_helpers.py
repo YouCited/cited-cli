@@ -8,6 +8,7 @@ import os
 import time
 import uuid
 from collections import deque
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -243,7 +244,7 @@ def _extract_user(token: str | None) -> str:
         payload = pyjwt.decode(
             token, options={"verify_signature": False}
         )
-        return payload.get("email", payload.get("sub", "unknown"))
+        return str(payload.get("email") or payload.get("sub") or "unknown")
     except Exception:
         return "unknown"
 
@@ -268,7 +269,7 @@ def _get_user_tier(cited_ctx: CitedContext, cache_key: str) -> str | None:
 
     try:
         user = cited_ctx.client.get("/auth/me")
-        tier = user.get("subscription_tier", "free")
+        tier = str(user.get("subscription_tier") or "free")
         _tier_cache[cache_key] = (tier, now + _TIER_CACHE_TTL)
         return tier
     except Exception:
@@ -278,7 +279,9 @@ def _get_user_tier(cited_ctx: CitedContext, cache_key: str) -> str | None:
         return None
 
 
-def log_tool_call(func):  # noqa: ANN001, ANN201
+def log_tool_call(
+    func: Callable[..., Awaitable[Any]],
+) -> Callable[..., Awaitable[Any]]:
     """Decorator: rate-limits, logs, and catches transport errors per tool call."""
 
     @functools.wraps(func)

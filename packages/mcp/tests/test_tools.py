@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any
 from unittest.mock import MagicMock
 
 import httpx
@@ -17,7 +16,6 @@ from cited_core.api.client import CitedClient
 from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
 from cited_mcp.server import create_stdio_server
-
 
 # ---------------------------------------------------------------------------
 # Test helpers (inline to avoid import issues across test roots)
@@ -59,8 +57,9 @@ def make_ctx(
 @pytest.fixture(autouse=True)
 def _seed_tier_cache_and_reset_rate_limits():
     """Pre-seed tier cache and reset rate limiter between tests."""
-    from cited_mcp.tools._helpers import _tier_cache, _rate_limits
     import time
+
+    from cited_mcp.tools._helpers import _rate_limits, _tier_cache
 
     # Use "pro" tier for all test users so no tools are gated
     _tier_cache.clear()
@@ -170,7 +169,9 @@ class TestAuthGuard:
         assert result["error"] is True
 
     def test_start_solution_unauth(self, unauth_ctx):
-        result = run(start_solution(unauth_ctx, recommendation_job_id="a", source_type="b", source_id="c"))
+        result = run(start_solution(
+            unauth_ctx, recommendation_job_id="a", source_type="b", source_id="c"
+        ))
         assert result["error"] is True
 
     def test_get_job_status_unauth(self, unauth_ctx):
@@ -210,7 +211,12 @@ class TestBusinessTools:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "new-id", "name": "New Biz"}
 
-        result = run(create_business(ctx, name="New Biz", website="https://new.com", description="A new business for testing purposes that is long enough"))
+        result = run(create_business(
+            ctx,
+            name="New Biz",
+            website="https://new.com",
+            description="A new business for testing purposes that is long enough",
+        ))
         assert result["id"] == "new-id"
         client.post.assert_called_once()
         payload = client.post.call_args[1]["json"]
@@ -278,7 +284,9 @@ class TestAuditTools:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "t-new", "name": "My Template"}
 
-        result = run(create_audit_template(ctx, name="My Template", business_id="b1", questions=["Q1", "Q2"]))
+        result = run(create_audit_template(
+            ctx, name="My Template", business_id="b1", questions=["Q1", "Q2"]
+        ))
         assert result["id"] == "t-new"
         payload = client.post.call_args[1]["json"]
         assert payload["questions"] == [{"question": "Q1"}, {"question": "Q2"}]
@@ -653,9 +661,10 @@ class TestAuthTools:
 
     def test_pending_login_auto_detected_by_other_tools(self):
         """_check_pending_login should capture token and set it on the client."""
+        import unittest.mock
+
         import cited_mcp.tools.auth as auth_mod
         from cited_core.auth.oauth_server import OAuthCallbackServer
-        import unittest.mock
 
         # Create a real CitedContext (not mocked) so token assignment works
         cited_ctx = CitedContext(
@@ -730,6 +739,100 @@ class TestPing:
         result = run(ping(unauth_ctx))
         assert result["status"] == "ok"
 
+    def test_ping_includes_server_version(self, ctx):
+        from cited_core import __version__
+
+        result = run(ping(ctx))
+        assert result["server_version"] == __version__
+
+    def test_ping_includes_tools_fingerprint(self, ctx):
+        result = run(ping(ctx))
+        assert "tools_fingerprint" in result
+        fp = result["tools_fingerprint"]
+        assert isinstance(fp, str) and len(fp) == 12
+        int(fp, 16)  # 12-char lowercase hex
+
+    def test_ping_includes_tools_count(self, ctx):
+        result = run(ping(ctx))
+        assert isinstance(result["tools_count"], int)
+        assert result["tools_count"] > 0
+
+    def test_ping_fingerprint_deterministic_across_calls(self, ctx):
+        first = run(ping(ctx))
+        second = run(ping(ctx))
+        assert first["tools_fingerprint"] == second["tools_fingerprint"]
+
+
+class TestToolsFingerprint:
+    """Direct coverage of the fingerprint hash and registry hookup."""
+
+    def test_hash_deterministic(self):
+        from cited_mcp.server import _hash_tool_surface
+
+        items = [("a", "desc", "{}"), ("b", "desc2", '{"x":1}')]
+        assert _hash_tool_surface(items) == _hash_tool_surface(items)
+
+    def test_hash_order_independent(self):
+        from cited_mcp.server import _hash_tool_surface
+
+        forward = [("a", "d1", "{}"), ("b", "d2", "{}")]
+        reverse = [("b", "d2", "{}"), ("a", "d1", "{}")]
+        assert _hash_tool_surface(forward) == _hash_tool_surface(reverse)
+
+    def test_hash_changes_when_name_changes(self):
+        from cited_mcp.server import _hash_tool_surface
+
+        a = [("foo", "desc", "{}")]
+        b = [("bar", "desc", "{}")]
+        assert _hash_tool_surface(a) != _hash_tool_surface(b)
+
+    def test_hash_changes_when_description_changes(self):
+        from cited_mcp.server import _hash_tool_surface
+
+        a = [("foo", "old description", "{}")]
+        b = [("foo", "new description", "{}")]
+        assert _hash_tool_surface(a) != _hash_tool_surface(b)
+
+    def test_hash_changes_when_input_schema_changes(self):
+        from cited_mcp.server import _hash_tool_surface
+
+        a = [("foo", "desc", '{"properties":{"x":{"type":"string"}}}')]
+        b = [("foo", "desc", '{"properties":{"x":{"type":"integer"}}}')]
+        assert _hash_tool_surface(a) != _hash_tool_surface(b)
+
+    def test_compute_uses_registered_tools(self):
+        """compute_tools_fingerprint reflects the live tool registry."""
+        from cited_mcp.server import compute_tools_fingerprint
+        from cited_mcp.server import mcp as registered_mcp
+
+        first = compute_tools_fingerprint(registered_mcp)
+        second = compute_tools_fingerprint(registered_mcp)
+        assert first == second
+        assert isinstance(first, str) and len(first) == 12
+
+    def test_fingerprint_changes_when_tool_added(self):
+        """Adding a tool to the live registry produces a different fingerprint."""
+        from cited_mcp.server import compute_tools_fingerprint
+        from cited_mcp.server import mcp as registered_mcp
+
+        before = compute_tools_fingerprint(registered_mcp)
+
+        async def __synthetic_test_tool() -> str:
+            """Synthetic tool used only by tests."""
+            return "ok"
+
+        registered_mcp._tool_manager.add_tool(
+            __synthetic_test_tool, name="__synthetic_test_tool"
+        )
+        try:
+            after = compute_tools_fingerprint(registered_mcp)
+            assert before != after
+        finally:
+            del registered_mcp._tool_manager._tools["__synthetic_test_tool"]
+
+        restored = compute_tools_fingerprint(registered_mcp)
+        assert restored == before
+
 
 class TestAuditResultModes:
     def test_audit_result_summary_by_default(self, ctx):
@@ -775,7 +878,7 @@ class TestAuditResultModes:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "t1", "include_business_name": True}
 
-        result = run(create_audit_template(
+        run(create_audit_template(
             ctx, name="Test", business_id="b1", include_business_name=True,
         ))
         payload = client.post.call_args[1]["json"]
@@ -815,7 +918,6 @@ class TestNewToolModules:
 
     def test_agent_tool_requires_business_id(self, ctx):
         """Agent tools should return error if no business_id and no default."""
-        client = ctx.request_context.lifespan_context.client
         # No default_business_id set on context
         result = run(get_business_facts(ctx))
         assert result["error"] is True
@@ -865,6 +967,7 @@ class TestPlanGatingIntegration:
         """A growth-tier user should get an upgrade message for create_business."""
         import hashlib
         import time
+
         from cited_mcp.tools._helpers import _tier_cache
 
         growth_ctx = make_ctx(token="growth-user-token")
@@ -887,6 +990,7 @@ class TestPlanGatingIntegration:
         """A scale-tier user should successfully call create_business."""
         import hashlib
         import time
+
         from cited_mcp.tools._helpers import _tier_cache
 
         scale_ctx = make_ctx(token="scale-user-token")
@@ -907,6 +1011,7 @@ class TestPlanGatingIntegration:
         """Growth-tier users can still use base tools."""
         import hashlib
         import time
+
         from cited_mcp.tools._helpers import _tier_cache
 
         growth_ctx = make_ctx(token="growth-user-token2")
@@ -998,7 +1103,8 @@ class TestTierCache:
     def test_cache_returns_cached_value(self):
         """Cached tier should be returned without API call."""
         import time
-        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        from cited_mcp.tools._helpers import _get_user_tier, _tier_cache
 
         _tier_cache["cache-test-key"] = ("scale", time.monotonic() + 3600)
 
@@ -1014,8 +1120,8 @@ class TestTierCache:
 
     def test_cache_miss_calls_api(self):
         """On cache miss, should call /auth/me and cache the result."""
-        import time
-        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        from cited_mcp.tools._helpers import _get_user_tier, _tier_cache
 
         _tier_cache.pop("new-user-key", None)
 
@@ -1034,7 +1140,8 @@ class TestTierCache:
     def test_cache_fallback_on_api_failure(self):
         """On API failure with stale cache, should return stale value."""
         import time
-        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        from cited_mcp.tools._helpers import _get_user_tier, _tier_cache
 
         # Set an expired cache entry
         _tier_cache["stale-key"] = ("growth", time.monotonic() - 100)

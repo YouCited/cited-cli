@@ -107,6 +107,10 @@ CITED_TOKEN=your-jwt-token cited-mcp
 cited-mcp-remote
 ```
 
+### Updating to new Cited features
+
+Cited adds new tools regularly. To access new tools after a release, **disconnect and reconnect the Cited connector** in your Claude Desktop or Claude.ai connector settings — restarting Claude alone is not enough, because the connector's tool list is cached at registration time. Once reconnected, ask the agent to call `whats_new` to see what changed since you last connected.
+
 ## Tools
 
 ### Auth

@@ -144,6 +144,10 @@ Verify Node.js is installed (`node --version`), or install with `brew install no
 
 Open Settings (`Cmd+,`) → search "MCP" → verify the server shows a green status. Use tools in Composer (Agent mode).
 
+### Updating to new Cited features
+
+Cited adds new tools regularly. To access new tools after a release, **disconnect and reconnect the Cited connector** in your Claude Desktop or Claude.ai connector settings — restarting Claude alone is not enough, because the connector's tool list is cached at registration time. Once reconnected, ask the agent to call `whats_new` to see what changed since you last connected.
+
 ### Example
 
 Once connected, ask Claude something like:
