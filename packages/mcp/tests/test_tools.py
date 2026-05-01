@@ -116,6 +116,7 @@ from cited_mcp.tools.business import (  # noqa: E402
     list_businesses,
     update_business,
 )
+from cited_mcp.tools.changelog import whats_new  # noqa: E402
 from cited_mcp.tools.hq import get_business_hq  # noqa: E402
 from cited_mcp.tools.job import cancel_job, get_job_status  # noqa: E402
 from cited_mcp.tools.recommend import (  # noqa: E402
@@ -832,6 +833,156 @@ class TestToolsFingerprint:
 
         restored = compute_tools_fingerprint(registered_mcp)
         assert restored == before
+
+
+class TestWhatsNew:
+    """whats_new tool — diff against a prior fingerprint or version."""
+
+    @pytest.fixture
+    def fake_changelog(self, monkeypatch):
+        """Patch the module-level changelog with a deterministic fixture."""
+        from cited_mcp.tools import changelog as cl
+
+        fixture = {
+            "versions": [
+                {
+                    "version": "0.4.0",
+                    "released": "2026-06-01",
+                    "fingerprint": "FFF000000000",
+                    "tools_added": [
+                        {"name": "new_tool", "description": "Newest tool"}
+                    ],
+                    "tools_changed": [],
+                    "tools_removed": [],
+                },
+                {
+                    "version": "0.3.9",
+                    "released": "2026-05-15",
+                    "fingerprint": "EEE000000000",
+                    "tools_added": [],
+                    "tools_changed": [
+                        {"name": "old_tool", "change_summary": "Tweaked schema"}
+                    ],
+                    "tools_removed": [],
+                },
+                {
+                    "version": "0.3.8",
+                    "released": "2026-05-01",
+                    "fingerprint": "DDD000000000",
+                    "tools_added": [
+                        {"name": "ancient_tool", "description": "Was new once"}
+                    ],
+                    "tools_changed": [],
+                    "tools_removed": [
+                        {"name": "removed_tool"}
+                    ],
+                },
+            ]
+        }
+        monkeypatch.setattr(cl, "_CHANGELOG", fixture)
+        return fixture
+
+    def test_no_args_returns_most_recent_entry(self, ctx, fake_changelog):
+        result = run(whats_new(ctx))
+        names = [t["name"] for t in result["tools_added"]]
+        assert names == ["new_tool"]
+        assert result.get("no_changes") is not True
+        assert "_note" not in result
+
+    def test_matching_latest_fingerprint_returns_no_changes(self, ctx, fake_changelog):
+        result = run(whats_new(ctx, since_fingerprint="FFF000000000"))
+        assert result["no_changes"] is True
+        assert result["tools_added"] == []
+        assert result["tools_changed"] == []
+        assert result["tools_removed"] == []
+
+    def test_old_fingerprint_returns_aggregated_diff(self, ctx, fake_changelog):
+        # Came from 0.3.8 → expect diffs from 0.3.9 + 0.4.0 aggregated
+        result = run(whats_new(ctx, since_fingerprint="DDD000000000"))
+        names_added = [t["name"] for t in result["tools_added"]]
+        names_changed = [t["name"] for t in result["tools_changed"]]
+        assert names_added == ["new_tool"]
+        assert names_changed == ["old_tool"]
+        # added_in_version should reflect the entry that introduced the tool
+        assert result["tools_added"][0]["added_in_version"] == "0.4.0"
+        assert result["tools_changed"][0]["changed_in_version"] == "0.3.9"
+        assert result.get("no_changes") is not True
+        assert "_note" not in result
+
+    def test_old_version_returns_aggregated_diff(self, ctx, fake_changelog):
+        result = run(whats_new(ctx, since_version="0.3.8"))
+        names_added = [t["name"] for t in result["tools_added"]]
+        assert names_added == ["new_tool"]
+
+    def test_unrecognized_fingerprint_returns_full_history_with_note(
+        self, ctx, fake_changelog
+    ):
+        result = run(whats_new(ctx, since_fingerprint="000000000000"))
+        assert "_note" in result
+        assert "not recognized" in result["_note"]
+        # Full history aggregated — every tools_added across all entries
+        names = [t["name"] for t in result["tools_added"]]
+        assert "new_tool" in names
+        assert "ancient_tool" in names
+
+    def test_unrecognized_version_returns_full_history_with_note(
+        self, ctx, fake_changelog
+    ):
+        result = run(whats_new(ctx, since_version="0.0.1"))
+        assert "_note" in result
+        names = [t["name"] for t in result["tools_added"]]
+        assert "ancient_tool" in names
+
+    def test_fingerprint_takes_precedence_over_version(self, ctx, fake_changelog):
+        # Fingerprint matches 0.3.9; since_version says 0.3.8.
+        # Expect fingerprint to win → only entries newer than 0.3.9.
+        result = run(
+            whats_new(
+                ctx,
+                since_fingerprint="EEE000000000",
+                since_version="0.3.8",
+            )
+        )
+        names_added = [t["name"] for t in result["tools_added"]]
+        assert names_added == ["new_tool"]
+
+    def test_unrecognized_fingerprint_falls_back_to_version(
+        self, ctx, fake_changelog
+    ):
+        # Bogus fingerprint but valid version — should resolve via version
+        # rather than returning full history.
+        result = run(
+            whats_new(
+                ctx,
+                since_fingerprint="000000000000",
+                since_version="0.3.8",
+            )
+        )
+        # Recognized via version, so no _note and bounded diff
+        assert "_note" not in result
+        names_added = [t["name"] for t in result["tools_added"]]
+        assert names_added == ["new_tool"]
+
+    def test_response_includes_current_version_and_fingerprint(
+        self, ctx, fake_changelog
+    ):
+        result = run(whats_new(ctx))
+        assert "current_version" in result
+        assert "current_fingerprint" in result
+
+    def test_load_changelog_missing_file_returns_empty(self, tmp_path, monkeypatch):
+        from cited_mcp.tools import changelog as cl
+
+        monkeypatch.setattr(cl, "_CHANGELOG_PATH", tmp_path / "nonexistent.yaml")
+        assert cl._load_changelog() == {"versions": []}
+
+    def test_load_changelog_malformed_returns_empty(self, tmp_path, monkeypatch):
+        from cited_mcp.tools import changelog as cl
+
+        bad = tmp_path / "tool_changelog.yaml"
+        bad.write_text("this is just a string, not a versions dict")
+        monkeypatch.setattr(cl, "_CHANGELOG_PATH", bad)
+        assert cl._load_changelog() == {"versions": []}
 
 
 class TestAuditResultModes:

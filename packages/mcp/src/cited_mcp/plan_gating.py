@@ -134,6 +134,7 @@ _BASE_TOOLS: set[str] = {
     "logout",
     "get_pricing",
     "upgrade_plan",
+    "whats_new",
     "list_businesses",
     "get_business",
     "crawl_business",

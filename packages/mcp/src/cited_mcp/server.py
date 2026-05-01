@@ -106,6 +106,7 @@ def register_tools() -> None:
     import cited_mcp.tools.billing  # noqa: E402, F401
     import cited_mcp.tools.audit  # noqa: E402, F401
     import cited_mcp.tools.business  # noqa: E402, F401
+    import cited_mcp.tools.changelog  # noqa: E402, F401
     import cited_mcp.tools.hq  # noqa: E402, F401
     import cited_mcp.tools.job  # noqa: E402, F401
     import cited_mcp.tools.recommend  # noqa: E402, F401

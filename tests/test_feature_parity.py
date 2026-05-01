@@ -29,6 +29,7 @@ MCP_ONLY = {
     "ping",                     # Lightweight readiness check — CLI users run `cited status` instead
     "get_pricing",              # Agent payment discovery — CLI users visit billing page
     "upgrade_plan",             # Agent plan upgrade — CLI users visit billing page
+    "whats_new",                # Tool-surface diff for stale MCP-client caches — CLI doesn't have a tool cache
     "get_usage_stats",          # Aggregated stats — CLI uses auth status + business list
     "get_job_status",           # MCP probes types; CLI uses job watch (live polling)
     "get_audit_question_detail",  # Drill-down from summary — CLI uses audit result (full)

@@ -1,0 +1,30 @@
+# Tool surface changelog for cited-mcp.
+#
+# Each entry corresponds to a release. The `fingerprint` field is the value of
+# compute_tools_fingerprint(mcp) at that release — pinned so that
+# whats_new(since_fingerprint=...) can resolve to a version without needing
+# since_version as a fallback.
+#
+# Entries are listed newest-first. Append new entries to the top.
+#
+# Adding an entry (release process):
+#   1. Add the new top entry with `fingerprint: PENDING`.
+#   2. After bumping versions and registering tools, run the helper that prints
+#      compute_tools_fingerprint(mcp) and replace `PENDING`.
+#   3. CI fails any PR that bumps pyproject.toml `version` without modifying
+#      this file.
+
+versions:
+  - version: "0.3.5"
+    released: "2026-05-01"
+    fingerprint: "509456d6c889"
+    tools_added:
+      - name: whats_new
+        description: |
+          Diff the current MCP tool surface against a previously-seen
+          fingerprint or version. Pair with ping: stash the
+          tools_fingerprint at session start, then call whats_new
+          (since_fingerprint=<prior>) when ping reports a different
+          fingerprint later in the conversation.
+    tools_changed: []
+    tools_removed: []

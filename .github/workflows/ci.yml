@@ -7,6 +7,25 @@ on:
     branches: [main]
 
 jobs:
+  changelog-guard:
+    # Fails any PR that bumps a `version = "..."` line in any pyproject.toml
+    # without also editing packages/mcp/src/cited_mcp/tool_changelog.yaml.
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - name: Check changelog vs version bump
+        run: |
+          base="origin/${{ github.base_ref }}"
+          if git diff "$base"...HEAD -- '**/pyproject.toml' | grep -qE '^[+-]version = '; then
+            if ! git diff --name-only "$base"...HEAD | grep -q '^packages/mcp/src/cited_mcp/tool_changelog\.yaml$'; then
+              echo "::error::PR bumps pyproject.toml version but does not modify packages/mcp/src/cited_mcp/tool_changelog.yaml. Add a top entry with the new version, fingerprint, and tools_added/changed/removed."
+              exit 1
+            fi
+          fi
+
   lint-and-test:
     runs-on: ubuntu-latest
     strategy:

@@ -63,6 +63,8 @@ EXPECTED_TOOLS = [
     # Billing
     "get_pricing",
     "upgrade_plan",
+    # Changelog
+    "whats_new",
     # Agent API
     "get_business_facts",
     "get_business_claims",
