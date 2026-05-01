@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any
 from unittest.mock import MagicMock
 
 import httpx
@@ -17,7 +16,6 @@ from cited_core.api.client import CitedClient
 from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
 from cited_mcp.server import create_stdio_server
-
 
 # ---------------------------------------------------------------------------
 # Test helpers (inline to avoid import issues across test roots)
@@ -59,8 +57,9 @@ def make_ctx(
 @pytest.fixture(autouse=True)
 def _seed_tier_cache_and_reset_rate_limits():
     """Pre-seed tier cache and reset rate limiter between tests."""
-    from cited_mcp.tools._helpers import _tier_cache, _rate_limits
     import time
+
+    from cited_mcp.tools._helpers import _rate_limits, _tier_cache
 
     # Use "pro" tier for all test users so no tools are gated
     _tier_cache.clear()
@@ -170,7 +169,9 @@ class TestAuthGuard:
         assert result["error"] is True
 
     def test_start_solution_unauth(self, unauth_ctx):
-        result = run(start_solution(unauth_ctx, recommendation_job_id="a", source_type="b", source_id="c"))
+        result = run(start_solution(
+            unauth_ctx, recommendation_job_id="a", source_type="b", source_id="c"
+        ))
         assert result["error"] is True
 
     def test_get_job_status_unauth(self, unauth_ctx):
@@ -210,7 +211,12 @@ class TestBusinessTools:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "new-id", "name": "New Biz"}
 
-        result = run(create_business(ctx, name="New Biz", website="https://new.com", description="A new business for testing purposes that is long enough"))
+        result = run(create_business(
+            ctx,
+            name="New Biz",
+            website="https://new.com",
+            description="A new business for testing purposes that is long enough",
+        ))
         assert result["id"] == "new-id"
         client.post.assert_called_once()
         payload = client.post.call_args[1]["json"]
@@ -278,7 +284,9 @@ class TestAuditTools:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "t-new", "name": "My Template"}
 
-        result = run(create_audit_template(ctx, name="My Template", business_id="b1", questions=["Q1", "Q2"]))
+        result = run(create_audit_template(
+            ctx, name="My Template", business_id="b1", questions=["Q1", "Q2"]
+        ))
         assert result["id"] == "t-new"
         payload = client.post.call_args[1]["json"]
         assert payload["questions"] == [{"question": "Q1"}, {"question": "Q2"}]
@@ -653,9 +661,10 @@ class TestAuthTools:
 
     def test_pending_login_auto_detected_by_other_tools(self):
         """_check_pending_login should capture token and set it on the client."""
+        import unittest.mock
+
         import cited_mcp.tools.auth as auth_mod
         from cited_core.auth.oauth_server import OAuthCallbackServer
-        import unittest.mock
 
         # Create a real CitedContext (not mocked) so token assignment works
         cited_ctx = CitedContext(
@@ -869,7 +878,7 @@ class TestAuditResultModes:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "t1", "include_business_name": True}
 
-        result = run(create_audit_template(
+        run(create_audit_template(
             ctx, name="Test", business_id="b1", include_business_name=True,
         ))
         payload = client.post.call_args[1]["json"]
@@ -909,7 +918,6 @@ class TestNewToolModules:
 
     def test_agent_tool_requires_business_id(self, ctx):
         """Agent tools should return error if no business_id and no default."""
-        client = ctx.request_context.lifespan_context.client
         # No default_business_id set on context
         result = run(get_business_facts(ctx))
         assert result["error"] is True
@@ -959,6 +967,7 @@ class TestPlanGatingIntegration:
         """A growth-tier user should get an upgrade message for create_business."""
         import hashlib
         import time
+
         from cited_mcp.tools._helpers import _tier_cache
 
         growth_ctx = make_ctx(token="growth-user-token")
@@ -981,6 +990,7 @@ class TestPlanGatingIntegration:
         """A scale-tier user should successfully call create_business."""
         import hashlib
         import time
+
         from cited_mcp.tools._helpers import _tier_cache
 
         scale_ctx = make_ctx(token="scale-user-token")
@@ -1001,6 +1011,7 @@ class TestPlanGatingIntegration:
         """Growth-tier users can still use base tools."""
         import hashlib
         import time
+
         from cited_mcp.tools._helpers import _tier_cache
 
         growth_ctx = make_ctx(token="growth-user-token2")
@@ -1092,7 +1103,8 @@ class TestTierCache:
     def test_cache_returns_cached_value(self):
         """Cached tier should be returned without API call."""
         import time
-        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        from cited_mcp.tools._helpers import _get_user_tier, _tier_cache
 
         _tier_cache["cache-test-key"] = ("scale", time.monotonic() + 3600)
 
@@ -1108,8 +1120,8 @@ class TestTierCache:
 
     def test_cache_miss_calls_api(self):
         """On cache miss, should call /auth/me and cache the result."""
-        import time
-        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        from cited_mcp.tools._helpers import _get_user_tier, _tier_cache
 
         _tier_cache.pop("new-user-key", None)
 
@@ -1128,7 +1140,8 @@ class TestTierCache:
     def test_cache_fallback_on_api_failure(self):
         """On API failure with stale cache, should return stale value."""
         import time
-        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        from cited_mcp.tools._helpers import _get_user_tier, _tier_cache
 
         # Set an expired cache entry
         _tier_cache["stale-key"] = ("growth", time.monotonic() - 100)
