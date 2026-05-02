@@ -577,6 +577,17 @@ ruff check src/
 mypy src/cited_cli/ --ignore-missing-imports
 ```
 
+### MCP test harness
+
+`scripts/mcp_test_harness.py` runs an end-to-end test suite against the deployed MCP server (dev or prod). Exercises the four-PR-plan test cases — `tools_fingerprint` on `ping`, `whats_new` lookups, `upgrade_plan` no-op response, `tool_unavailable` error shape — plus auth/host-header/rate-limit/cross-env/`robots.txt` regression checks.
+
+```bash
+./scripts/mcp_test_harness.py --env dev    # mcpdev.youcited.com
+./scripts/mcp_test_harness.py --env prod   # mcp.youcited.com
+```
+
+First run per env opens a browser for OAuth; tokens are cached at `/tmp/cited-mcp-{env}-token.json` and reused for 7 days. The rate-limiter test fills the user's per-token window for ~60s, so run it last in any debug session.
+
 ## Releasing
 
 Release and deployment scripts are in a [private infrastructure repo](https://github.com/YouCited/cited-mcp-infra). See that repo's README for release and deploy instructions.
