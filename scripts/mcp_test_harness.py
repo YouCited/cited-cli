@@ -6,8 +6,12 @@ Usage:
     ./scripts/mcp_test_harness.py --env prod
 
 On first run per env, runs a full OAuth flow (DCR + PKCE + browser callback).
-Tokens are cached at /tmp/cited-mcp-{env}-token.json and reused on subsequent
-runs as long as the JWT exp claim is still valid (7-day TTL by default).
+Tokens are cached in the OS keychain (service "cited-mcp-test-harness",
+account = env name) so subsequent runs skip the browser click as long as
+the JWT exp claim is still valid (7-day TTL by default). If keyring isn't
+available (headless Linux without DBus, etc.), the harness falls back to
+prompting OAuth on every run rather than writing the token to disk in
+clear text.
 
 Test categories (counted independently in the summary):
 
@@ -65,6 +69,13 @@ import httpx
 import jwt
 import yaml
 
+try:
+    import keyring  # OS keychain (Keychain on macOS, Secret Service on Linux)
+except ImportError:  # pragma: no cover
+    keyring = None  # type: ignore[assignment]
+
+KEYRING_SERVICE = "cited-mcp-test-harness"
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHANGELOG_PATH = (
     REPO_ROOT / "packages" / "mcp" / "src" / "cited_mcp" / "tool_changelog.yaml"
@@ -90,23 +101,21 @@ SKIP = "\033[33mSKIP\033[0m"
 # OAuth (cached per-env)
 # ---------------------------------------------------------------------------
 
-def _token_cache_path(env: str) -> Path:
-    return Path(f"/tmp/cited-mcp-{env}-token.json")
-
-
 def _load_cached_token(env: str) -> str | None:
-    p = _token_cache_path(env)
-    if not p.exists():
+    """Load the cached MCP access token for *env* from the OS keychain.
+
+    Returns None if keyring is unavailable, the token isn't stored, or it has
+    expired (per its embedded JWT exp claim — signature is not verified
+    locally since we don't have the JWT_SECRET).
+    """
+    if keyring is None:
         return None
     try:
-        data = json.loads(p.read_text())
-        tok = data.get("access_token")
+        tok = keyring.get_password(KEYRING_SERVICE, env)
         if not tok:
             return None
-        # Validate exp claim (signature not verified — we don't have the key)
         claims = jwt.decode(tok, options={"verify_signature": False})
-        exp = claims.get("exp", 0)
-        if exp < time.time() + 60:
+        if claims.get("exp", 0) < time.time() + 60:
             return None
         return str(tok)
     except Exception:
@@ -114,7 +123,11 @@ def _load_cached_token(env: str) -> str | None:
 
 
 def _save_cached_token(env: str, access_token: str) -> None:
-    _token_cache_path(env).write_text(json.dumps({"access_token": access_token}))
+    """Cache the MCP access token in the OS keychain (silent no-op if absent)."""
+    if keyring is None:
+        return
+    with contextlib.suppress(Exception):
+        keyring.set_password(KEYRING_SERVICE, env, access_token)
 
 
 def oauth_flow(mcp_base: str) -> str:
