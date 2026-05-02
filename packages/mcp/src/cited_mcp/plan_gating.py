@@ -166,3 +166,15 @@ def tools_for_tier(tier: str | None) -> set[str]:
     if rank >= get_tier_rank("pro"):
         tools |= _PRO_TOOLS
     return tools
+
+
+def tools_unlocked_between(old_tier: str | None, new_tier: str | None) -> set[str]:
+    """Return tool names available at new_tier that weren't available at old_tier.
+
+    Used by `upgrade_plan` to populate the `tools_unlocked` field in its
+    response. When old_tier == new_tier (or new_tier is lower), returns an
+    empty set.
+    """
+    if get_tier_rank(new_tier) <= get_tier_rank(old_tier):
+        return set()
+    return tools_for_tier(new_tier) - tools_for_tier(old_tier)

@@ -106,6 +106,7 @@ from cited_mcp.tools.audit import (  # noqa: E402
     update_audit_template,
 )
 from cited_mcp.tools.auth import check_auth_status, login, logout, ping  # noqa: E402
+from cited_mcp.tools.billing import upgrade_plan  # noqa: E402
 from cited_mcp.tools.business import (  # noqa: E402
     crawl_business,
     create_business,
@@ -1455,3 +1456,235 @@ class TestServerSetup:
         assert "start_solution" in tool_names
         assert "get_job_status" in tool_names
         assert "check_auth_status" in tool_names
+
+
+class TestUpgradePlan:
+    """Wrap-logic for upgrade_plan: tools_unlocked + pending_action."""
+
+    @pytest.fixture
+    def upgrade_ctx(self, ctx):
+        """Authenticated context with a mocked ctx.session for notifications."""
+        from unittest.mock import AsyncMock, MagicMock
+        session = MagicMock()
+        session.send_tool_list_changed = AsyncMock()
+        ctx.session = session  # FakeContext is a dataclass — assign attribute
+        return ctx
+
+    @staticmethod
+    def _stub_get_post(client, *, current_tier: str, backend_response: dict):
+        """Wire client.get(/auth/me) and client.post(/billing/agent-upgrade)."""
+        def _get(path, *args, **kwargs):
+            if path.endswith("/auth/me"):
+                return {"subscription_tier": current_tier}
+            raise AssertionError(f"unexpected GET {path!r}")
+        def _post(path, *args, **kwargs):
+            if path.endswith("/billing/agent-upgrade"):
+                return backend_response
+            raise AssertionError(f"unexpected POST {path!r}")
+        client.get.side_effect = _get
+        client.post.side_effect = _post
+
+    # --- branch (a): already_on_plan -------------------------------------
+
+    def test_already_on_plan_no_tools_unlocked_no_pending_action(self, upgrade_ctx):
+        client = upgrade_ctx.request_context.lifespan_context.client
+        self._stub_get_post(
+            client,
+            current_tier="scale",
+            backend_response={
+                "success": True,
+                "tier": "scale",
+                "action": "already_on_plan",
+                "checkout_url": None,
+                "message": "Already on the Scale plan.",
+            },
+        )
+
+        result = run(upgrade_plan(upgrade_ctx, target_tier="scale"))
+
+        assert result["success"] is True
+        assert result["tier"] == "scale"
+        assert result["action"] == "already_on_plan"
+        assert result["tools_unlocked"] == []
+        # Always-present, null when no action pending.
+        assert "pending_action" in result
+        assert result["pending_action"] is None
+        # Notification should NOT be sent for no-op upgrades.
+        upgrade_ctx.session.send_tool_list_changed.assert_not_called()
+
+    # --- branch (b): upgraded (immediate) --------------------------------
+
+    def test_upgraded_returns_unlocked_tools_and_reconnect_pending_action(
+        self, upgrade_ctx
+    ):
+        client = upgrade_ctx.request_context.lifespan_context.client
+        self._stub_get_post(
+            client,
+            current_tier="growth",
+            backend_response={
+                "success": True,
+                "tier": "scale",
+                "action": "upgraded",
+                "checkout_url": None,
+                "message": "Upgraded to Scale plan.",
+            },
+        )
+
+        result = run(upgrade_plan(upgrade_ctx, target_tier="scale"))
+
+        assert result["action"] == "upgraded"
+        assert result["tier"] == "scale"
+        # tools_unlocked must be a non-empty list of {name, description}
+        assert isinstance(result["tools_unlocked"], list)
+        assert len(result["tools_unlocked"]) > 0
+        names = {entry["name"] for entry in result["tools_unlocked"]}
+        # Sanity-check a few canonical scale-tier tools
+        assert "start_solution" in names
+        assert "start_solutions_batch" in names
+        assert "get_audit_question_detail" in names
+        # Each entry has both name and description fields
+        for entry in result["tools_unlocked"]:
+            assert "name" in entry and isinstance(entry["name"], str)
+            assert "description" in entry and isinstance(entry["description"], str)
+        # pending_action points at disconnect/reconnect
+        assert result["pending_action"] is not None
+        assert "isconnect and reconnect" in result["pending_action"]
+        # Notification was emitted (best-effort)
+        upgrade_ctx.session.send_tool_list_changed.assert_awaited_once()
+
+    def test_upgraded_pro_unlocks_pro_tier_tools(self, upgrade_ctx):
+        client = upgrade_ctx.request_context.lifespan_context.client
+        self._stub_get_post(
+            client,
+            current_tier="scale",
+            backend_response={
+                "success": True,
+                "tier": "pro",
+                "action": "upgraded",
+                "checkout_url": None,
+                "message": "Upgraded to Pro plan. Your card on file will be charged the prorated difference.",  # noqa: E501
+            },
+        )
+        result = run(upgrade_plan(upgrade_ctx, target_tier="pro"))
+        names = {entry["name"] for entry in result["tools_unlocked"]}
+        # Pro-only tools should appear; scale tools should NOT (we already had those)
+        assert "get_business_facts" in names
+        assert "buyer_fit_query" in names
+        assert "start_solution" not in names
+
+    # --- branch (c): checkout_required -----------------------------------
+
+    def test_checkout_required_no_tools_unlocked_pending_action_has_url(
+        self, upgrade_ctx
+    ):
+        client = upgrade_ctx.request_context.lifespan_context.client
+        checkout_url = "https://checkout.stripe.com/c/pay/cs_test_abc123"
+        self._stub_get_post(
+            client,
+            current_tier="growth",
+            backend_response={
+                "success": False,
+                "tier": "scale",
+                "action": "checkout_required",
+                "checkout_url": checkout_url,
+                "message": "No payment method on file. Please complete checkout...",
+            },
+        )
+
+        result = run(upgrade_plan(upgrade_ctx, target_tier="scale"))
+
+        assert result["action"] == "checkout_required"
+        assert result["checkout_url"] == checkout_url
+        # Upgrade hasn't taken effect — no tools unlocked yet
+        assert result["tools_unlocked"] == []
+        # pending_action must surface the checkout URL so the agent can show it
+        assert result["pending_action"] is not None
+        assert checkout_url in result["pending_action"]
+        # Notification should NOT fire — nothing to refresh yet
+        upgrade_ctx.session.send_tool_list_changed.assert_not_called()
+
+    # --- notification swallowing ----------------------------------------
+
+    def test_notification_failure_does_not_break_upgrade(self, upgrade_ctx, caplog):
+        from unittest.mock import AsyncMock
+        upgrade_ctx.session.send_tool_list_changed = AsyncMock(
+            side_effect=RuntimeError("transport closed")
+        )
+        client = upgrade_ctx.request_context.lifespan_context.client
+        self._stub_get_post(
+            client,
+            current_tier="growth",
+            backend_response={
+                "success": True,
+                "tier": "scale",
+                "action": "upgraded",
+                "checkout_url": None,
+                "message": "Upgraded to Scale plan.",
+            },
+        )
+        import logging
+        with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+            result = run(upgrade_plan(upgrade_ctx, target_tier="scale"))
+
+        # Upgrade response is intact even though the notification raised.
+        assert result["action"] == "upgraded"
+        assert len(result["tools_unlocked"]) > 0
+        # Structured log line emitted with tool, user, error type.
+        joined = "\n".join(rec.message for rec in caplog.records)
+        assert "tools_list_changed_send_failed" in joined
+        assert "upgrade_plan" in joined
+        assert "RuntimeError" in joined
+
+    # --- field always-present invariant ---------------------------------
+
+    @pytest.mark.parametrize(
+        "backend_response,current_tier",
+        [
+            (
+                {
+                    "success": True,
+                    "tier": "scale",
+                    "action": "already_on_plan",
+                    "checkout_url": None,
+                    "message": "Already on the Scale plan.",
+                },
+                "scale",
+            ),
+            (
+                {
+                    "success": True,
+                    "tier": "scale",
+                    "action": "upgraded",
+                    "checkout_url": None,
+                    "message": "Upgraded to Scale plan.",
+                },
+                "growth",
+            ),
+            (
+                {
+                    "success": False,
+                    "tier": "scale",
+                    "action": "checkout_required",
+                    "checkout_url": "https://checkout.stripe.com/c/pay/cs_test_abc",
+                    "message": "No payment method on file...",
+                },
+                "growth",
+            ),
+        ],
+    )
+    def test_response_always_includes_tools_unlocked_and_pending_action(
+        self, upgrade_ctx, backend_response, current_tier
+    ):
+        client = upgrade_ctx.request_context.lifespan_context.client
+        self._stub_get_post(
+            client,
+            current_tier=current_tier,
+            backend_response=backend_response,
+        )
+        result = run(upgrade_plan(upgrade_ctx, target_tier=backend_response["tier"]))
+        assert "tools_unlocked" in result
+        assert "pending_action" in result
+        assert isinstance(result["tools_unlocked"], list)
+        assert result["pending_action"] is None or isinstance(
+            result["pending_action"], str
+        )
