@@ -21,6 +21,26 @@
 #      this file.
 
 versions:
+  - version: "0.3.7"
+    released: "2026-05-01"
+    # Fingerprint unchanged from 0.3.6 — PR #4 doesn't add, remove, or change
+    # any registered tool. It only changes dispatch behavior on UNREGISTERED
+    # tool names, which the fingerprint correctly does not reflect.
+    fingerprint: "06250a093c6f"
+    tools_added: []
+    tools_changed: []
+    tools_removed: []
+    behavior_changed:
+      - area: tool_dispatch
+        change_summary: |
+          tools/call for an unregistered tool name now returns a structured
+          {error: true, error_type: "tool_unavailable", message, _request_id}
+          payload instead of FastMCP's default ToolError("Unknown tool: X").
+          The message references whats_new and ping (compare tools_fingerprint)
+          so the agent has actionable next steps when its tool list is stale.
+          Resource-not-found (audit_id missing, business not found, etc.) is
+          unaffected — that still goes through the CitedAPIError path.
+
   - version: "0.3.6"
     released: "2026-05-01"
     fingerprint: "06250a093c6f"

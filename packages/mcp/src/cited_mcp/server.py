@@ -130,6 +130,12 @@ def create_stdio_server() -> FastMCP:
         lifespan=cited_lifespan,
     )
     register_tools()
+    # Replace FastMCP's default ToolManager with our subclass that returns a
+    # structured tool_unavailable payload on unknown tool names instead of
+    # raising a generic ToolError. Must run AFTER register_tools so the new
+    # manager inherits the registered tool set.
+    from cited_mcp.tool_manager import install as _install_tool_manager
+    _install_tool_manager(_self.mcp)
     cache_tool_surface(_self.mcp)
     return _self.mcp
 

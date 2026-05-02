@@ -277,6 +277,11 @@ def create_remote_server() -> FastMCP:
 
     # Now import tools — they'll register on remote_mcp via server_module.mcp
     server_module.register_tools()
+    # Replace FastMCP's default ToolManager with our subclass for structured
+    # tool_unavailable responses (see cited_mcp.tool_manager). Must run AFTER
+    # register_tools so the new manager inherits the registered tool set.
+    from cited_mcp.tool_manager import install as _install_tool_manager
+    _install_tool_manager(remote_mcp)
     server_module.cache_tool_surface(remote_mcp)
 
     return remote_mcp
