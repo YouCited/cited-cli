@@ -1688,3 +1688,95 @@ class TestUpgradePlan:
         assert result["pending_action"] is None or isinstance(
             result["pending_action"], str
         )
+
+
+class TestCitedToolManager:
+    """Custom ToolManager: structured payload on unknown tool names."""
+
+    def _make_manager(self):
+        """Build a CitedToolManager with one synthetic registered tool."""
+        from cited_mcp.tool_manager import CitedToolManager
+
+        async def _known() -> str:
+            """A test tool used as the 'happy path' for the manager."""
+            return "ran"
+
+        mgr = CitedToolManager()
+        mgr.add_tool(_known, name="known_tool")
+        return mgr
+
+    def test_known_tool_dispatches_normally(self):
+        mgr = self._make_manager()
+        result = run(mgr.call_tool("known_tool", {}))
+        assert result == "ran"
+
+    def test_unknown_tool_returns_structured_payload(self):
+        mgr = self._make_manager()
+        result = run(mgr.call_tool("nonexistent_tool", {}))
+        assert isinstance(result, dict)
+        assert result["error"] is True
+        assert result["error_type"] == "tool_unavailable"
+        assert "nonexistent_tool" in result["message"]
+        assert "whats_new" in result["message"]
+        assert "ping" in result["message"]
+        assert "tools_fingerprint" in result["message"]
+
+    def test_unknown_tool_includes_request_id(self):
+        mgr = self._make_manager()
+        result = run(mgr.call_tool("does_not_exist", {}))
+        assert "_request_id" in result
+        rid = result["_request_id"]
+        assert isinstance(rid, str) and len(rid) == 12
+        int(rid, 16)
+
+    def test_unknown_tool_request_ids_unique(self):
+        mgr = self._make_manager()
+        a = run(mgr.call_tool("missing", {}))["_request_id"]
+        b = run(mgr.call_tool("missing", {}))["_request_id"]
+        assert a != b
+
+    def test_unknown_tool_does_not_raise(self):
+        """The whole point of the subclass: never raise on unknown tools."""
+        mgr = self._make_manager()
+        result = run(mgr.call_tool("anything", {}))
+        assert result["error_type"] == "tool_unavailable"
+
+    def test_unknown_tool_logs_structured_event(self, caplog):
+        import logging
+
+        mgr = self._make_manager()
+        with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+            run(mgr.call_tool("ghost_tool", {}))
+        joined = "\n".join(rec.message for rec in caplog.records)
+        assert "tool_unavailable" in joined
+        assert "ghost_tool" in joined
+
+    def test_install_swaps_manager_idempotently(self):
+        """install() replaces ToolManager but preserves registered tools."""
+        from cited_mcp.server import mcp as registered_mcp
+        from cited_mcp.tool_manager import CitedToolManager, install
+
+        # Already a CitedToolManager (installed in create_stdio_server)
+        assert isinstance(registered_mcp._tool_manager, CitedToolManager)
+
+        before_tools = sorted(
+            t.name for t in registered_mcp._tool_manager.list_tools()
+        )
+        install(registered_mcp)  # idempotent
+        after_tools = sorted(
+            t.name for t in registered_mcp._tool_manager.list_tools()
+        )
+        assert before_tools == after_tools
+
+    def test_live_server_returns_structured_payload_for_unknown_tool(self):
+        """End-to-end: hit the LIVE registered server with a bogus tool name."""
+        from cited_mcp.server import mcp as registered_mcp
+
+        result = run(
+            registered_mcp._tool_manager.call_tool(
+                "definitely_not_a_real_tool", {}
+            )
+        )
+        assert result["error"] is True
+        assert result["error_type"] == "tool_unavailable"
+        assert "definitely_not_a_real_tool" in result["message"]
