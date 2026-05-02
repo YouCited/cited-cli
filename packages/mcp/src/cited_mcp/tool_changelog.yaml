@@ -21,6 +21,25 @@
 #      this file.
 
 versions:
+  - version: "0.3.6"
+    released: "2026-05-01"
+    fingerprint: "06250a093c6f"
+    tools_added: []
+    tools_changed:
+      - name: upgrade_plan
+        change_summary: |
+          Response now includes two always-present fields. `tools_unlocked` is
+          a list of {name, description} entries for tools that became
+          available at the new tier (empty for already_on_plan and
+          checkout_required, populated for immediate-upgrade success).
+          `pending_action` is a nullable string telling the agent what to do
+          next: null when nothing is pending, a disconnect/reconnect hint for
+          immediate upgrades, or a checkout-URL hint for first-time
+          subscribers. The server also emits notifications/tools/list_changed
+          on successful immediate upgrades; clients that honor it refresh
+          their tool surface without a reconnect.
+    tools_removed: []
+
   - version: "0.3.5"
     released: "2026-05-01"
     fingerprint: "30dfe348eb13"
