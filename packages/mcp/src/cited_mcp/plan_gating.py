@@ -50,7 +50,7 @@ _PRO_TOOLS: set[str] = {
     "buyer_fit_query",
     "get_business_hq",
     "get_analytics_trends",
-    "get_analytics_summary",
+    "get_analytics_dashboard",
     "compare_audits",
 }
 

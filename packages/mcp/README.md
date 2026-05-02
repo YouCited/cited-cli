@@ -185,7 +185,7 @@ Cited adds new tools regularly. To access new tools after a release, **disconnec
 | Tool | Description |
 |------|-------------|
 | `get_analytics_trends` | Get KPI trends over time |
-| `get_analytics_summary` | Get aggregated analytics summary |
+| `get_analytics_dashboard` | Combined analytics dashboard (KPI trends + question performance + benchmarks) |
 | `compare_audits` | Compare an audit against its baseline |
 
 ### Agent API

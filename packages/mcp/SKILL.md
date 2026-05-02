@@ -37,7 +37,7 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 ### 5. Monitor & Analyze (Pro plan)
 - `get_business_hq` — Comprehensive dashboard with health scores, personas, products
 - `get_analytics_trends` — KPI trends over time
-- `get_analytics_summary` — Aggregated analytics
+- `get_analytics_dashboard` — Combined analytics dashboard (KPI trends + question performance + benchmarks)
 - `compare_audits` — Compare an audit against its baseline
 - Agent API: `get_business_facts`, `get_business_claims`, `get_competitive_comparison`, `get_semantic_health`, `buyer_fit_query`
 

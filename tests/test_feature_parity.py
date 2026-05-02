@@ -118,7 +118,7 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     # Analytics
     "analytics compare": "compare_audits",
     "analytics trends": "get_analytics_trends",
-    "analytics summary": "get_analytics_summary",
+    "analytics dashboard": "get_analytics_dashboard",
     # Agent API
     "agent facts": "get_business_facts",
     "agent claims": "get_business_claims",
