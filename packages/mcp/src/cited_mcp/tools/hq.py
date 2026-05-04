@@ -44,6 +44,10 @@ async def get_business_hq(
     holistically; use the targeted ``include_*`` flags when you only need
     a few sections.
 
+    On a ``payment_required: true`` response, surface ``upgrade_url`` and
+    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
+    fallback — they may want to upgrade.
+
     Args:
         ctx: MCP context
         business_id: Business ID (uses default if omitted)

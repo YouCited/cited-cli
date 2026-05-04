@@ -92,6 +92,7 @@ def required_tier_for_tool(tool_name: str) -> str | None:
 
 
 _PLAN_PRICING: dict[str, int] = {
+    "free": 0,
     "growth": 39,
     "scale": 99,
     "pro": 299,
@@ -99,16 +100,25 @@ _PLAN_PRICING: dict[str, int] = {
 
 
 def upgrade_message(tool_name: str, current_tier: str | None) -> dict[str, Any]:
-    """Return a structured error message for a gated tool."""
+    """Return a structured error message for a gated tool.
+
+    Includes both the user's current price and the required tier's price so
+    agents can present an unambiguous upgrade ask without guessing the tier
+    hierarchy. ``upgrade_direction`` is always ``"tier-up"`` here — the
+    function is only called when the user's tier is below the tool's
+    minimum.
+    """
     min_tier = _TOOL_MIN_TIER.get(tool_name, "growth")
-    price = _PLAN_PRICING.get(min_tier)
+    upgrade_price = _PLAN_PRICING.get(min_tier)
+    current = (current_tier or "free").lower()
+    current_price = _PLAN_PRICING.get(current, 0)
     return {
         "error": True,
         "payment_required": True,
         "message": (
             f"The '{tool_name}' tool requires the {min_tier.title()} plan "
-            f"(${price}/mo). Your current plan is "
-            f"{(current_tier or 'free').title()}."
+            f"(${upgrade_price}/mo) — upgrade from your current "
+            f"{current.title()} plan (${current_price}/mo)."
         ),
         "upgrade_url": "https://app.youcited.com/settings/billing",
         "hint": (
@@ -116,9 +126,11 @@ def upgrade_message(tool_name: str, current_tier: str | None) -> dict[str, Any]:
             f"or visit https://app.youcited.com/settings/billing"
         ),
         "upgrade_tier": min_tier,
-        "upgrade_price_usd": price,
+        "upgrade_price_usd": upgrade_price,
+        "upgrade_direction": "tier-up",
         "required_tier": min_tier,
-        "current_tier": current_tier or "free",
+        "current_tier": current,
+        "current_price_usd": current_price,
     }
 
 
