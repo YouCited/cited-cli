@@ -38,6 +38,12 @@ async def get_business_hq(
     Returns health scores, and optionally personas, products, buyer intents, and priority actions.
     Use full=True to get everything in one call.
 
+    When to call: the user wants a one-shot snapshot of an account —
+    health scores, recent audits, recommendations, competitive position,
+    top action items. Reach for ``full=True`` when summarizing an account
+    holistically; use the targeted ``include_*`` flags when you only need
+    a few sections.
+
     Args:
         ctx: MCP context
         business_id: Business ID (uses default if omitted)

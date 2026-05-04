@@ -30,6 +30,10 @@ async def get_analytics_trends(
 ) -> Any:
     """Get KPI trends over time for a business — citation rates, visibility scores, and more.
 
+    When to call: you only need the KPI time-series — for a chart, a custom
+    trend computation, or a tight summary. Cheaper than get_analytics_dashboard
+    if you don't need question performance, benchmarks, or citation trends.
+
     Args:
         ctx: MCP context
         business_id: Business ID (uses default if omitted)
@@ -63,6 +67,11 @@ async def get_analytics_dashboard(
     and domain_benchmarks in a single payload — the same data backing the
     web Analytics page.
 
+    When to call: the user asks for an overview of AI search performance —
+    KPIs, trends, top/declining questions, citation patterns, benchmarks —
+    in one shot. Reach for get_analytics_trends instead if you only need
+    the time-series.
+
     Args:
         ctx: MCP context
         business_id: Business ID (uses default if omitted)
@@ -94,6 +103,11 @@ async def compare_audits(
     baseline_id: str,
 ) -> Any:
     """Compare two audits and return per-question changes plus aggregate deltas.
+
+    When to call: the user asks "what changed since the last audit" / "are
+    we improving" / "show me the week-over-week delta." Compute the diff
+    here instead of summarizing two audit reports back to back. Doesn't run
+    a new audit — cheap and idempotent.
 
     Use ``list_audits`` to find a prior completed audit on the same template
     and pass its job_id as ``baseline_id``.
