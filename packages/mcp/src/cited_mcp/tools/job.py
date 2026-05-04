@@ -86,6 +86,12 @@ async def cancel_job(
 ) -> Any:
     """Cancel a running job.
 
+    When to call: a get_*_status check shows a job has been "running" far
+    longer than expected (audits typically 2-4 min, recommendations 1-2 min,
+    solutions 30-60s) OR the user realizes the job was started against the
+    wrong template/business. Cancelling stops further plan-budget consumption.
+    Idempotent — safe to retry.
+
     Args:
         ctx: MCP context
         job_id: The job ID to cancel

@@ -314,6 +314,9 @@ async def export_audit(
     ``expires_at``, ``expires_in_seconds``, ``filename``, and ``object_name``.
     Default URL TTL is 1 hour — surface ``expires_at`` to the user when sharing.
 
+    When to call: the user wants to forward, attach, or archive the audit
+    as a PDF (sharing with a stakeholder, saving for records, etc.).
+
     Args:
         ctx: MCP context
         job_id: The completed audit job ID
