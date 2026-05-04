@@ -54,6 +54,9 @@ RECOMMEND_HISTORY = "/recommendations/audit/{audit_job_id}/history"
 RECOMMEND_EXPORT_PDF = "/recommendations/{job_id}/export/pdf"
 RECOMMEND_CANCEL = "/recommendations/{job_id}/cancel"
 RECOMMEND_DELETE = "/recommendations/{job_id}"
+RECOMMEND_CHECK_STATUS = "/recommendations/{job_id}/check-status"
+RECOMMEND_VALIDATE = "/recommendations/{recommendation_id}/validate"
+RECOMMEND_VALIDATE_LATEST = "/recommendations/{recommendation_id}/validate/latest"
 
 # Solutions
 SOLUTION_REQUEST = "/solutions/request"

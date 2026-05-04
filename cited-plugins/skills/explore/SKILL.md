@@ -5,7 +5,7 @@ description: Ad-hoc tool exploration beyond the standard audit flow — diagnost
 
 # Explore Cited Beyond the Audit Flow
 
-The standard pipeline is `cited:business-setup` → `cited:geo-audit` → `cited:geo-recommend`. This skill covers the eleven tools that DON'T fit that pipeline — diagnostics, deltas, intel surfaces, ad-hoc probes — so you can answer "what changed since last week," "what does Cited know about this business," "would AI recommend us for X" without burning a fresh audit.
+The standard pipeline is `cited:business-setup` → `cited:geo-audit` → `cited:geo-recommend`. This skill covers the fourteen tools that DON'T fit that pipeline — diagnostics, deltas, intel surfaces, ad-hoc probes, and Validation Engine fix-verification — so you can answer "what changed since last week," "what does Cited know about this business," "would AI recommend us for X," and "did my fix actually land" without burning a fresh audit.
 
 If a tool returns `payment_required: true` with an `upgrade_tier` field, surface the upgrade message verbatim. Don't pretend the result was empty.
 
@@ -102,6 +102,19 @@ Recipe:
 1. `buyer_fit_query(buyer="<profile or query>", business_id=<biz_id>, limit=5)`. Add `constraints=[{...}]` to narrow.
 
 What to do with the response: `recommendations` is the ordered fit list — top entries are the strongest matches. Echo the `buyer` field back to the user so they know what was scored. If recommendations look weak, suggest a full audit with a template tuned for this buyer's queries.
+
+### Verify recommendation fixes — Validation Engine (Base)
+
+When to use it: the user just told you they made a fix ("added the FAQ schema", "set my canonical tags") and wants to confirm it's live, OR they want a deep diagnostic of what's actually detectable on their site beyond the AI-citation audit. The Validation Engine runs 62 deterministic GEO/SEO checks across schema, llms.txt, technical SEO, content, and social — complementary to the audit, NOT a replacement.
+
+Recipes:
+1. **"Did my fix land?"** — `validate_recommendation(recommendation_id=<id>)` returns an ARQ `job_id`. Wait a few seconds, then `get_recommendation_validation_latest(recommendation_id=<id>)` to read the result.
+2. **"Show me everything that's still broken"** — `get_recommendation_check_status(recommendation_job_id=<id>, mode="cache")` for fast read from recent crawl, or `mode="fresh"` for live HTTP fetches (slow, more accurate).
+
+What to do with the response:
+- `validate_recommendation`: returns `{job_id, recommendation_id, check_id, mode}`. Tell user the job is queued; the result will appear in `get_recommendation_validation_latest` after the worker finishes.
+- `get_recommendation_validation_latest`: `status` is the headline — `valid` (fix landed), `invalid` (still missing), `inconclusive` (couldn't verify, often crawler-blocked). `evidence.message` has detail.
+- `get_recommendation_check_status`: lead with `counts` (X valid / Y invalid / Z inconclusive), then surface the invalid checks first — those are the unfixed gaps. Inconclusive results often mean the site blocked the crawler; mention that as a possibility before assuming the fix is broken.
 
 ### export_audit — share the report outside MCP (Scale)
 
