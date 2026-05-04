@@ -21,6 +21,35 @@
 #      this file.
 
 versions:
+  - version: "0.3.9"
+    released: "2026-05-04"
+    fingerprint: "PENDING"
+    tools_added: []
+    tools_changed: []
+    tools_removed: []
+    behavior_changed:
+      - area: plan_gating
+        change_summary: |
+          The structured payment_required response from gated tools now
+          includes upgrade_direction (always "tier-up" when this fires) and
+          current_price_usd alongside the existing upgrade_price_usd, so
+          agents present an unambiguous upgrade ask without guessing the
+          tier hierarchy. The message text now spells out both prices:
+          "requires the Pro plan ($299/mo) — upgrade from your current
+          Scale plan ($99/mo)."
+      - area: tool_docstrings
+        change_summary: |
+          Added a one-line monetization hint to all 10 Pro-gated tool
+          docstrings (compare_audits, get_analytics_dashboard,
+          get_analytics_trends, get_business_facts, get_business_claims,
+          get_competitive_comparison, get_semantic_health, buyer_fit_query,
+          get_business_hq, get_usage_stats): "On a payment_required: true
+          response, surface upgrade_url and required_tier (with
+          upgrade_price_usd) to the user before any fallback." Ports the
+          cited:explore SKILL.md instruction into the MCP layer so it
+          fires in Claude Desktop too (not just Claude Code with the
+          skill loaded).
+
   - version: "0.3.8"
     released: "2026-05-04"
     fingerprint: "PENDING"

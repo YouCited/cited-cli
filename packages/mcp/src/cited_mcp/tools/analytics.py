@@ -34,6 +34,10 @@ async def get_analytics_trends(
     trend computation, or a tight summary. Cheaper than get_analytics_dashboard
     if you don't need question performance, benchmarks, or citation trends.
 
+    On a ``payment_required: true`` response, surface ``upgrade_url`` and
+    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
+    fallback — they may want to upgrade.
+
     Args:
         ctx: MCP context
         business_id: Business ID (uses default if omitted)
@@ -71,6 +75,10 @@ async def get_analytics_dashboard(
     KPIs, trends, top/declining questions, citation patterns, benchmarks —
     in one shot. Reach for get_analytics_trends instead if you only need
     the time-series.
+
+    On a ``payment_required: true`` response, surface ``upgrade_url`` and
+    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
+    fallback — they may want to upgrade.
 
     Args:
         ctx: MCP context
@@ -111,6 +119,10 @@ async def compare_audits(
 
     Use ``list_audits`` to find a prior completed audit on the same template
     and pass its job_id as ``baseline_id``.
+
+    On a ``payment_required: true`` response, surface ``upgrade_url`` and
+    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
+    fallback — they may want to upgrade.
 
     Args:
         ctx: MCP context

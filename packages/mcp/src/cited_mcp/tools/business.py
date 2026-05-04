@@ -235,6 +235,10 @@ async def get_usage_stats(ctx: Context[Any, CitedContext, Any]) -> Any:
     """Get account usage statistics: plan info, business count, and audit count.
 
     Useful for checking plan utilization before starting new operations.
+
+    On a ``payment_required: true`` response, surface ``upgrade_url`` and
+    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
+    fallback — they may want to upgrade.
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):

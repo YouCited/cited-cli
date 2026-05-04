@@ -38,6 +38,10 @@ async def get_business_facts(
     plan-budget impact. If ``summary`` is null and ``facts`` is empty the
     fact graph is thin — recommend ``crawl_business`` to populate.
 
+    On a ``payment_required: true`` response, surface ``upgrade_url`` and
+    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
+    fallback — they may want to upgrade.
+
     Args:
         ctx: MCP context
         business_id: Business ID (uses default if omitted)
@@ -71,6 +75,10 @@ async def get_business_claims(
     that need stronger evidence before they appear in AI summaries —
     typically when the user is prepping a product page, press kit, or
     landing page review.
+
+    On a ``payment_required: true`` response, surface ``upgrade_url`` and
+    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
+    fallback — they may want to upgrade.
 
     Args:
         ctx: MCP context
@@ -108,6 +116,10 @@ async def get_competitive_comparison(
     against X" or wants positioning context. Doesn't run new prompts —
     pulls from data already collected.
 
+    On a ``payment_required: true`` response, surface ``upgrade_url`` and
+    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
+    fallback — they may want to upgrade.
+
     Args:
         ctx: MCP context
         business_id: Business ID (uses default if omitted)
@@ -143,6 +155,10 @@ async def get_semantic_health(
     When to call: the user asks what to fix to be more discoverable to AI
     engines. Returns structured diagnostics rather than free-text advice
     — surface the lowest-coverage area first as the priority fix.
+
+    On a ``payment_required: true`` response, surface ``upgrade_url`` and
+    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
+    fallback — they may want to upgrade.
 
     Args:
         ctx: MCP context
@@ -184,6 +200,10 @@ async def buyer_fit_query(
     buyer profile. Faster and cheaper than a full audit; doesn't update the
     business record. If recommendations look weak, suggest a full audit
     with a template tuned for this buyer's queries.
+
+    On a ``payment_required: true`` response, surface ``upgrade_url`` and
+    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
+    fallback — they may want to upgrade.
 
     Args:
         ctx: MCP context
