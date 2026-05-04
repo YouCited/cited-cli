@@ -105,6 +105,105 @@ class _PatchRegistrationMiddleware:
         await self.app(scope, patching_receive, send)
 
 
+_OAUTH_EVENT_PATHS = frozenset(
+    {"/register", "/authorize", "/token", "/revoke", "/oauth/callback"}
+)
+
+
+def _format_kv(value: object) -> str:
+    """Format a value for the structured oauth-event log line.
+
+    Quotes if the value contains spaces, equals signs, or quotes; renders
+    None / empty as a bare empty pair so grep can still match the key.
+    """
+    if value is None or value == "":
+        return '""'
+    s = value if isinstance(value, str) else str(value)
+    if any(c in s for c in ' "='):
+        return '"' + s.replace('"', '\\"') + '"'
+    return s
+
+
+class _OAuthEventLogMiddleware:
+    """ASGI middleware that emits structured ``[oauth-event]`` log lines for
+    every request hitting an OAuth-protocol endpoint.
+
+    Purpose: counting OAuth dances vs. background protocol probes. The
+    standard uvicorn access log shows individual lines for /authorize,
+    /token, etc., but they're interleaved with everything else and have no
+    consistent prefix — hard to grep, hard to count. This middleware emits
+    one extra line per OAuth-endpoint hit, prefixed ``[oauth-event]``, with
+    the salient fields broken out:
+
+      [oauth-event] event=oauth.authorize method=GET ip=10.0.0.187
+                    ua="claude-desktop/1.x" redirect_uri="https://claude.ai/..."
+                    scope=cited response_type=code status=302
+
+    Tokens, full client_ids (themselves JWTs), and JWT states are NOT
+    logged. We log presence (``has_token=true``) and short prefixes only.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["path"] not in _OAUTH_EVENT_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        path = scope["path"]
+        method = scope["method"]
+        client = scope.get("client") or ("?", 0)
+        ip = client[0] if client else "?"
+
+        headers = {k: v for k, v in scope.get("headers", [])}
+        ua = headers.get(b"user-agent", b"").decode("latin-1", errors="replace")[:60]
+
+        from urllib.parse import parse_qs
+
+        query_string = scope.get("query_string", b"").decode("latin-1", errors="replace")
+        params = parse_qs(query_string)
+
+        def _first(name: str) -> str:
+            return str(params.get(name, [""])[0])
+
+        event_name = "oauth." + path.lstrip("/").replace("/", "_")
+        fields: list[tuple[str, object]] = [
+            ("event", event_name),
+            ("method", method),
+            ("ip", ip),
+            ("ua", ua),
+        ]
+
+        if path == "/authorize":
+            fields.extend([
+                ("client_id_prefix", _first("client_id")[:12]),
+                ("redirect_uri", _first("redirect_uri")),
+                ("response_type", _first("response_type")),
+                ("scope", _first("scope")),
+                ("resource", _first("resource")),
+            ])
+        elif path == "/oauth/callback":
+            fields.extend([
+                ("has_token", "true" if _first("token") else "false"),
+                ("has_state", "true" if _first("state") else "false"),
+            ])
+
+        captured_status: dict[str, int] = {"status": 0}
+
+        async def status_capturing_send(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                captured_status["status"] = int(message.get("status", 0))
+            await send(message)
+
+        try:
+            await self.app(scope, receive, status_capturing_send)
+        finally:
+            fields.append(("status", captured_status["status"]))
+            kv = " ".join(f"{k}={_format_kv(v)}" for k, v in fields)
+            logger.info("[oauth-event] %s", kv)
+
+
 @asynccontextmanager
 async def cited_remote_lifespan(server: FastMCP) -> AsyncIterator[CitedContext]:
     """Lifespan for the remote MCP server.
@@ -302,7 +401,12 @@ def run_remote_server() -> None:
     # body so tool handlers can deliver notifications/tools/list_changed via
     # `await ctx.session.send_tool_list_changed()` even with stateless_http=True.
     starlette_app = server.streamable_http_app()
-    patched_app = _PatchRegistrationMiddleware(starlette_app)
+    # Order: oauth-event log on the OUTSIDE of the registration patcher so
+    # patcher-rejected /register calls (400 invalid_redirect_uri) still
+    # produce an event line.
+    patched_app = _OAuthEventLogMiddleware(
+        _PatchRegistrationMiddleware(starlette_app)
+    )
 
     config = uvicorn.Config(
         patched_app,
