@@ -34,6 +34,12 @@ MCP_ONLY = {
     "get_job_status",           # MCP probes types; CLI uses job watch (live polling)
     "get_audit_question_detail",  # Drill-down from summary — CLI uses audit result (full)
     "start_solutions_batch",    # Bulk operation — CLI users call solution start in a loop
+    # Action plan tools — agent/conversational checklist UX, no CLI equivalent yet
+    "get_action_plan",          # Conversational ranked checklist — agents only
+    "get_quick_wins",           # Filtered checklist for "what should I do now?" — agents only
+    "mark_action_done",         # Stateful progress mark — agents update checklist via chat
+    "dismiss_action",           # Stateful progress mark — agents dismiss via chat
+    "get_action_progress",      # Progress summary — surfaced inline by the agent
 }
 
 
