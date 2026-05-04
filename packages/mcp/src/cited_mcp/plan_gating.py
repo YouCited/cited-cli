@@ -38,6 +38,11 @@ _SCALE_TOOLS: set[str] = {
     "get_audit_question_detail",
     "export_audit",
     "cancel_job",
+    "get_action_plan",
+    "get_quick_wins",
+    "mark_action_done",
+    "dismiss_action",
+    "get_action_progress",
 }
 
 # Tools restricted to pro+ tier
