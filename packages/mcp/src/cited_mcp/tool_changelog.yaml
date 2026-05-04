@@ -44,6 +44,20 @@ versions:
           difference. Added to count actual OAuth dances vs. background
           protocol probes when triaging "is the connector forcing
           re-auth?" questions.
+      - area: tests
+        change_summary: |
+          packages/mcp/tests/conftest.py adds two autouse fixtures that
+          stop ``test_login_returns_url_immediately`` and friends from
+          having real side effects on the test runner's machine: the
+          fixtures patch ``cited_mcp.tools.auth.webbrowser.open`` and
+          replace ``OAuthCallbackServer.{__init__, start, shutdown,
+          wait_for_token}`` with deterministic no-op stubs. Without these,
+          every pytest invocation that exercised the login tool was
+          opening a real browser tab and binding an ephemeral localhost
+          socket, then leaving the tab pointing at a dead port when the
+          test cleanup ran (visible as repeated Firefox "can't connect to
+          localhost:NNNNN" pages on the maintainer's laptop, one per
+          pytest run). No production behavior change.
 
   - version: "0.3.9"
     released: "2026-05-04"
