@@ -39,6 +39,7 @@ AUDIT_STATUS = "/audit/{job_id}/status"
 AUDIT_RESULT = "/audit/{job_id}/result"
 AUDIT_DETAILS = "/audit/{job_id}/details"
 AUDIT_EXPORT_PDF = "/audit/{job_id}/export/pdf"
+AUDIT_EXPORT_URL = "/audit/{job_id}/export/url"
 AUDIT_HISTORY = "/audit/history"
 AUDIT_CANCEL = "/audit/{job_id}/cancel"
 AUDIT_DELETE = "/audit/{job_id}"
@@ -78,8 +79,8 @@ AGENTIC_READINESS = "/businesses/{business_id}/agentic-readiness"
 TRUST_SIGNALS = "/businesses/{business_id}/trust-signals"
 
 # Analytics
-ANALYTICS_COMPARISON = "/analytics/audits/{audit_id}/comparison"
-ANALYTICS_SUMMARY = "/analytics/businesses/{business_id}/summary"
+ANALYTICS_COMPARE = "/analytics/audits/{audit_id}/compare/{baseline_id}"
+ANALYTICS_DASHBOARD = "/analytics/businesses/{business_id}/dashboard"
 ANALYTICS_TRENDS = "/analytics/businesses/{business_id}/trends"
 ANALYTICS_ADVANCED = "/analytics/businesses/{business_id}/advanced-scoring"
 

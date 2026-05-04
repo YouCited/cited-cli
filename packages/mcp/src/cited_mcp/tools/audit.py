@@ -299,22 +299,37 @@ async def get_audit_question_detail(
 
 @mcp.tool(
     title="Export Audit PDF",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
-async def export_audit(ctx: Context[Any, CitedContext, Any], job_id: str) -> Any:
-    """Export a completed audit as a PDF report. Returns the download URL.
+async def export_audit(
+    ctx: Context[Any, CitedContext, Any],
+    job_id: str,
+    provider: str | None = None,
+) -> Any:
+    """Export a completed audit as a PDF and return a presigned download URL.
+
+    Generates the PDF on the server, uploads it to object storage, and returns
+    a short-lived URL the user can click. The response contains ``url``,
+    ``expires_at``, ``expires_in_seconds``, ``filename``, and ``object_name``.
+    Default URL TTL is 1 hour — surface ``expires_at`` to the user when sharing.
 
     Args:
         ctx: MCP context
         job_id: The completed audit job ID
+        provider: Optional provider filter (openai|gemini|perplexity). When
+            set, the exported report reflects the per-provider view.
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
+    payload: dict[str, Any] = {}
+    if provider is not None:
+        payload["provider"] = provider
     try:
-        result = cited_ctx.client.get(endpoints.AUDIT_EXPORT_PDF.format(job_id=job_id))
-        return result
+        return cited_ctx.client.post(
+            endpoints.AUDIT_EXPORT_URL.format(job_id=job_id), json=payload
+        )
     except CitedAPIError as e:
         return _api_error_response(e)
 

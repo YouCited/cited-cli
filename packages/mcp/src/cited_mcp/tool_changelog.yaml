@@ -21,6 +21,44 @@
 #      this file.
 
 versions:
+  - version: "0.3.8"
+    released: "2026-05-04"
+    fingerprint: "PENDING"
+    tools_added:
+      - name: get_analytics_dashboard
+        description: |
+          Combined analytics dashboard for a business — kpi_trends,
+          question_performance, citation_trends, benchmarks, and
+          domain_benchmarks in one payload. Replaces the broken
+          get_analytics_summary.
+    tools_changed:
+      - name: compare_audits
+        change_summary: |
+          Now requires a baseline_id parameter (positional). The prior
+          single-arg shape called a non-existent /comparison endpoint and
+          404'd; the tool now points to /analytics/audits/{audit_id}/
+          compare/{baseline_id} which is the route the backend actually
+          serves. Pair with list_audits to find a prior audit on the same
+          template.
+      - name: export_audit
+        change_summary: |
+          Now POSTs to /audit/{job_id}/export/url and returns
+          {url, expires_at, expires_in_seconds, filename, object_name}
+          with a presigned download URL (1-hour TTL). The prior shape
+          (GET on /export/pdf expecting {url}) hit a 405 because the
+          backend route is POST-only and streamed application/pdf bytes.
+          Optional provider arg (openai|gemini|perplexity) for per-provider
+          views.
+      - name: buyer_fit_query
+        change_summary: |
+          Request payload now matches BuyerFitRequest. Param `query`
+          renamed to `buyer` (2-200 chars), business_id is effectively
+          required (falls back to default), added constraints
+          (list[dict]) and limit (1-20, default 5). Old shape sent
+          {"query": ...} which the backend silently rejected.
+    tools_removed:
+      - name: get_analytics_summary
+
   - version: "0.3.7"
     released: "2026-05-01"
     # Fingerprint unchanged from 0.3.6 — PR #4 doesn't add, remove, or change

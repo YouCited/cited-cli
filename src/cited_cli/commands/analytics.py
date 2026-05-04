@@ -35,12 +35,17 @@ def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient]:
 @analytics_app.command("compare")
 def analytics_compare(
     ctx: typer.Context,
-    audit_id: Annotated[str, typer.Argument(help="Audit ID to compare against baseline")],
+    audit_id: Annotated[str, typer.Argument(help="Current audit ID")],
+    baseline_id: Annotated[
+        str, typer.Argument(help="Prior audit ID to compare against")
+    ],
 ) -> None:
-    """Compare an audit against its baseline."""
+    """Compare two audits and show what changed."""
     out, client = _get_client(ctx)
     try:
-        path = endpoints.ANALYTICS_COMPARISON.format(audit_id=audit_id)
+        path = endpoints.ANALYTICS_COMPARE.format(
+            audit_id=audit_id, baseline_id=baseline_id
+        )
         data = client.get(path)
         print_result(data, out)
     except CitedAPIError as e:
@@ -66,17 +71,19 @@ def analytics_trends(
         client.close()
 
 
-@analytics_app.command("summary")
-def analytics_summary(
+@analytics_app.command("dashboard")
+def analytics_dashboard(
     ctx: typer.Context,
     business_id: Annotated[str, typer.Argument(help="Business ID")],
 ) -> None:
-    """Get analytics summary for a business."""
+    """Get the combined analytics dashboard for a business."""
     out, client = _get_client(ctx)
     try:
-        path = endpoints.ANALYTICS_SUMMARY.format(business_id=business_id)
+        path = endpoints.ANALYTICS_DASHBOARD.format(business_id=business_id)
         data = client.get(path)
-        print_result(data, out, human_formatter=lambda d, c: render_kv("Analytics Summary", d, c))
+        print_result(
+            data, out, human_formatter=lambda d, c: render_kv("Analytics Dashboard", d, c)
+        )
     except CitedAPIError as e:
         handle_api_error(e, out.json_mode)
     finally:

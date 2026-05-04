@@ -58,7 +58,7 @@ EXPECTED_TOOLS = [
     "get_business_hq",
     # Analytics
     "get_analytics_trends",
-    "get_analytics_summary",
+    "get_analytics_dashboard",
     "compare_audits",
     # Billing
     "get_pricing",

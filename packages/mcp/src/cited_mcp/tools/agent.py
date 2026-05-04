@@ -142,23 +142,40 @@ async def get_semantic_health(
 @log_tool_call
 async def buyer_fit_query(
     ctx: Context[Any, CitedContext, Any],
-    query: str,
+    buyer: str,
     business_id: str | None = None,
+    constraints: list[dict[str, Any]] | None = None,
+    limit: int = 5,
 ) -> Any:
-    """Run a buyer-fit simulation — test how well a business matches a buyer's search query.
+    """Run a buyer-fit simulation against a business's products and fit signals.
+
+    Returns ordered ``recommendations`` (product/fit matches) plus echoed
+    request fields and source attribution metadata.
 
     Args:
         ctx: MCP context
-        query: The buyer query to simulate (e.g., "best GEO platform for e-commerce")
-        business_id: Optional business ID to scope the query to a specific business
+        buyer: Buyer profile or query (2-200 chars). e.g.
+            "fintech CTO evaluating subscription billing platforms".
+        business_id: Business to score against. Required by the backend; the
+            tool will fall back to the default business if available.
+        constraints: Optional list of constraint dicts narrowing the match.
+        limit: Max number of recommendations to return (1-20, default 5).
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
     business_id = _resolve_business_id(cited_ctx, business_id)
-    payload: dict[str, str] = {"query": query}
-    if business_id:
-        payload["business_id"] = business_id
+    if not business_id:
+        return {
+            "error": True,
+            "message": "business_id is required. Call list_businesses first.",
+        }
+    payload: dict[str, Any] = {
+        "business_id": business_id,
+        "buyer": buyer,
+        "constraints": constraints or [],
+        "limit": limit,
+    }
     try:
         return _truncate_response(
             cited_ctx.client.post(endpoints.AGENT_BUYER_FIT, json=payload)

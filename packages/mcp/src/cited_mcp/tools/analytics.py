@@ -49,15 +49,19 @@ async def get_analytics_trends(
 
 
 @mcp.tool(
-    title="Get Analytics Summary",
+    title="Get Analytics Dashboard",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
-async def get_analytics_summary(
+async def get_analytics_dashboard(
     ctx: Context[Any, CitedContext, Any],
     business_id: str | None = None,
 ) -> Any:
-    """Get an analytics summary for a business — aggregated metrics and insights.
+    """Get the combined analytics dashboard for a business.
+
+    Returns kpi_trends, question_performance, citation_trends, benchmarks,
+    and domain_benchmarks in a single payload — the same data backing the
+    web Analytics page.
 
     Args:
         ctx: MCP context
@@ -71,7 +75,9 @@ async def get_analytics_summary(
         return {"error": True, "message": "business_id is required. Call list_businesses first."}
     try:
         return _truncate_response(
-            cited_ctx.client.get(endpoints.ANALYTICS_SUMMARY.format(business_id=business_id))
+            cited_ctx.client.get(
+                endpoints.ANALYTICS_DASHBOARD.format(business_id=business_id)
+            )
         )
     except CitedAPIError as e:
         return _api_error_response(e)
@@ -85,19 +91,29 @@ async def get_analytics_summary(
 async def compare_audits(
     ctx: Context[Any, CitedContext, Any],
     audit_id: str,
+    baseline_id: str,
 ) -> Any:
-    """Compare an audit against its baseline — shows what improved and what regressed.
+    """Compare two audits and return per-question changes plus aggregate deltas.
+
+    Use ``list_audits`` to find a prior completed audit on the same template
+    and pass its job_id as ``baseline_id``.
 
     Args:
         ctx: MCP context
-        audit_id: The audit job ID to compare against its baseline
+        audit_id: The current audit job ID
+        baseline_id: A prior completed audit job ID to compare against. Must
+            be a different job than ``audit_id``.
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
     try:
         return _truncate_response(
-            cited_ctx.client.get(endpoints.ANALYTICS_COMPARISON.format(audit_id=audit_id))
+            cited_ctx.client.get(
+                endpoints.ANALYTICS_COMPARE.format(
+                    audit_id=audit_id, baseline_id=baseline_id
+                )
+            )
         )
     except CitedAPIError as e:
         return _api_error_response(e)

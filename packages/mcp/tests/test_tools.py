@@ -92,7 +92,11 @@ from cited_mcp.tools.agent import (  # noqa: E402
     buyer_fit_query,
     get_business_facts,
 )
-from cited_mcp.tools.analytics import get_analytics_trends  # noqa: E402
+from cited_mcp.tools.analytics import (  # noqa: E402
+    compare_audits,
+    get_analytics_dashboard,
+    get_analytics_trends,
+)
 from cited_mcp.tools.audit import (  # noqa: E402
     create_audit_template,
     delete_audit_template,
@@ -1089,10 +1093,34 @@ class TestAuditResultModes:
 
     def test_export_audit(self, ctx):
         client = ctx.request_context.lifespan_context.client
-        client.get.return_value = {"url": "https://example.com/report.pdf"}
+        client.post.return_value = {
+            "url": "https://example.com/report.pdf",
+            "expires_at": "2026-05-01T13:00:00Z",
+            "expires_in_seconds": 3600,
+            "filename": "audit-report.pdf",
+            "object_name": "audit-reports/u1/j1.pdf",
+        }
 
         result = run(export_audit(ctx, job_id="j1"))
-        assert "url" in result
+        assert result["url"] == "https://example.com/report.pdf"
+        assert result["expires_in_seconds"] == 3600
+        # Should POST to the URL endpoint, not GET the streaming PDF endpoint.
+        called_path = client.post.call_args[0][0]
+        assert called_path == "/audit/j1/export/url"
+
+    def test_export_audit_with_provider(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = {
+            "url": "https://example.com/report.pdf",
+            "expires_at": "2026-05-01T13:00:00Z",
+            "expires_in_seconds": 3600,
+            "filename": "audit-report.pdf",
+            "object_name": "audit-reports/u1/j1.pdf",
+        }
+
+        run(export_audit(ctx, job_id="j1", provider="openai"))
+        payload = client.post.call_args[1]["json"]
+        assert payload == {"provider": "openai"}
 
     def test_create_template_with_include_business_name(self, ctx):
         client = ctx.request_context.lifespan_context.client
@@ -1120,6 +1148,35 @@ class TestNewToolModules:
         result = run(get_analytics_trends(ctx, business_id="b1"))
         assert result["trends"][0]["score"] == 75
 
+    def test_get_analytics_dashboard(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "kpi_trends": {"timeframe": "month"},
+            "question_performance": {},
+            "citation_trends": {},
+            "benchmarks": {},
+            "domain_benchmarks": [],
+        }
+
+        result = run(get_analytics_dashboard(ctx, business_id="b1"))
+        assert "kpi_trends" in result
+        called_path = client.get.call_args[0][0]
+        assert called_path == "/analytics/businesses/b1/dashboard"
+
+    def test_compare_audits(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "baseline_audit": {"job_id": "old"},
+            "current_audit": {"job_id": "new"},
+            "changes": {},
+            "questions_comparison": {},
+        }
+
+        result = run(compare_audits(ctx, audit_id="new", baseline_id="old"))
+        assert result["current_audit"]["job_id"] == "new"
+        called_path = client.get.call_args[0][0]
+        assert called_path == "/analytics/audits/new/compare/old"
+
     def test_get_business_facts(self, ctx):
         client = ctx.request_context.lifespan_context.client
         client.get.return_value = {"facts": [{"key": "founded", "value": "2020"}]}
@@ -1129,12 +1186,21 @@ class TestNewToolModules:
 
     def test_buyer_fit_query(self, ctx):
         client = ctx.request_context.lifespan_context.client
-        client.post.return_value = {"fit_score": 0.85, "reasons": ["strong match"]}
+        client.post.return_value = {
+            "business_id": "b1",
+            "buyer": "fintech CTO",
+            "constraints": [],
+            "recommendations": [{"product_id": "p1", "score": 0.85}],
+            "metadata": {"data_source": "simulation"},
+        }
 
-        result = run(buyer_fit_query(ctx, query="best GEO tool"))
-        assert result["fit_score"] == 0.85
+        result = run(buyer_fit_query(ctx, buyer="fintech CTO", business_id="b1"))
+        assert result["recommendations"][0]["score"] == 0.85
         payload = client.post.call_args[1]["json"]
-        assert payload["query"] == "best GEO tool"
+        assert payload["buyer"] == "fintech CTO"
+        assert payload["business_id"] == "b1"
+        assert payload["constraints"] == []
+        assert payload["limit"] == 5
 
     def test_agent_tool_requires_business_id(self, ctx):
         """Agent tools should return error if no business_id and no default."""
