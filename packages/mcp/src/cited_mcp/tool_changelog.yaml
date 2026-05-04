@@ -23,7 +23,7 @@
 versions:
   - version: "0.3.9"
     released: "2026-05-04"
-    fingerprint: "PENDING"
+    fingerprint: "b22511d8b84d"
     tools_added: []
     tools_changed: []
     tools_removed: []
@@ -52,7 +52,13 @@ versions:
 
   - version: "0.3.8"
     released: "2026-05-04"
-    fingerprint: "PENDING"
+    # Pinned to the latest 0.3.8 fingerprint (after PR #15's "When to call"
+    # docstring expansions). Sessions that stashed the initial 0.3.8
+    # fingerprint f4e21a60cfa0 (post-PR-#13 / pre-PR-#15) hit the
+    # "unrecognized" branch and get the full history — acceptable, since
+    # 0.3.8 was a patch-stream and current users are most likely to have
+    # the latest fingerprint.
+    fingerprint: "4d21585fd905"
     tools_added:
       - name: get_analytics_dashboard
         description: |
