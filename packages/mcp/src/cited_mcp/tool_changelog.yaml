@@ -21,6 +21,30 @@
 #      this file.
 
 versions:
+  - version: "0.3.10"
+    released: "2026-05-04"
+    # Fingerprint unchanged from 0.3.9 — pure observability addition.
+    # No tool surface change, no docstring change, no input-schema change.
+    fingerprint: "b22511d8b84d"
+    tools_added: []
+    tools_changed: []
+    tools_removed: []
+    behavior_changed:
+      - area: oauth_observability
+        change_summary: |
+          ASGI middleware now emits one structured ``[oauth-event]`` log
+          line per request hitting /register, /authorize, /token, /revoke,
+          or /oauth/callback. Each line includes event name, HTTP method,
+          source IP, user-agent prefix (60 chars), response status, and —
+          for /authorize — redirect_uri, scope, response_type, resource,
+          and a short client_id prefix. Tokens and full JWTs are not
+          logged — only presence flags (e.g. ``has_token=true``).
+          Greppable via CloudWatch with filter pattern ``[oauth-event]``.
+          Internal observability change only; no client-visible behavior
+          difference. Added to count actual OAuth dances vs. background
+          protocol probes when triaging "is the connector forcing
+          re-auth?" questions.
+
   - version: "0.3.9"
     released: "2026-05-04"
     fingerprint: "b22511d8b84d"
