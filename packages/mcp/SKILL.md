@@ -34,6 +34,11 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 - `start_solutions_batch` — **Preferred**: generate up to 10 solutions in one call. Pass all insights from step 3 to fan out efficiently.
 - `get_solution_result` — Retrieve the solution with artifacts (inline content for text files, absolute download URLs)
 
+### 4b. Verify Fixes (Validation Engine)
+- `get_recommendation_check_status` — Run all 62 deterministic GEO/SEO checks against the business linked to a recommendation job; returns counts (valid/invalid/inconclusive) plus per-check detail. Modes: `cache` (read recent crawl) or `fresh` (live HTTP fetches).
+- `validate_recommendation` — Re-run the deterministic check for one recommendation (after the user says they made the fix).
+- `get_recommendation_validation_latest` — Fetch the latest stored validation result for a recommendation.
+
 ### 5. Monitor & Analyze (Pro plan)
 - `get_business_hq` — Comprehensive dashboard with health scores, personas, products
 - `get_analytics_trends` — KPI trends over time

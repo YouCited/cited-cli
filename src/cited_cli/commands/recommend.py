@@ -172,6 +172,87 @@ def recommend_insights(
         client.close()
 
 
+@recommend_app.command("check-status")
+def recommend_check_status(
+    ctx: typer.Context,
+    recommendation_job_id: Annotated[
+        str, typer.Argument(help="Recommendation (ARQ) job ID")
+    ],
+    mode: Annotated[
+        str,
+        typer.Option(
+            "--mode", "-m",
+            help='"cache" reads recent crawl, "fresh" runs live HTTP fetches',
+        ),
+    ] = "cache",
+) -> None:
+    """Run all 62 deterministic GEO/SEO checks against the recommendation's business."""
+    out, client = _get_client(ctx)
+    if mode not in ("cache", "fresh"):
+        print_error("--mode must be 'cache' or 'fresh'", out)
+        raise typer.Exit(ExitCode.VALIDATION_ERROR)
+    try:
+        path = endpoints.RECOMMEND_CHECK_STATUS.format(job_id=recommendation_job_id)
+        data = client.get(path, params={"mode": mode})
+        print_result(
+            data,
+            out,
+            human_formatter=lambda d, c: render_kv("Check Status", d, c),
+        )
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@recommend_app.command("validate")
+def recommend_validate(
+    ctx: typer.Context,
+    recommendation_id: Annotated[
+        str, typer.Argument(help="Recommendation row ID (not the audit job ID)")
+    ],
+) -> None:
+    """Re-run the deterministic check for a single recommendation."""
+    out, client = _get_client(ctx)
+    try:
+        path = endpoints.RECOMMEND_VALIDATE.format(recommendation_id=recommendation_id)
+        data = client.post(path)
+        print_result(
+            data,
+            out,
+            human_formatter=lambda d, c: render_kv("Validation Started", d, c),
+        )
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@recommend_app.command("validation-latest")
+def recommend_validation_latest(
+    ctx: typer.Context,
+    recommendation_id: Annotated[
+        str, typer.Argument(help="Recommendation row ID")
+    ],
+) -> None:
+    """Fetch the most recent stored validation result for a recommendation."""
+    out, client = _get_client(ctx)
+    try:
+        path = endpoints.RECOMMEND_VALIDATE_LATEST.format(
+            recommendation_id=recommendation_id
+        )
+        data = client.get(path)
+        print_result(
+            data,
+            out,
+            human_formatter=lambda d, c: render_kv("Latest Validation", d, c),
+        )
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
 @recommend_app.command("list")
 def recommend_list(
     ctx: typer.Context,

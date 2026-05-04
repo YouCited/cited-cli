@@ -106,6 +106,9 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "recommend result": "get_recommendation_result",
     "recommend insights": "get_recommendation_insights",
     "recommend list": "list_recommendations",
+    "recommend check-status": "get_recommendation_check_status",
+    "recommend validate": "validate_recommendation",
+    "recommend validation-latest": "get_recommendation_validation_latest",
     # Solutions
     "solution start": "start_solution",
     "solution status": "get_solution_status",

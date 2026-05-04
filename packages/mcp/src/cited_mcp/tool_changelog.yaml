@@ -21,6 +21,48 @@
 #      this file.
 
 versions:
+  - version: "0.3.11"
+    released: "2026-05-04"
+    fingerprint: "877b24a01ca7"
+    tools_added:
+      - name: get_recommendation_check_status
+        description: |
+          Run all 62 deterministic GEO/SEO checks (Validation Engine)
+          against the business linked to a recommendation job. Returns
+          counts (valid / invalid / inconclusive) plus per-check detail
+          (check_id, category, domain, status, message, template_title,
+          template_priority). Modes: ``cache`` (read recent crawl, fast)
+          or ``fresh`` (live HTTP fetches, slow but accurate). Wraps
+          GET /recommendations/{job_id}/check-status.
+      - name: validate_recommendation
+        description: |
+          Re-run the deterministic check for a single recommendation
+          and persist the result. Returns {job_id, recommendation_id,
+          check_id, mode}; the worker writes the result asynchronously
+          and it can be fetched via get_recommendation_validation_latest.
+          Wraps POST /recommendations/{recommendation_id}/validate.
+      - name: get_recommendation_validation_latest
+        description: |
+          Fetch the most recent stored validation result for a
+          recommendation. Returns {id, recommendation_id, check_id,
+          status (valid|invalid|inconclusive), trigger, evidence,
+          fetched_at, created_at}. Wraps
+          GET /recommendations/{recommendation_id}/validate/latest.
+    tools_changed: []
+    tools_removed: []
+    behavior_changed:
+      - area: validation_engine
+        change_summary: |
+          Three new MCP tools expose the cited backend's Validation
+          Engine (62 deterministic GEO/SEO checks across schema,
+          llms.txt, technical SEO, content, and social) so agents can
+          verify recommendation completion without re-running a full
+          AI-citation audit. All three are gated to the BASE tier
+          (consistent with the other recommendation lifecycle tools)
+          and require ``settings.validation_engine_enabled=true`` on
+          the cited backend; if the feature flag is off the tools
+          surface a 503 from the backend.
+
   - version: "0.3.10"
     released: "2026-05-04"
     # Fingerprint unchanged from 0.3.9 — pure observability addition.

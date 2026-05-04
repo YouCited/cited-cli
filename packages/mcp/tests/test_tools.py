@@ -125,11 +125,14 @@ from cited_mcp.tools.changelog import whats_new  # noqa: E402
 from cited_mcp.tools.hq import get_business_hq  # noqa: E402
 from cited_mcp.tools.job import cancel_job, get_job_status  # noqa: E402
 from cited_mcp.tools.recommend import (  # noqa: E402
+    get_recommendation_check_status,
     get_recommendation_insights,
     get_recommendation_result,
     get_recommendation_status,
+    get_recommendation_validation_latest,
     list_recommendations,
     start_recommendation,
+    validate_recommendation,
 )
 from cited_mcp.tools.solution import (  # noqa: E402
     get_solution_result,
@@ -408,6 +411,73 @@ class TestRecommendTools:
 
         result = run(list_recommendations(ctx, audit_job_id="j1"))
         assert result["data"][0]["job_id"] == "r1"
+
+    # ---- Validation Engine ----
+
+    def test_get_recommendation_check_status_default_mode(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "business_id": "biz1",
+            "mode": "cache",
+            "counts": {"valid": 3, "invalid": 1, "inconclusive": 0},
+            "results": [],
+        }
+
+        result = run(get_recommendation_check_status(ctx, recommendation_job_id="rj1"))
+        assert result["counts"]["invalid"] == 1
+        called_path = client.get.call_args[0][0]
+        assert called_path == "/recommendations/rj1/check-status"
+        params = client.get.call_args[1]["params"]
+        assert params == {"mode": "cache"}
+
+    def test_get_recommendation_check_status_fresh_mode(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "business_id": "biz1", "mode": "fresh", "counts": {}, "results": [],
+        }
+
+        run(get_recommendation_check_status(ctx, recommendation_job_id="rj1", mode="fresh"))
+        params = client.get.call_args[1]["params"]
+        assert params == {"mode": "fresh"}
+
+    def test_get_recommendation_check_status_invalid_mode(self, ctx):
+        result = run(
+            get_recommendation_check_status(ctx, recommendation_job_id="rj1", mode="bogus")
+        )
+        assert result["error"] is True
+        assert "cache" in result["message"]
+
+    def test_validate_recommendation(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = {
+            "job_id": "v1",
+            "recommendation_id": "rec1",
+            "check_id": "check.schema.organization",
+            "mode": "fresh",
+        }
+
+        result = run(validate_recommendation(ctx, recommendation_id="rec1"))
+        assert result["job_id"] == "v1"
+        called_path = client.post.call_args[0][0]
+        assert called_path == "/recommendations/rec1/validate"
+
+    def test_get_recommendation_validation_latest(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "id": "rv1",
+            "recommendation_id": "rec1",
+            "check_id": "check.schema.organization",
+            "status": "valid",
+            "trigger": "user_marked_done",
+            "evidence": {"message": "FAQ schema present"},
+            "fetched_at": "2026-05-04T18:00:00Z",
+            "created_at": "2026-05-04T18:00:00Z",
+        }
+
+        result = run(get_recommendation_validation_latest(ctx, recommendation_id="rec1"))
+        assert result["status"] == "valid"
+        called_path = client.get.call_args[0][0]
+        assert called_path == "/recommendations/rec1/validate/latest"
 
 
 # ---------------------------------------------------------------------------

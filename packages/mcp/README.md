@@ -1,6 +1,6 @@
 # cited-mcp
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 47 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 50 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
 
@@ -160,6 +160,9 @@ Cited adds new tools regularly. To access new tools after a release, **disconnec
 | `get_recommendation_result` | Get full recommendation results |
 | `get_recommendation_insights` | Get actionable insights with risk levels and coverage scores |
 | `list_recommendations` | List all recommendation jobs |
+| `get_recommendation_check_status` | Run all 62 deterministic GEO/SEO checks (Validation Engine) — counts + per-check detail |
+| `validate_recommendation` | Re-run the deterministic check for a single recommendation |
+| `get_recommendation_validation_latest` | Fetch the latest stored validation result for a recommendation |
 
 ### Solutions
 | Tool | Description |
@@ -221,7 +224,7 @@ Tools are gated by subscription tier. All tiers can read data; write operations 
 |------|----------------|
 | **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list), all recommendation tools, job status — **19 tools** |
 | **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, batch solutions, export audit, cancel job — **33 tools** |
-| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **47 tools** |
+| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **50 tools** |
 
 When a user calls a tool above their plan, the server returns a structured error with an upgrade link:
 
