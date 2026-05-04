@@ -18,7 +18,6 @@ from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
 from cited_mcp.server import create_stdio_server
 
-
 # ---------------------------------------------------------------------------
 # Test helpers (inline to avoid import issues across test roots)
 # ---------------------------------------------------------------------------
@@ -59,8 +58,9 @@ def make_ctx(
 @pytest.fixture(autouse=True)
 def _seed_tier_cache_and_reset_rate_limits():
     """Pre-seed tier cache and reset rate limiter between tests."""
-    from cited_mcp.tools._helpers import _tier_cache, _rate_limits
     import time
+
+    from cited_mcp.tools._helpers import _rate_limits, _tier_cache
 
     # Use "pro" tier for all test users so no tools are gated
     _tier_cache.clear()
@@ -89,6 +89,13 @@ def unauth_ctx():
 # Ensure tools are registered before importing them
 create_stdio_server()
 
+from cited_mcp.tools.action_plan import (  # noqa: E402
+    dismiss_action,
+    get_action_plan,
+    get_action_progress,
+    get_quick_wins,
+    mark_action_done,
+)
 from cited_mcp.tools.agent import (  # noqa: E402
     buyer_fit_query,
     get_business_facts,
@@ -170,7 +177,9 @@ class TestAuthGuard:
         assert result["error"] is True
 
     def test_start_solution_unauth(self, unauth_ctx):
-        result = run(start_solution(unauth_ctx, recommendation_job_id="a", source_type="b", source_id="c"))
+        result = run(start_solution(
+            unauth_ctx, recommendation_job_id="a", source_type="b", source_id="c"
+        ))
         assert result["error"] is True
 
     def test_get_job_status_unauth(self, unauth_ctx):
@@ -210,7 +219,12 @@ class TestBusinessTools:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "new-id", "name": "New Biz"}
 
-        result = run(create_business(ctx, name="New Biz", website="https://new.com", description="A new business for testing purposes that is long enough"))
+        result = run(create_business(
+            ctx,
+            name="New Biz",
+            website="https://new.com",
+            description="A new business for testing purposes that is long enough",
+        ))
         assert result["id"] == "new-id"
         client.post.assert_called_once()
         payload = client.post.call_args[1]["json"]
@@ -278,7 +292,9 @@ class TestAuditTools:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "t-new", "name": "My Template"}
 
-        result = run(create_audit_template(ctx, name="My Template", business_id="b1", questions=["Q1", "Q2"]))
+        result = run(create_audit_template(
+            ctx, name="My Template", business_id="b1", questions=["Q1", "Q2"],
+        ))
         assert result["id"] == "t-new"
         payload = client.post.call_args[1]["json"]
         assert payload["questions"] == [{"question": "Q1"}, {"question": "Q2"}]
@@ -653,9 +669,10 @@ class TestAuthTools:
 
     def test_pending_login_auto_detected_by_other_tools(self):
         """_check_pending_login should capture token and set it on the client."""
+        import unittest.mock
+
         import cited_mcp.tools.auth as auth_mod
         from cited_core.auth.oauth_server import OAuthCallbackServer
-        import unittest.mock
 
         # Create a real CitedContext (not mocked) so token assignment works
         cited_ctx = CitedContext(
@@ -775,7 +792,7 @@ class TestAuditResultModes:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "t1", "include_business_name": True}
 
-        result = run(create_audit_template(
+        run(create_audit_template(
             ctx, name="Test", business_id="b1", include_business_name=True,
         ))
         payload = client.post.call_args[1]["json"]
@@ -815,7 +832,6 @@ class TestNewToolModules:
 
     def test_agent_tool_requires_business_id(self, ctx):
         """Agent tools should return error if no business_id and no default."""
-        client = ctx.request_context.lifespan_context.client
         # No default_business_id set on context
         result = run(get_business_facts(ctx))
         assert result["error"] is True
@@ -865,6 +881,7 @@ class TestPlanGatingIntegration:
         """A growth-tier user should get an upgrade message for create_business."""
         import hashlib
         import time
+
         from cited_mcp.tools._helpers import _tier_cache
 
         growth_ctx = make_ctx(token="growth-user-token")
@@ -887,6 +904,7 @@ class TestPlanGatingIntegration:
         """A scale-tier user should successfully call create_business."""
         import hashlib
         import time
+
         from cited_mcp.tools._helpers import _tier_cache
 
         scale_ctx = make_ctx(token="scale-user-token")
@@ -907,6 +925,7 @@ class TestPlanGatingIntegration:
         """Growth-tier users can still use base tools."""
         import hashlib
         import time
+
         from cited_mcp.tools._helpers import _tier_cache
 
         growth_ctx = make_ctx(token="growth-user-token2")
@@ -998,7 +1017,8 @@ class TestTierCache:
     def test_cache_returns_cached_value(self):
         """Cached tier should be returned without API call."""
         import time
-        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        from cited_mcp.tools._helpers import _get_user_tier, _tier_cache
 
         _tier_cache["cache-test-key"] = ("scale", time.monotonic() + 3600)
 
@@ -1014,8 +1034,8 @@ class TestTierCache:
 
     def test_cache_miss_calls_api(self):
         """On cache miss, should call /auth/me and cache the result."""
-        import time
-        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        from cited_mcp.tools._helpers import _get_user_tier, _tier_cache
 
         _tier_cache.pop("new-user-key", None)
 
@@ -1034,7 +1054,8 @@ class TestTierCache:
     def test_cache_fallback_on_api_failure(self):
         """On API failure with stale cache, should return stale value."""
         import time
-        from cited_mcp.tools._helpers import _tier_cache, _get_user_tier
+
+        from cited_mcp.tools._helpers import _get_user_tier, _tier_cache
 
         # Set an expired cache entry
         _tier_cache["stale-key"] = ("growth", time.monotonic() - 100)
@@ -1129,3 +1150,285 @@ class TestServerSetup:
         assert "start_solution" in tool_names
         assert "get_job_status" in tool_names
         assert "check_auth_status" in tool_names
+
+
+# ---------------------------------------------------------------------------
+# Action plan tools
+# ---------------------------------------------------------------------------
+
+
+def _action_fixture(
+    action_id: str = "a1",
+    action_type: str = "schema_patch",
+    source_type: str = "recommendation",
+    impact_score: int = 70,
+    effort_score: int = 30,
+    priority_score: int = 80,
+    status: str = "pending",
+    title: str = "Add FAQ schema",
+) -> dict[str, Any]:
+    """Build a PriorityActionResponse-shaped dict for tests."""
+    return {
+        "id": action_id,
+        "title": title,
+        "description": "Improve answer extraction",
+        "action_type": action_type,
+        "source_type": source_type,
+        "impact_score": impact_score,
+        "effort_score": effort_score,
+        "priority_score": priority_score,
+        "status": status,
+        "components": {"impact": impact_score},
+        "forecast": {"rationale": "Lifts citation rate"},
+    }
+
+
+class TestActionPlanTools:
+    # -- get_action_plan --
+
+    def test_get_action_plan_unauth(self, unauth_ctx):
+        result = run(get_action_plan(unauth_ctx, business_id="b1"))
+        assert result["error"] is True
+
+    def test_get_action_plan_requires_business_id(self, ctx):
+        # No default_business_id set on context
+        result = run(get_action_plan(ctx))
+        assert result["error"] is True
+        assert "business_id" in result["message"]
+
+    def test_get_action_plan_returns_simplified_actions(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = [
+            _action_fixture("a1", title="First"),
+            _action_fixture("a2", title="Second"),
+        ]
+
+        result = run(get_action_plan(ctx, business_id="b1", limit=2))
+
+        assert result["total_actions"] == 2
+        assert result["actions"][0]["rank"] == 1
+        assert result["actions"][0]["id"] == "a1"
+        assert result["actions"][0]["title"] == "First"
+        # Effort is derived from action_type
+        assert result["actions"][0]["effort_bucket"] == "easy"
+        assert result["actions"][0]["effort"].startswith("Easy")
+        assert result["actions"][1]["rank"] == 2
+        assert "_checklist_hint" in result
+
+    def test_get_action_plan_effort_filter(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = [
+            _action_fixture("a1", action_type="schema_patch"),       # easy
+            _action_fixture("a2", action_type="content_update"),     # medium
+            _action_fixture("a3", action_type="content_new_page"),   # hard
+        ]
+
+        result = run(get_action_plan(ctx, business_id="b1", effort_filter="easy"))
+        assert result["total_actions"] == 1
+        assert result["actions"][0]["id"] == "a1"
+
+    def test_get_action_plan_source_filter(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = [
+            _action_fixture("a1", source_type="recommendation"),
+            _action_fixture("a2", source_type="trust_signal"),
+        ]
+
+        result = run(get_action_plan(ctx, business_id="b1", source_filter="trust_signal"))
+        assert result["total_actions"] == 1
+        assert result["actions"][0]["id"] == "a2"
+
+    def test_get_action_plan_handles_non_list_response(self, ctx):
+        # Defensive: if the API returns a dict (e.g. error envelope), tool returns empty list
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"unexpected": "shape"}
+
+        result = run(get_action_plan(ctx, business_id="b1"))
+        assert result["total_actions"] == 0
+        assert result["actions"] == []
+
+    def test_get_action_plan_api_error(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.side_effect = CitedAPIError(500, "boom")
+
+        result = run(get_action_plan(ctx, business_id="b1"))
+        assert result["error"] is True
+        assert result["status_code"] == 500
+
+    def test_get_action_plan_uses_priority_endpoint(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = []
+
+        run(get_action_plan(ctx, business_id="b1", limit=5))
+        path = client.get.call_args[0][0]
+        assert "/businesses/b1/hq/priority" in path
+        # Tool fetches more than `limit` so it can filter client-side
+        assert client.get.call_args[1]["params"]["limit"] >= 5
+
+    # -- get_quick_wins --
+
+    def test_get_quick_wins_unauth(self, unauth_ctx):
+        result = run(get_quick_wins(unauth_ctx, business_id="b1"))
+        assert result["error"] is True
+
+    def test_get_quick_wins_requires_business_id(self, ctx):
+        result = run(get_quick_wins(ctx))
+        assert result["error"] is True
+        assert "business_id" in result["message"]
+
+    def test_get_quick_wins_filters_low_effort_high_impact(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = [
+            # Quick win: low effort, high impact
+            _action_fixture("win", effort_score=20, impact_score=80),
+            # Not a quick win: high effort
+            _action_fixture("hard", effort_score=80, impact_score=80),
+            # Not a quick win: low impact
+            _action_fixture("low", effort_score=20, impact_score=30),
+        ]
+
+        result = run(get_quick_wins(ctx, business_id="b1"))
+        assert result["total_quick_wins"] == 1
+        assert result["actions"][0]["id"] == "win"
+
+    def test_get_quick_wins_fallback_when_no_match(self, ctx):
+        # No action passes the strict filter — fall back to easy/medium effort items
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = [
+            _action_fixture("a1", action_type="schema_patch", effort_score=80, impact_score=20),
+            _action_fixture("a2", action_type="content_new_page", effort_score=80, impact_score=20),
+        ]
+
+        result = run(get_quick_wins(ctx, business_id="b1"))
+        # schema_patch is "easy" so it qualifies in fallback; content_new_page is "hard"
+        assert result["total_quick_wins"] == 1
+        assert result["actions"][0]["id"] == "a1"
+
+    def test_get_quick_wins_respects_max_results(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = [
+            _action_fixture(f"a{i}", effort_score=10, impact_score=90)
+            for i in range(10)
+        ]
+
+        result = run(get_quick_wins(ctx, business_id="b1", max_results=3))
+        assert result["total_quick_wins"] == 3
+
+    def test_get_quick_wins_api_error(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.side_effect = CitedAPIError(403, "forbidden")
+
+        result = run(get_quick_wins(ctx, business_id="b1"))
+        assert result["error"] is True
+        assert result["status_code"] == 403
+
+    # -- mark_action_done --
+
+    def test_mark_action_done_unauth(self, unauth_ctx):
+        result = run(mark_action_done(unauth_ctx, action_id="a1", business_id="b1"))
+        assert result["error"] is True
+
+    def test_mark_action_done_requires_business_id(self, ctx):
+        result = run(mark_action_done(ctx, action_id="a1"))
+        assert result["error"] is True
+        assert "business_id" in result["message"]
+
+    def test_mark_action_done_success(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.patch.return_value = {"updated_at": "2026-05-04T00:00:00Z"}
+
+        result = run(mark_action_done(ctx, action_id="a1", business_id="b1"))
+        assert result["success"] is True
+        assert result["action_id"] == "a1"
+        assert result["status"] == "completed"
+
+        path = client.patch.call_args[0][0]
+        assert "/businesses/b1/hq/priority/a1/status" in path
+        assert client.patch.call_args[1]["json"] == {"status": "completed"}
+
+    def test_mark_action_done_api_error(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.patch.side_effect = CitedAPIError(404, "not found")
+
+        result = run(mark_action_done(ctx, action_id="a1", business_id="b1"))
+        assert result["error"] is True
+        assert result["status_code"] == 404
+
+    # -- dismiss_action --
+
+    def test_dismiss_action_unauth(self, unauth_ctx):
+        result = run(dismiss_action(unauth_ctx, action_id="a1", business_id="b1"))
+        assert result["error"] is True
+
+    def test_dismiss_action_requires_business_id(self, ctx):
+        result = run(dismiss_action(ctx, action_id="a1"))
+        assert result["error"] is True
+        assert "business_id" in result["message"]
+
+    def test_dismiss_action_success(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.patch.return_value = {}
+
+        result = run(dismiss_action(ctx, action_id="a1", business_id="b1"))
+        assert result["success"] is True
+        assert result["action_id"] == "a1"
+        assert result["status"] == "dismissed"
+        assert client.patch.call_args[1]["json"] == {"status": "dismissed"}
+
+    def test_dismiss_action_api_error(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.patch.side_effect = CitedAPIError(403, "forbidden")
+
+        result = run(dismiss_action(ctx, action_id="a1", business_id="b1"))
+        assert result["error"] is True
+
+    # -- get_action_progress --
+
+    def test_get_action_progress_unauth(self, unauth_ctx):
+        result = run(get_action_progress(unauth_ctx, business_id="b1"))
+        assert result["error"] is True
+
+    def test_get_action_progress_requires_business_id(self, ctx):
+        result = run(get_action_progress(ctx))
+        assert result["error"] is True
+        assert "business_id" in result["message"]
+
+    def test_get_action_progress_computes_percentages(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "total": 10,
+            "completed": 4,
+            "dismissed": 1,
+        }
+
+        result = run(get_action_progress(ctx, business_id="b1"))
+        assert result["total"] == 10
+        assert result["completed"] == 4
+        assert result["remaining"] == 5  # 10 - 4 - 1
+        assert result["completion_pct"] == 40
+        assert "_progress_hint" in result
+        assert "4 of 10" in result["_progress_hint"]
+
+    def test_get_action_progress_zero_total(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"total": 0, "completed": 0, "dismissed": 0}
+
+        result = run(get_action_progress(ctx, business_id="b1"))
+        assert result["completion_pct"] == 0
+        assert result["remaining"] == 0
+
+    def test_get_action_progress_uses_summary_endpoint(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"total": 1, "completed": 0, "dismissed": 0}
+
+        run(get_action_progress(ctx, business_id="b1"))
+        path = client.get.call_args[0][0]
+        assert "/businesses/b1/hq/priority/summary" in path
+
+    def test_get_action_progress_api_error(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.side_effect = CitedAPIError(500, "boom")
+
+        result = run(get_action_progress(ctx, business_id="b1"))
+        assert result["error"] is True
+        assert result["status_code"] == 500

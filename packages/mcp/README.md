@@ -1,6 +1,6 @@
 # cited-mcp
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 44 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 51 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
 
@@ -191,6 +191,15 @@ cited-mcp-remote
 | `get_semantic_health` | Get semantic readiness signals |
 | `buyer_fit_query` | Run a buyer-fit simulation query |
 
+### Action Plan
+| Tool | Description |
+|------|-------------|
+| `get_action_plan` | Get a prioritised checklist of next steps to improve GEO |
+| `get_quick_wins` | Get low-effort, high-impact actions to tackle first |
+| `mark_action_done` | Mark a priority action as completed |
+| `dismiss_action` | Dismiss a priority action as not applicable |
+| `get_action_progress` | Get progress summary (completed vs remaining) |
+
 ## Example Workflow
 
 Once connected, ask Claude to run a full GEO audit:
@@ -213,9 +222,9 @@ Tools are gated by subscription tier. All tiers can read data; write operations 
 
 | Tier | Tools Available |
 |------|----------------|
-| **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list), all recommendation tools, job status — **19 tools** |
-| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, batch solutions, export audit, cancel job — **33 tools** |
-| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **44 tools** |
+| **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list), all recommendation tools, job status — **22 tools** |
+| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, batch solutions, export audit, cancel job, action plan + progress tools — **41 tools** |
+| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **51 tools** |
 
 When a user calls a tool above their plan, the server returns a structured error with an upgrade link:
 

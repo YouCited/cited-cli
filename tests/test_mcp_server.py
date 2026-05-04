@@ -69,6 +69,12 @@ EXPECTED_TOOLS = [
     "get_competitive_comparison",
     "get_semantic_health",
     "buyer_fit_query",
+    # Action Plan
+    "get_action_plan",
+    "get_quick_wins",
+    "mark_action_done",
+    "dismiss_action",
+    "get_action_progress",
 ]
 
 

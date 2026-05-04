@@ -73,7 +73,7 @@ cited register --email you@example.com --name "Your Name" --password "Secret123!
 
 ## MCP Server
 
-This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 42 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, and create solutions on your behalf.
+This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 51 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, and create solutions on your behalf.
 
 ### Claude Desktop (Custom Connector — recommended)
 
@@ -166,6 +166,7 @@ Claude will chain the tools automatically — `list_businesses` → `start_audit
 | **HQ** | `get_business_hq` |
 | **Analytics** | `get_analytics_trends`, `get_analytics_summary`, `compare_audits` |
 | **Agent API** | `get_business_facts`, `get_business_claims`, `get_competitive_comparison`, `get_semantic_health`, `buyer_fit_query` |
+| **Action Plan** | `get_action_plan`, `get_quick_wins`, `mark_action_done`, `dismiss_action`, `get_action_progress` |
 
 See [`packages/mcp/README.md`](packages/mcp/README.md) for full details, environment variables, and development instructions.
 

@@ -114,7 +114,8 @@ async def get_action_plan(
         business_id: Business ID (uses default if omitted)
         limit: Maximum actions to return (default 10)
         effort_filter: Filter by effort level: "easy", "medium", or "hard"
-        source_filter: Filter by source: "recommendation", "intent", "inventory", "trust_signal", "agentic_path"
+        source_filter: Filter by source. One of:
+            "recommendation", "intent", "inventory", "trust_signal", "agentic_path"
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
