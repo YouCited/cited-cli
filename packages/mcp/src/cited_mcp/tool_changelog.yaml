@@ -21,6 +21,45 @@
 #      this file.
 
 versions:
+  - version: "0.3.12"
+    released: "2026-05-04"
+    fingerprint: "c706ad655d3c"
+    tools_added:
+      - name: get_action_plan
+        description: |
+          Returns the prioritized list of action items for a business —
+          ranked by impact and effort, with descriptions, expected
+          improvements, and implementation guidance. Wraps
+          GET /businesses/{business_id}/hq/priority. Pair with
+          get_quick_wins to filter for low-effort/high-impact items, or
+          mark_action_done after completing one.
+      - name: get_quick_wins
+        description: |
+          Filtered view of get_action_plan that surfaces low-effort,
+          high-impact items first — the changes that deliver the
+          fastest results. Ideal entry point for "what should I do
+          first" prompts.
+      - name: mark_action_done
+        description: |
+          Mark a priority action as completed. For
+          recommendation-sourced actions the Validation Engine
+          auto-runs and the response includes a ``validation`` block
+          (status / message / validated_at / mode / check_id). Wraps
+          PATCH /businesses/{id}/hq/priority/{action_id}/status.
+      - name: dismiss_action
+        description: |
+          Dismiss a priority action without marking it complete (e.g.
+          out of scope, won't fix). Wraps the same status-patch
+          endpoint as mark_action_done with a different status.
+      - name: get_action_progress
+        description: |
+          Aggregate progress summary across all priority actions —
+          counts of done / dismissed / pending, recent completions,
+          remaining quick wins. Wraps
+          GET /businesses/{business_id}/hq/priority/summary.
+    tools_changed: []
+    tools_removed: []
+
   - version: "0.3.11"
     released: "2026-05-04"
     fingerprint: "877b24a01ca7"
