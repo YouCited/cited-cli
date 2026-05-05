@@ -21,6 +21,33 @@
 #      this file.
 
 versions:
+  - version: "0.3.14"
+    released: "2026-05-05"
+    fingerprint: "defa3022aedb"
+    tools_added:
+      - name: get_recommendation_insight_detail
+        description: |
+          Drill-down companion to get_recommendation_insights. Given
+          (job_id, source_type, source_id) returns the single matching
+          insight wrapped as {source_type, source_id, insight}. If the
+          source_id doesn't exist, returns a typed
+          ``insight_not_found`` error with ``available_source_ids``
+          for that category so callers can self-correct. Pairs with
+          summary mode on get_recommendation_insights.
+    tools_changed:
+      - name: get_recommendation_insights
+        change_summary: |
+          Adds ``full: bool = False`` parameter mirroring
+          get_audit_result. Default is now a **summary** projection —
+          per-category counts plus light rows
+          ({source_type, source_id, label, key_metric}) — instead of
+          the full payload. Use ``full=True`` for the previous
+          behavior, or get_recommendation_insight_detail to drill
+          into a single insight without retrieving everything.
+          Reduces context spend on large recommendations.
+    tools_removed: []
+    behavior_changed: []
+
   - version: "0.3.12"
     released: "2026-05-04"
     fingerprint: "c706ad655d3c"

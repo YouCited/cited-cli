@@ -44,6 +44,7 @@ EXPECTED_TOOLS = [
     "get_recommendation_status",
     "get_recommendation_result",
     "get_recommendation_insights",
+    "get_recommendation_insight_detail",
     "list_recommendations",
     "get_recommendation_check_status",
     "validate_recommendation",

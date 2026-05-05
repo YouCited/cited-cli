@@ -3,6 +3,7 @@
 Tests call tool functions directly with a mocked CitedClient,
 bypassing the MCP transport layer.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -67,6 +68,7 @@ def _seed_tier_cache_and_reset_rate_limits():
     _rate_limits.clear()
     # The cache key is sha256(token)[:16] — pre-seed for "test-token"
     import hashlib
+
     cache_key = hashlib.sha256(b"test-token").hexdigest()[:16]
     _tier_cache[cache_key] = ("pro", time.monotonic() + 3600)
     yield
@@ -134,6 +136,7 @@ from cited_mcp.tools.hq import get_business_hq  # noqa: E402
 from cited_mcp.tools.job import cancel_job, get_job_status  # noqa: E402
 from cited_mcp.tools.recommend import (  # noqa: E402
     get_recommendation_check_status,
+    get_recommendation_insight_detail,
     get_recommendation_insights,
     get_recommendation_result,
     get_recommendation_status,
@@ -186,9 +189,9 @@ class TestAuthGuard:
         assert result["error"] is True
 
     def test_start_solution_unauth(self, unauth_ctx):
-        result = run(start_solution(
-            unauth_ctx, recommendation_job_id="a", source_type="b", source_id="c"
-        ))
+        result = run(
+            start_solution(unauth_ctx, recommendation_job_id="a", source_type="b", source_id="c")
+        )
         assert result["error"] is True
 
     def test_get_job_status_unauth(self, unauth_ctx):
@@ -228,12 +231,14 @@ class TestBusinessTools:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "new-id", "name": "New Biz"}
 
-        result = run(create_business(
-            ctx,
-            name="New Biz",
-            website="https://new.com",
-            description="A new business for testing purposes that is long enough",
-        ))
+        result = run(
+            create_business(
+                ctx,
+                name="New Biz",
+                website="https://new.com",
+                description="A new business for testing purposes that is long enough",
+            )
+        )
         assert result["id"] == "new-id"
         client.post.assert_called_once()
         payload = client.post.call_args[1]["json"]
@@ -301,9 +306,14 @@ class TestAuditTools:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "t-new", "name": "My Template"}
 
-        result = run(create_audit_template(
-            ctx, name="My Template", business_id="b1", questions=["Q1", "Q2"],
-        ))
+        result = run(
+            create_audit_template(
+                ctx,
+                name="My Template",
+                business_id="b1",
+                questions=["Q1", "Q2"],
+            )
+        )
         assert result["id"] == "t-new"
         payload = client.post.call_args[1]["json"]
         assert payload["questions"] == [{"question": "Q1"}, {"question": "Q2"}]
@@ -391,7 +401,8 @@ class TestRecommendTools:
         result = run(get_recommendation_result(ctx, job_id="r1"))
         assert "question_insights" in result
 
-    def test_get_recommendation_insights_annotates_source(self, ctx):
+    def test_get_recommendation_insights_full_annotates_source(self, ctx):
+        """full=True returns the complete payload with source_type/source_id."""
         client = ctx.request_context.lifespan_context.client
         client.get.return_value = {
             "question_insights": [{"question_id": "qi1", "question_text": "Test?"}],
@@ -400,10 +411,12 @@ class TestRecommendTools:
             "priority_actions": [],
         }
 
-        result = run(get_recommendation_insights(ctx, job_id="r1"))
+        result = run(get_recommendation_insights(ctx, job_id="r1", full=True))
         qi = result["question_insights"][0]
         assert qi["source_type"] == "question_insight"
         assert qi["source_id"] == "qi1"
+        # full mode preserves all original fields
+        assert qi["question_text"] == "Test?"
 
         h2h = result["head_to_head_comparisons"][0]
         assert h2h["source_type"] == "head_to_head"
@@ -412,6 +425,109 @@ class TestRecommendTools:
         tip = result["strengthening_tips"][0]
         assert tip["source_type"] == "strengthening_tip"
         assert tip["source_id"] == "llms_txt"
+
+    def test_get_recommendation_insights_summary_default(self, ctx):
+        """Default mode returns counts + light rows, not the full payload."""
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "question_insights": [
+                {"question_id": "qi1", "question_text": "Test?", "risk_level": "high"},
+                {"question_id": "qi2", "question_text": "Other?", "risk_level": "low"},
+            ],
+            "head_to_head_comparisons": [
+                {"competitor_domain": "comp.com", "overall_winner": "business"}
+            ],
+            "strengthening_tips": [
+                {"category": "llms_txt", "title": "Add llms.txt", "priority": "high"}
+            ],
+            "priority_actions": [],
+        }
+
+        result = run(get_recommendation_insights(ctx, job_id="r1"))
+        # Counts surface for quick triage
+        assert result["counts"] == {
+            "question_insights": 2,
+            "head_to_head_comparisons": 1,
+            "strengthening_tips": 1,
+            "priority_actions": 0,
+        }
+        # Summary rows carry the source_type/source_id needed to drill in
+        qi_rows = result["question_insights"]
+        assert len(qi_rows) == 2
+        assert qi_rows[0]["source_type"] == "question_insight"
+        assert qi_rows[0]["source_id"] == "qi1"
+        assert qi_rows[0]["label"] == "Test?"
+        assert qi_rows[0]["risk_level"] == "high"
+        # Summary rows do NOT contain the full backend fields like "question_text"
+        assert "question_text" not in qi_rows[0]
+        # Per-category key metric is included
+        assert result["head_to_head_comparisons"][0]["overall_winner"] == "business"
+        assert result["strengthening_tips"][0]["priority"] == "high"
+
+    def test_get_recommendation_insight_detail_returns_matching_item(self, ctx):
+        """Detail tool returns the single matching insight wrapped in metadata."""
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "question_insights": [
+                {"question_id": "qi1", "question_text": "Test?", "risk_level": "high"},
+                {"question_id": "qi2", "question_text": "Other?", "risk_level": "low"},
+            ],
+            "head_to_head_comparisons": [],
+            "strengthening_tips": [],
+            "priority_actions": [],
+        }
+
+        result = run(
+            get_recommendation_insight_detail(
+                ctx,
+                job_id="r1",
+                source_type="question_insight",
+                source_id="qi2",
+            )
+        )
+        assert result["source_type"] == "question_insight"
+        assert result["source_id"] == "qi2"
+        assert result["insight"]["question_text"] == "Other?"
+        assert result["insight"]["risk_level"] == "low"
+
+    def test_get_recommendation_insight_detail_not_found(self, ctx):
+        """Missing source_id returns a typed error with available_source_ids."""
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {
+            "question_insights": [{"question_id": "qi1", "question_text": "Test?"}],
+            "head_to_head_comparisons": [],
+            "strengthening_tips": [],
+            "priority_actions": [],
+        }
+
+        result = run(
+            get_recommendation_insight_detail(
+                ctx,
+                job_id="r1",
+                source_type="question_insight",
+                source_id="missing",
+            )
+        )
+        assert result["error"] is True
+        assert result["error_type"] == "insight_not_found"
+        assert result["available_source_ids"] == ["qi1"]
+
+    def test_get_recommendation_insight_detail_invalid_source_type(self, ctx):
+        """Unknown source_type returns a typed error without hitting the API."""
+        client = ctx.request_context.lifespan_context.client
+        # Should NOT call the API — early validation
+        result = run(
+            get_recommendation_insight_detail(
+                ctx,
+                job_id="r1",
+                source_type="bogus",
+                source_id="anything",
+            )
+        )
+        assert result["error"] is True
+        assert result["error_type"] == "invalid_source_type"
+        assert "question_insight" in result["valid_source_types"]
+        client.get.assert_not_called()
 
     def test_list_recommendations(self, ctx):
         client = ctx.request_context.lifespan_context.client
@@ -441,7 +557,10 @@ class TestRecommendTools:
     def test_get_recommendation_check_status_fresh_mode(self, ctx):
         client = ctx.request_context.lifespan_context.client
         client.get.return_value = {
-            "business_id": "biz1", "mode": "fresh", "counts": {}, "results": [],
+            "business_id": "biz1",
+            "mode": "fresh",
+            "counts": {},
+            "results": [],
         }
 
         run(get_recommendation_check_status(ctx, recommendation_job_id="rj1", mode="fresh"))
@@ -498,12 +617,14 @@ class TestSolutionTools:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"job_id": "s1", "status": "running"}
 
-        result = run(start_solution(
-            ctx,
-            recommendation_job_id="r1",
-            source_type="question_insight",
-            source_id="qi1",
-        ))
+        result = run(
+            start_solution(
+                ctx,
+                recommendation_job_id="r1",
+                source_type="question_insight",
+                source_id="qi1",
+            )
+        )
         assert result["job_id"] == "s1"
         payload = client.post.call_args[1]["json"]
         assert payload == {
@@ -563,14 +684,16 @@ class TestSolutionTools:
             {"source_type": "head_to_head", "source_id": "b.com", "job_id": "s2"},
         ]
 
-        result = run(start_solutions_batch(
-            ctx,
-            recommendation_job_id="r1",
-            items=[
-                {"source_type": "head_to_head", "source_id": "a.com"},
-                {"source_type": "head_to_head", "source_id": "b.com"},
-            ],
-        ))
+        result = run(
+            start_solutions_batch(
+                ctx,
+                recommendation_job_id="r1",
+                items=[
+                    {"source_type": "head_to_head", "source_id": "a.com"},
+                    {"source_type": "head_to_head", "source_id": "b.com"},
+                ],
+            )
+        )
         assert result["data"][0]["job_id"] == "s1"
         payload = client.post.call_args[1]["json"]
         assert len(payload["items"]) == 2
@@ -647,6 +770,7 @@ class TestAuthTools:
     def test_logout(self, ctx):
         # Patch TokenStore to avoid real keyring access
         import cited_mcp.tools.auth as auth_mod
+
         original_clear = auth_mod._clear_session
 
         cleared = []
@@ -703,6 +827,7 @@ class TestAuthTools:
 
         # Patch TokenStore to avoid real keyring/file writes
         import unittest.mock
+
         with unittest.mock.patch("cited_mcp.tools.auth.TokenStore"):
             result = run(login(unauth_ctx))
 
@@ -734,6 +859,7 @@ class TestAuthTools:
     def test_login_already_authenticated(self, ctx):
         """If already authenticated, login should return success without starting a flow."""
         import cited_mcp.tools.auth as auth_mod
+
         auth_mod._pending_login = None
 
         client = ctx.request_context.lifespan_context.client
@@ -905,9 +1031,7 @@ class TestToolsFingerprint:
             """Synthetic tool used only by tests."""
             return "ok"
 
-        registered_mcp._tool_manager.add_tool(
-            __synthetic_test_tool, name="__synthetic_test_tool"
-        )
+        registered_mcp._tool_manager.add_tool(__synthetic_test_tool, name="__synthetic_test_tool")
         try:
             after = compute_tools_fingerprint(registered_mcp)
             assert before != after
@@ -932,9 +1056,7 @@ class TestWhatsNew:
                     "version": "0.4.0",
                     "released": "2026-06-01",
                     "fingerprint": "FFF000000000",
-                    "tools_added": [
-                        {"name": "new_tool", "description": "Newest tool"}
-                    ],
+                    "tools_added": [{"name": "new_tool", "description": "Newest tool"}],
                     "tools_changed": [],
                     "tools_removed": [],
                 },
@@ -943,22 +1065,16 @@ class TestWhatsNew:
                     "released": "2026-05-15",
                     "fingerprint": "EEE000000000",
                     "tools_added": [],
-                    "tools_changed": [
-                        {"name": "old_tool", "change_summary": "Tweaked schema"}
-                    ],
+                    "tools_changed": [{"name": "old_tool", "change_summary": "Tweaked schema"}],
                     "tools_removed": [],
                 },
                 {
                     "version": "0.3.8",
                     "released": "2026-05-01",
                     "fingerprint": "DDD000000000",
-                    "tools_added": [
-                        {"name": "ancient_tool", "description": "Was new once"}
-                    ],
+                    "tools_added": [{"name": "ancient_tool", "description": "Was new once"}],
                     "tools_changed": [],
-                    "tools_removed": [
-                        {"name": "removed_tool"}
-                    ],
+                    "tools_removed": [{"name": "removed_tool"}],
                 },
             ]
         }
@@ -997,9 +1113,7 @@ class TestWhatsNew:
         names_added = [t["name"] for t in result["tools_added"]]
         assert names_added == ["new_tool"]
 
-    def test_unrecognized_fingerprint_returns_full_history_with_note(
-        self, ctx, fake_changelog
-    ):
+    def test_unrecognized_fingerprint_returns_full_history_with_note(self, ctx, fake_changelog):
         result = run(whats_new(ctx, since_fingerprint="000000000000"))
         assert "_note" in result
         assert "not recognized" in result["_note"]
@@ -1008,9 +1122,7 @@ class TestWhatsNew:
         assert "new_tool" in names
         assert "ancient_tool" in names
 
-    def test_unrecognized_version_returns_full_history_with_note(
-        self, ctx, fake_changelog
-    ):
+    def test_unrecognized_version_returns_full_history_with_note(self, ctx, fake_changelog):
         result = run(whats_new(ctx, since_version="0.0.1"))
         assert "_note" in result
         names = [t["name"] for t in result["tools_added"]]
@@ -1029,9 +1141,7 @@ class TestWhatsNew:
         names_added = [t["name"] for t in result["tools_added"]]
         assert names_added == ["new_tool"]
 
-    def test_unrecognized_fingerprint_falls_back_to_version(
-        self, ctx, fake_changelog
-    ):
+    def test_unrecognized_fingerprint_falls_back_to_version(self, ctx, fake_changelog):
         # Bogus fingerprint but valid version — should resolve via version
         # rather than returning full history.
         result = run(
@@ -1046,9 +1156,7 @@ class TestWhatsNew:
         names_added = [t["name"] for t in result["tools_added"]]
         assert names_added == ["new_tool"]
 
-    def test_response_includes_current_version_and_fingerprint(
-        self, ctx, fake_changelog
-    ):
+    def test_response_includes_current_version_and_fingerprint(self, ctx, fake_changelog):
         result = run(whats_new(ctx))
         assert "current_version" in result
         assert "current_fingerprint" in result
@@ -1073,9 +1181,7 @@ class TestWhatsNew:
         assert err is not None
         assert "invalid structure" in err
 
-    def test_load_changelog_yaml_parse_error_does_not_raise(
-        self, tmp_path, monkeypatch
-    ):
+    def test_load_changelog_yaml_parse_error_does_not_raise(self, tmp_path, monkeypatch):
         """Blast-radius guard: a parse error must NOT propagate up to module
         import / register_tools / server startup."""
         from cited_mcp.tools import changelog as cl
@@ -1083,10 +1189,10 @@ class TestWhatsNew:
         bad = tmp_path / "tool_changelog.yaml"
         # Real-world parse error: bad indent + unclosed bracket
         bad.write_text(
-            'versions:\n'
+            "versions:\n"
             '  - version: "0.4.0"\n'
-            '      malformed_indent: true\n'
-            '      [unclosed bracket\n'
+            "      malformed_indent: true\n"
+            "      [unclosed bracket\n"
         )
         monkeypatch.setattr(cl, "_CHANGELOG_PATH", bad)
         # Critical: this MUST NOT raise
@@ -1204,9 +1310,14 @@ class TestAuditResultModes:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "t1", "include_business_name": True}
 
-        run(create_audit_template(
-            ctx, name="Test", business_id="b1", include_business_name=True,
-        ))
+        run(
+            create_audit_template(
+                ctx,
+                name="Test",
+                business_id="b1",
+                include_business_name=True,
+            )
+        )
         payload = client.post.call_args[1]["json"]
         assert payload["include_business_name"] is True
 
@@ -1341,9 +1452,14 @@ class TestPlanGatingIntegration:
         client = growth_ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "should-not-reach"}
 
-        result = run(create_business(
-            growth_ctx, name="X", website="x", description="x" * 60,
-        ))
+        result = run(
+            create_business(
+                growth_ctx,
+                name="X",
+                website="x",
+                description="x" * 60,
+            )
+        )
         assert result["error"] is True
         assert result["required_tier"] == "scale"
         assert "upgrade" in result["hint"].lower()
@@ -1364,10 +1480,14 @@ class TestPlanGatingIntegration:
         client = scale_ctx.request_context.lifespan_context.client
         client.post.return_value = {"id": "new-id", "name": "Created"}
 
-        result = run(create_business(
-            scale_ctx, name="Biz", website="https://biz.com",
-            description="A business description long enough",
-        ))
+        result = run(
+            create_business(
+                scale_ctx,
+                name="Biz",
+                website="https://biz.com",
+                description="A business description long enough",
+            )
+        )
         assert result["id"] == "new-id"
         client.post.assert_called_once()
 
@@ -1557,11 +1677,13 @@ class TestHelpers:
 
         # Fill up the window (use a low limit)
         import os
+
         original = os.environ.get("CITED_RATE_LIMIT")
         os.environ["CITED_RATE_LIMIT"] = "5"
 
         # Reload the limit
         import cited_mcp.tools._helpers as helpers
+
         helpers._RATE_LIMIT = 5
 
         try:
@@ -1609,6 +1731,7 @@ class TestUpgradePlan:
     def upgrade_ctx(self, ctx):
         """Authenticated context with a mocked ctx.session for notifications."""
         from unittest.mock import AsyncMock, MagicMock
+
         session = MagicMock()
         session.send_tool_list_changed = AsyncMock()
         ctx.session = session  # FakeContext is a dataclass — assign attribute
@@ -1617,14 +1740,17 @@ class TestUpgradePlan:
     @staticmethod
     def _stub_get_post(client, *, current_tier: str, backend_response: dict):
         """Wire client.get(/auth/me) and client.post(/billing/agent-upgrade)."""
+
         def _get(path, *args, **kwargs):
             if path.endswith("/auth/me"):
                 return {"subscription_tier": current_tier}
             raise AssertionError(f"unexpected GET {path!r}")
+
         def _post(path, *args, **kwargs):
             if path.endswith("/billing/agent-upgrade"):
                 return backend_response
             raise AssertionError(f"unexpected POST {path!r}")
+
         client.get.side_effect = _get
         client.post.side_effect = _post
 
@@ -1658,9 +1784,7 @@ class TestUpgradePlan:
 
     # --- branch (b): upgraded (immediate) --------------------------------
 
-    def test_upgraded_returns_unlocked_tools_and_reconnect_pending_action(
-        self, upgrade_ctx
-    ):
+    def test_upgraded_returns_unlocked_tools_and_reconnect_pending_action(self, upgrade_ctx):
         client = upgrade_ctx.request_context.lifespan_context.client
         self._stub_get_post(
             client,
@@ -1718,9 +1842,7 @@ class TestUpgradePlan:
 
     # --- branch (c): checkout_required -----------------------------------
 
-    def test_checkout_required_no_tools_unlocked_pending_action_has_url(
-        self, upgrade_ctx
-    ):
+    def test_checkout_required_no_tools_unlocked_pending_action_has_url(self, upgrade_ctx):
         client = upgrade_ctx.request_context.lifespan_context.client
         checkout_url = "https://checkout.stripe.com/c/pay/cs_test_abc123"
         self._stub_get_post(
@@ -1751,6 +1873,7 @@ class TestUpgradePlan:
 
     def test_notification_failure_does_not_break_upgrade(self, upgrade_ctx, caplog):
         from unittest.mock import AsyncMock
+
         upgrade_ctx.session.send_tool_list_changed = AsyncMock(
             side_effect=RuntimeError("transport closed")
         )
@@ -1767,6 +1890,7 @@ class TestUpgradePlan:
             },
         )
         import logging
+
         with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
             result = run(upgrade_plan(upgrade_ctx, target_tier="scale"))
 
@@ -1829,9 +1953,7 @@ class TestUpgradePlan:
         assert "tools_unlocked" in result
         assert "pending_action" in result
         assert isinstance(result["tools_unlocked"], list)
-        assert result["pending_action"] is None or isinstance(
-            result["pending_action"], str
-        )
+        assert result["pending_action"] is None or isinstance(result["pending_action"], str)
 
 
 class TestCitedToolManager:
@@ -1903,24 +2025,16 @@ class TestCitedToolManager:
         # Already a CitedToolManager (installed in create_stdio_server)
         assert isinstance(registered_mcp._tool_manager, CitedToolManager)
 
-        before_tools = sorted(
-            t.name for t in registered_mcp._tool_manager.list_tools()
-        )
+        before_tools = sorted(t.name for t in registered_mcp._tool_manager.list_tools())
         install(registered_mcp)  # idempotent
-        after_tools = sorted(
-            t.name for t in registered_mcp._tool_manager.list_tools()
-        )
+        after_tools = sorted(t.name for t in registered_mcp._tool_manager.list_tools())
         assert before_tools == after_tools
 
     def test_live_server_returns_structured_payload_for_unknown_tool(self):
         """End-to-end: hit the LIVE registered server with a bogus tool name."""
         from cited_mcp.server import mcp as registered_mcp
 
-        result = run(
-            registered_mcp._tool_manager.call_tool(
-                "definitely_not_a_real_tool", {}
-            )
-        )
+        result = run(registered_mcp._tool_manager.call_tool("definitely_not_a_real_tool", {}))
         assert result["error"] is True
         assert result["error_type"] == "tool_unavailable"
         assert "definitely_not_a_real_tool" in result["message"]
@@ -1992,9 +2106,9 @@ class TestActionPlanTools:
     def test_get_action_plan_effort_filter(self, ctx):
         client = ctx.request_context.lifespan_context.client
         client.get.return_value = [
-            _action_fixture("a1", action_type="schema_patch"),       # easy
-            _action_fixture("a2", action_type="content_update"),     # medium
-            _action_fixture("a3", action_type="content_new_page"),   # hard
+            _action_fixture("a1", action_type="schema_patch"),  # easy
+            _action_fixture("a2", action_type="content_update"),  # medium
+            _action_fixture("a3", action_type="content_new_page"),  # hard
         ]
 
         result = run(get_action_plan(ctx, business_id="b1", effort_filter="easy"))
@@ -2081,8 +2195,7 @@ class TestActionPlanTools:
     def test_get_quick_wins_respects_max_results(self, ctx):
         client = ctx.request_context.lifespan_context.client
         client.get.return_value = [
-            _action_fixture(f"a{i}", effort_score=10, impact_score=90)
-            for i in range(10)
+            _action_fixture(f"a{i}", effort_score=10, impact_score=90) for i in range(10)
         ]
 
         result = run(get_quick_wins(ctx, business_id="b1", max_results=3))

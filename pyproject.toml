@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cited-cli"
-version = "0.3.12"
+version = "0.3.14"
 description = "CLI for the Cited GEO platform"
 readme = "README.md"
 license = "LicenseRef-Proprietary"
 requires-python = ">=3.11"
 authors = [{ name = "Cited", email = "support@youcited.com" }]
 dependencies = [
-    "cited-core>=0.3.12",
+    "cited-core>=0.3.14",
     "typer>=0.15.0",
     "rich>=13.0.0",
 ]
@@ -20,13 +20,13 @@ dependencies = [
 cited = "cited_cli.app:main"
 
 [project.optional-dependencies]
-mcp = ["cited-mcp>=0.3.12"]
+mcp = ["cited-mcp>=0.3.14"]
 dev = [
     "pytest>=8.0",
     "respx>=0.21",
     "ruff>=0.4",
     "mypy>=1.10",
-    "cited-mcp>=0.3.12",
+    "cited-mcp>=0.3.14",
     "types-PyYAML>=6.0",
 ]
 
