@@ -40,6 +40,15 @@ class CitedClient:
     def close(self) -> None:
         self._client.close()
 
+    def set_request_id(self, request_id: str | None) -> None:
+        """Stamp X-Request-ID on subsequent outgoing requests so the cited
+        backend can echo it in its access logs and produce end-to-end traces.
+        Pass None to clear."""
+        if request_id:
+            self._client.headers["X-Request-ID"] = request_id
+        else:
+            self._client.headers.pop("X-Request-ID", None)
+
     def __enter__(self) -> CitedClient:
         return self
 
