@@ -33,6 +33,7 @@ MCP_ONLY = {
     "get_usage_stats",          # Aggregated stats — CLI uses auth status + business list
     "get_job_status",           # MCP probes types; CLI uses job watch (live polling)
     "get_audit_question_detail",  # Drill-down from summary — CLI uses audit result (full)
+    "get_recommendation_insight_detail",  # Drill-down from summary — CLI uses recommend full
     "start_solutions_batch",    # Bulk operation — CLI users call solution start in a loop
     # Action plan tools — agent/conversational checklist UX, no CLI equivalent yet
     "get_action_plan",          # Conversational ranked checklist — agents only
