@@ -48,6 +48,40 @@ versions:
     tools_removed: []
     behavior_changed: []
 
+  - version: "0.3.13"
+    released: "2026-05-05"
+    fingerprint: "50d7d468fd96"
+    tools_added: []
+    tools_changed:
+      - name: get_competitive_comparison
+        change_summary: |
+          Docstring now documents two response fields exposed by the
+          backend: ``analysis_status`` (``not_yet_computed`` / ``stale``
+          / ``current``) and ``last_analysis_run_at``. Tells agents to
+          surface freshness when ``analysis_status != "current"`` and
+          recommend ``crawl_business`` / ``start_audit`` for a cold-start
+          business. Backend-side change shipped in cited PR #82.
+      - name: compare_audits
+        change_summary: |
+          Docstring now enumerates the typed ``error_type`` values the
+          backend returns when a comparison fails —
+          ``audit_not_found`` / ``baseline_not_found`` (404),
+          ``audit_access_denied`` / ``baseline_access_denied`` (403),
+          ``same_audit`` / ``mismatched_named_audits`` (422) — and the
+          ``offending_id`` field that identifies which audit caused the
+          failure. Backend-side change shipped in cited PR #83.
+    tools_removed: []
+    behavior_changed:
+      - area: error_diagnostics
+        change_summary: |
+          Two backend-side improvements visible to MCP callers: the
+          competitive comparison endpoint exposes data freshness, and
+          the audit comparison endpoint distinguishes "audit not found"
+          from "audit belongs to another account" / "same id passed
+          twice" / "different templates" with structured detail bodies.
+          No tool surface changes; docstrings updated so agents can
+          handle each case without parsing free-text errors.
+
   - version: "0.3.12"
     released: "2026-05-04"
     fingerprint: "c706ad655d3c"

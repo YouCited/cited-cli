@@ -21,7 +21,9 @@ from cited_mcp.tools._helpers import (
 
 @mcp.tool(
     title="Get Business Facts",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
 )
 @log_tool_call
 async def get_business_facts(
@@ -62,7 +64,9 @@ async def get_business_facts(
 
 @mcp.tool(
     title="Get Business Claims",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
 )
 @log_tool_call
 async def get_business_claims(
@@ -100,7 +104,9 @@ async def get_business_claims(
 
 @mcp.tool(
     title="Get Competitive Comparison",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
 )
 @log_tool_call
 async def get_competitive_comparison(
@@ -111,6 +117,19 @@ async def get_competitive_comparison(
 
     Returns ``competitors``, ``strengths``, ``weaknesses``, and
     ``market_intelligence`` from the existing competitive analysis.
+
+    Includes freshness fields:
+
+    - ``analysis_status`` — ``"not_yet_computed"`` (no competitor data on
+      file), ``"stale"`` (most recent competitor data is older than 30
+      days), or ``"current"``.
+    - ``last_analysis_run_at`` — ISO timestamp of the most recent
+      competitor data point, or ``null`` when nothing has been computed.
+
+    Surface freshness explicitly when ``analysis_status != "current"``:
+    on ``not_yet_computed`` recommend running ``crawl_business`` /
+    ``start_audit`` first; on ``stale`` warn that the competitor set may
+    be out of date and offer to refresh.
 
     When to call: mid-conversation, the user asks "how do we stack up
     against X" or wants positioning context. Doesn't run new prompts —
@@ -140,7 +159,9 @@ async def get_competitive_comparison(
 
 @mcp.tool(
     title="Get Semantic Health",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
 )
 @log_tool_call
 async def get_semantic_health(
@@ -180,7 +201,9 @@ async def get_semantic_health(
 
 @mcp.tool(
     title="Buyer Fit Query",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=True),  # noqa: E501
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=True
+    ),  # noqa: E501
 )
 @log_tool_call
 async def buyer_fit_query(
@@ -230,8 +253,6 @@ async def buyer_fit_query(
         "limit": limit,
     }
     try:
-        return _truncate_response(
-            cited_ctx.client.post(endpoints.AGENT_BUYER_FIT, json=payload)
-        )
+        return _truncate_response(cited_ctx.client.post(endpoints.AGENT_BUYER_FIT, json=payload))
     except CitedAPIError as e:
         return _api_error_response(e)
