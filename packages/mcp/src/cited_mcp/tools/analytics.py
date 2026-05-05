@@ -21,7 +21,9 @@ from cited_mcp.tools._helpers import (
 
 @mcp.tool(
     title="Get Analytics Trends",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
 )
 @log_tool_call
 async def get_analytics_trends(
@@ -58,7 +60,9 @@ async def get_analytics_trends(
 
 @mcp.tool(
     title="Get Analytics Dashboard",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
 )
 @log_tool_call
 async def get_analytics_dashboard(
@@ -92,9 +96,7 @@ async def get_analytics_dashboard(
         return {"error": True, "message": "business_id is required. Call list_businesses first."}
     try:
         return _truncate_response(
-            cited_ctx.client.get(
-                endpoints.ANALYTICS_DASHBOARD.format(business_id=business_id)
-            )
+            cited_ctx.client.get(endpoints.ANALYTICS_DASHBOARD.format(business_id=business_id))
         )
     except CitedAPIError as e:
         return _api_error_response(e)
@@ -102,7 +104,9 @@ async def get_analytics_dashboard(
 
 @mcp.tool(
     title="Compare Audits",
-    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
 )
 @log_tool_call
 async def compare_audits(
@@ -120,6 +124,21 @@ async def compare_audits(
     Use ``list_audits`` to find a prior completed audit on the same template
     and pass its job_id as ``baseline_id``.
 
+    Error handling: failures return a structured ``detail`` body with
+    ``error_type`` and (where applicable) ``offending_id`` so you can tell
+    the user which audit caused the problem. Possible ``error_type`` values:
+
+    - ``audit_not_found`` (404) — the current audit doesn't exist; the id
+      may have been deleted or mistyped.
+    - ``baseline_not_found`` (404) — the baseline audit doesn't exist.
+    - ``audit_access_denied`` (403) — the current audit belongs to a
+      different account; the user can't compare across accounts.
+    - ``baseline_access_denied`` (403) — same as above for the baseline.
+    - ``same_audit`` (422) — both ids are identical; ask for a different
+      ``baseline_id``.
+    - ``mismatched_named_audits`` (422) — the two audits use different
+      named-audit templates and aren't comparable.
+
     On a ``payment_required: true`` response, surface ``upgrade_url`` and
     ``required_tier`` (with ``upgrade_price_usd``) to the user before any
     fallback — they may want to upgrade.
@@ -136,9 +155,7 @@ async def compare_audits(
     try:
         return _truncate_response(
             cited_ctx.client.get(
-                endpoints.ANALYTICS_COMPARE.format(
-                    audit_id=audit_id, baseline_id=baseline_id
-                )
+                endpoints.ANALYTICS_COMPARE.format(audit_id=audit_id, baseline_id=baseline_id)
             )
         )
     except CitedAPIError as e:
