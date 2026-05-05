@@ -1556,6 +1556,78 @@ class TestDecoratorErrorHandling:
         assert "_request_id" in result
 
 
+class TestEnrichedLogging:
+    """Verify tool_call lines carry server_version, fingerprint, deployment_id,
+    resource IDs, and propagate X-Request-ID to the cited backend."""
+
+    def test_tool_call_log_includes_build_identity_and_resources(self, ctx, caplog):
+        """Successful tool_call log must carry server_version, tools_fingerprint,
+        deployment_id, AND extracted resource IDs from kwargs."""
+        import json
+        import logging
+
+        from cited_mcp.tools._helpers import _BUILD_IDENTITY
+
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"id": "biz-abc"}
+
+        with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+            run(get_business(ctx, business_id="biz-abc"))
+
+        tool_call_lines = [
+            json.loads(r.message)
+            for r in caplog.records
+            if r.name == "cited_mcp.usage" and '"event": "tool_call"' in r.message
+        ]
+        assert tool_call_lines, "no tool_call log line emitted"
+        rec = tool_call_lines[-1]
+        # build identity is stamped
+        assert rec["server_version"] == _BUILD_IDENTITY["server_version"]
+        assert rec["tools_fingerprint"] == _BUILD_IDENTITY["tools_fingerprint"]
+        assert "deployment_id" in rec
+        # the business_id kwarg made it into resources
+        assert rec.get("resources", {}).get("business_id") == "biz-abc"
+
+    def test_tool_call_propagates_request_id_to_client(self, ctx):
+        """The decorator must call set_request_id on the CitedClient so the
+        backend gets X-Request-ID for end-to-end correlation."""
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"id": "biz-abc"}
+
+        run(get_business(ctx, business_id="biz-abc"))
+
+        # set_request_id should have been called twice: once with the
+        # request_id, once with None to clear in finally.
+        assert client.set_request_id.call_count >= 2
+        # First call carries a non-None 12-char hex request_id
+        first = client.set_request_id.call_args_list[0].args[0]
+        assert isinstance(first, str) and len(first) == 12
+        # Last call clears it
+        assert client.set_request_id.call_args_list[-1].args[0] is None
+
+    def test_tool_call_log_carries_typed_error_on_failure(self, ctx, caplog):
+        """When a tool returns {error: True, error_type: ..., status_code: ...}
+        the tool_call log line should include those fields."""
+        import json
+        import logging
+
+        client = ctx.request_context.lifespan_context.client
+        client.get.side_effect = CitedAPIError(404, "Business not found", "not_found")
+
+        with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+            run(get_business(ctx, business_id="missing"))
+
+        tool_call_lines = [
+            json.loads(r.message)
+            for r in caplog.records
+            if r.name == "cited_mcp.usage" and '"event": "tool_call"' in r.message
+        ]
+        assert tool_call_lines
+        rec = tool_call_lines[-1]
+        assert rec["success"] is False
+        assert rec.get("status_code") == 404
+
+
 class TestTransportErrors:
     def test_timeout_returns_error(self, ctx):
         """httpx.TimeoutException should return a structured error, not crash."""

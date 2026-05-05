@@ -21,6 +21,57 @@
 #      this file.
 
 versions:
+  - version: "0.3.15"
+    released: "2026-05-05"
+    # Fingerprint unchanged from 0.3.14 image runtime — pure observability +
+    # logging-enrichment release; no tool surface change. (The 0.3.14 entry
+    # below pins defa3022aedb, which was the host-venv compute at release
+    # prep — differing from the deployed image's 1c4fed943fff. Future
+    # entries should pin runtime fingerprints; this collision is benign
+    # because there's nothing in the surface for clients to act on.)
+    fingerprint: "1c4fed943fff"
+    tools_added: []
+    tools_changed: []
+    tools_removed: []
+    behavior_changed:
+      - area: structured_logging
+        change_summary: |
+          Every ``tool_call`` log line now carries:
+          - ``server_version`` and ``tools_fingerprint`` (so log entries
+            self-identify which build emitted them)
+          - ``deployment_id`` from ``CITED_DEPLOYMENT_ID`` env var
+            (format ``<env>-<short-sha>-<unix-ts>``, set by the deploy
+            script — uniquely identifies a single deploy attempt)
+          - ``client_id`` extracted from the OAuth JWT (lets us tell
+            Claude Desktop traffic from Claude.ai traffic)
+          - ``resources`` map with ID-shaped kwargs (``business_id``,
+            ``audit_id``, ``job_id``, ``source_id``, etc.) — enough to
+            correlate user activity with backend records, never raw
+            content like buyer profiles or audit descriptions.
+          On failures the line now also carries ``error_type`` and
+          ``status_code`` pulled from the typed-error response, so the
+          dashboard can categorise failures without grepping messages.
+      - area: end_to_end_tracing
+        change_summary: |
+          The MCP now stamps ``X-Request-ID`` on every outgoing call to
+          the cited backend (matching the ``request_id`` already in the
+          tool_call log line). The backend can echo this to its own
+          access logs to produce end-to-end traces — when a customer
+          reports "buyer_fit_query 500 with request_id abc123" the
+          owner can find both MCP-side and backend-side log entries
+          for the same request.
+      - area: deploy_pipeline
+        change_summary: |
+          Companion ``deploy-mcp.sh`` improvements (cited-mcp-infra
+          repo, commit 5542667): split log groups (prod writes to
+          ``/ecs/cited-mcp-prod`` instead of mixing into the dev
+          group), real stability check that fails the deploy when ECS
+          silently rolls back to a prior task definition (the failure
+          mode that hid today's IAM-blocked prod deploy), and
+          deployment_id stamping. CloudWatch dashboard ``cited-mcp``
+          + saved Insights queries (``cited-mcp/usage/per-user`` etc.)
+          + failure-burst alarms also added.
+
   - version: "0.3.14"
     released: "2026-05-05"
     fingerprint: "defa3022aedb"

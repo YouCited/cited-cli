@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import functools
 import hashlib
 import json
@@ -52,9 +53,7 @@ def _truncate_response(data: Any, max_bytes: int = _MAX_RESPONSE_BYTES) -> Any:
 
     if isinstance(data, dict):
         # Find list-valued fields and iteratively shrink the longest
-        list_fields = {
-            k: v for k, v in data.items() if isinstance(v, list) and len(v) > 0
-        }
+        list_fields = {k: v for k, v in data.items() if isinstance(v, list) and len(v) > 0}
         truncated_fields: list[str] = []
         attempts = 0
         while (
@@ -165,9 +164,7 @@ def _auth_check(cited_ctx: CitedContext) -> dict[str, Any] | None:
     return None
 
 
-def _resolve_business_id(
-    cited_ctx: CitedContext, business_id: str | None
-) -> str | None:
+def _resolve_business_id(cited_ctx: CitedContext, business_id: str | None) -> str | None:
     """Return *business_id* if provided, else the session default."""
     return business_id or cited_ctx.default_business_id
 
@@ -241,12 +238,105 @@ def _extract_user(token: str | None) -> str:
     if not token:
         return "anonymous"
     try:
-        payload = pyjwt.decode(
-            token, options={"verify_signature": False}
-        )
+        payload = pyjwt.decode(token, options={"verify_signature": False})
         return str(payload.get("email") or payload.get("sub") or "unknown")
     except Exception:
         return "unknown"
+
+
+def _extract_client_id(token: str | None) -> str | None:
+    """Decode OAuth client_id from a JWT (for connector-mix analytics)."""
+    if not token:
+        return None
+    try:
+        payload = pyjwt.decode(token, options={"verify_signature": False})
+        cid = payload.get("client_id") or payload.get("aud") or payload.get("azp")
+        if isinstance(cid, list):
+            cid = cid[0] if cid else None
+        return str(cid) if cid else None
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Build identity — stamped into every tool_call line for log correlation.
+# Computed once at module import: cheap, deterministic, survives the request.
+# ---------------------------------------------------------------------------
+
+_BUILD_IDENTITY: dict[str, str] = {}
+
+
+def _get_build_identity() -> dict[str, str]:
+    """Return cached server_version, tools_fingerprint, deployment_id.
+
+    Lazy + memoised because compute_tools_fingerprint walks the live server's
+    tool registry — fine to do once but expensive per request.
+    """
+    if _BUILD_IDENTITY:
+        return _BUILD_IDENTITY
+    try:
+        from cited_mcp import __version__ as ver
+        from cited_mcp.server import compute_tools_fingerprint
+        from cited_mcp.server import mcp as live_mcp
+
+        _BUILD_IDENTITY["server_version"] = ver
+        _BUILD_IDENTITY["tools_fingerprint"] = compute_tools_fingerprint(live_mcp)
+    except Exception:
+        # Don't crash logging if the import fails — emit blanks instead.
+        _BUILD_IDENTITY["server_version"] = "unknown"
+        _BUILD_IDENTITY["tools_fingerprint"] = "unknown"
+    _BUILD_IDENTITY["deployment_id"] = os.environ.get("CITED_DEPLOYMENT_ID", "local")
+    return _BUILD_IDENTITY
+
+
+# ---------------------------------------------------------------------------
+# Resource ID extraction for tool_call logs.
+#
+# We log obvious-shaped IDs (business_id, audit_id, job_id, source_id, etc.)
+# so customer-support and abuse-investigation flows can correlate user
+# activity with platform records. We deliberately do NOT log free-text
+# content (audit descriptions, buyer profiles, etc.) — those can contain
+# sensitive material.
+# ---------------------------------------------------------------------------
+
+# Tool kwargs that name a resource we want to log. Match against suffixes:
+# *_id and *_type are the conventions across the surface.
+_RESOURCE_KEYS = {
+    "business_id",
+    "audit_id",
+    "baseline_id",
+    "job_id",
+    "recommendation_job_id",
+    "audit_job_id",
+    "named_audit_id",
+    "template_id",
+    "solution_id",
+    "recommendation_id",
+    "source_id",
+    "source_type",
+    "action_id",
+    "check_id",
+    "question_id",
+}
+
+# Maximum length of a logged ID value — avoids the case where a tool author
+# accidentally maps a long string into one of these key names.
+_MAX_RESOURCE_VALUE_LEN = 80
+
+
+def _extract_resource_ids(kwargs: dict[str, Any]) -> dict[str, str]:
+    """Pull ID-shaped kwargs into a flat dict, redacting anything else."""
+    out: dict[str, str] = {}
+    for key, val in kwargs.items():
+        if key not in _RESOURCE_KEYS:
+            continue
+        if val is None:
+            continue
+        s = str(val)
+        if len(s) > _MAX_RESOURCE_VALUE_LEN:
+            continue
+        out[key] = s
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -294,31 +384,52 @@ def log_tool_call(
         token = _resolve_token(ctx)
         rl_key = _rate_limit_key(token)
         user = _extract_user(token)
+        client_id = _extract_client_id(token)
         request_id = uuid.uuid4().hex[:12]
         start = time.monotonic()
+        build = _get_build_identity()
+        resources = _extract_resource_ids(kwargs)
+        # Header-propagation context — set inside the try block below so that
+        # _get_ctx failures still flow through structured error handling.
+        cited_ctx_for_header: CitedContext | None = None
+
+        def _log(event: str, **extra: Any) -> None:
+            payload: dict[str, Any] = {
+                "event": event,
+                "request_id": request_id,
+                "tool": tool_name,
+                "user": user,
+                "client_id": client_id,
+                "server_version": build["server_version"],
+                "tools_fingerprint": build["tools_fingerprint"],
+                "deployment_id": build["deployment_id"],
+            }
+            if resources:
+                payload["resources"] = resources
+            payload.update(extra)
+            logger.info(json.dumps(payload, default=str))
 
         # Rate limit check
         if rl_err := _check_rate_limit(rl_key):
-            logger.info(
-                json.dumps(
-                    {
-                        "event": "rate_limited",
-                        "request_id": request_id,
-                        "tool": tool_name,
-                        "user": user,
-                    }
-                )
-            )
+            _log("rate_limited")
             rl_err["_request_id"] = request_id
             return rl_err
 
         try:
+            # Propagate request_id to the cited backend for end-to-end traces.
+            cited_ctx_for_header = _get_ctx(ctx)
+            cited_ctx_for_header.client.set_request_id(request_id)
+
             # Plan gating check (skip for auth tools — must always be accessible)
             from cited_mcp.plan_gating import is_tool_allowed, upgrade_message
 
             _AUTH_TOOLS = {
-                "ping", "check_auth_status", "login", "logout",
-                "get_pricing", "upgrade_plan",
+                "ping",
+                "check_auth_status",
+                "login",
+                "logout",
+                "get_pricing",
+                "upgrade_plan",
             }
             if tool_name not in _AUTH_TOOLS and token:
                 cited_ctx = _get_ctx(ctx)
@@ -327,39 +438,31 @@ def log_tool_call(
                     if not is_tool_allowed(tool_name, user_tier):
                         gate_err = upgrade_message(tool_name, user_tier)
                         gate_err["_request_id"] = request_id
-                        logger.info(
-                            json.dumps(
-                                {
-                                    "event": "plan_gated",
-                                    "request_id": request_id,
-                                    "tool": tool_name,
-                                    "user": user,
-                                    "current_tier": user_tier,
-                                    "required_tier": gate_err[
-                                        "required_tier"
-                                    ],
-                                }
-                            )
+                        _log(
+                            "plan_gated",
+                            current_tier=user_tier,
+                            required_tier=gate_err["required_tier"],
                         )
                         return gate_err
 
             result = await func(ctx, *args, **kwargs)
             duration_ms = int((time.monotonic() - start) * 1000)
-            is_error = isinstance(result, dict) and result.get(
-                "error"
-            ) is True
-            logger.info(
-                json.dumps(
-                    {
-                        "event": "tool_call",
-                        "request_id": request_id,
-                        "tool": tool_name,
-                        "user": user,
-                        "duration_ms": duration_ms,
-                        "success": not is_error,
-                    }
-                )
-            )
+            is_error = isinstance(result, dict) and result.get("error") is True
+            extra: dict[str, Any] = {
+                "duration_ms": duration_ms,
+                "success": not is_error,
+            }
+            if is_error and isinstance(result, dict):
+                # Pull through the typed error fields the tools already emit
+                # so failures are categorisable in the dashboard without
+                # re-grepping raw error messages.
+                if et := result.get("error_type"):
+                    extra["error_type"] = et
+                if sc := result.get("status_code"):
+                    extra["status_code"] = sc
+                if pr := result.get("payment_required"):
+                    extra["payment_required"] = pr
+            _log("tool_call", **extra)
             # Inject request_id into response
             if isinstance(result, dict):
                 result["_request_id"] = request_id
@@ -372,19 +475,7 @@ def log_tool_call(
 
         except httpx.TimeoutException:
             duration_ms = int((time.monotonic() - start) * 1000)
-            logger.info(
-                json.dumps(
-                    {
-                        "event": "tool_call",
-                        "request_id": request_id,
-                        "tool": tool_name,
-                        "user": user,
-                        "duration_ms": duration_ms,
-                        "success": False,
-                        "error_type": "timeout",
-                    }
-                )
-            )
+            _log("tool_call", duration_ms=duration_ms, success=False, error_type="timeout")
             return {
                 "error": True,
                 "error_type": "upstream_timeout",
@@ -398,19 +489,7 @@ def log_tool_call(
 
         except httpx.ConnectError:
             duration_ms = int((time.monotonic() - start) * 1000)
-            logger.info(
-                json.dumps(
-                    {
-                        "event": "tool_call",
-                        "request_id": request_id,
-                        "tool": tool_name,
-                        "user": user,
-                        "duration_ms": duration_ms,
-                        "success": False,
-                        "error_type": "connection_error",
-                    }
-                )
-            )
+            _log("tool_call", duration_ms=duration_ms, success=False, error_type="connection_error")
             return {
                 "error": True,
                 "error_type": "connection_error",
@@ -424,29 +503,27 @@ def log_tool_call(
 
         except Exception as exc:
             duration_ms = int((time.monotonic() - start) * 1000)
-            logger.info(
-                json.dumps(
-                    {
-                        "event": "tool_call",
-                        "request_id": request_id,
-                        "tool": tool_name,
-                        "user": user,
-                        "duration_ms": duration_ms,
-                        "success": False,
-                        "error_type": type(exc).__name__,
-                    }
-                )
+            _log(
+                "tool_call",
+                duration_ms=duration_ms,
+                success=False,
+                error_type=type(exc).__name__,
             )
             return {
                 "error": True,
                 "error_type": type(exc).__name__,
                 "message": (
-                    "An unexpected error occurred. "
-                    "This is usually transient — please retry."
+                    "An unexpected error occurred. This is usually transient — please retry."
                 ),
                 "retriable": True,
                 "_request_id": request_id,
             }
+        finally:
+            # Clear the request_id header so the next caller's tool_call
+            # doesn't accidentally inherit this one's correlation id.
+            if cited_ctx_for_header is not None:
+                with contextlib.suppress(Exception):
+                    cited_ctx_for_header.client.set_request_id(None)
 
     return wrapper
 
@@ -461,8 +538,7 @@ def _api_error_response(e: CitedAPIError) -> dict[str, Any]:
 
     for code, substring, hint in _ERROR_HINTS:
         if e.status_code == code and (
-            substring is None
-            or (e.message and substring.lower() in e.message.lower())
+            substring is None or (e.message and substring.lower() in e.message.lower())
         ):
             response["hint"] = hint
             break
