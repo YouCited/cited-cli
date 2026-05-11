@@ -334,7 +334,7 @@ async def get_recommendation_check_status(
     recommendation_job_id: str,
     mode: str = "cache",
 ) -> Any:
-    """Run all 62 deterministic GEO/SEO checks against the business linked to a recommendation job.
+    """Run all 72 deterministic GEO/SEO checks against the business linked to a recommendation job.
 
     Returns ``counts`` (valid / invalid / inconclusive) plus per-check
     ``results`` with check_id, category, domain, status, message,
@@ -342,6 +342,25 @@ async def get_recommendation_check_status(
     audit — these are deterministic site checks (schema, llms.txt,
     technical SEO, content, social) that verify whether a fix actually
     landed.
+
+    Tier 4 (added 2026-05) extended coverage with 8 GEO-authority,
+    freshness, and agentic-AI checks:
+
+    - ``schema.knowledge_graph_linkage`` — Organization.sameAs links
+      include >=1 authority graph (Wikidata, Wikipedia, Crunchbase, etc.)
+    - ``schema.aggregate_rating_present`` — industry-conditional
+      AggregateRating/Review schema for "best X" / "X vs Y" queries
+    - ``content.author_bio_on_blog_posts`` — rendered bio block + outbound
+      profile link beyond just JSON-LD author
+    - ``technical.sitemap_lastmod_freshness`` — catches build-stamped
+      sitemaps and stale newest-entries
+    - ``technical.outbound_authority_citations`` — ratio of authority
+      links (.gov / .edu / Wikipedia / DOI / Nature / etc.) per 1000 words
+    - ``technical.hreflang_and_lang_consistency`` — well-formed hreflang
+      + html lang declaration (multi-region AI search)
+    - ``crawler.well_known_agent_discovery`` — at least one of
+      /.well-known/agent-card.json, /.well-known/mcp/server-card.json,
+      /.well-known/api-catalog, /openapi.json is present
 
     When to call: the user wants a deeper diagnostic of what's
     detectable on their site, or asks "what's still broken after my

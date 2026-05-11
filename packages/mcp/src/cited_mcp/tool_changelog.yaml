@@ -21,6 +21,102 @@
 #      this file.
 
 versions:
+  - version: "0.4.0"
+    released: "2026-05-08"
+    # 12 new tools + docstring/parameter-schema edits on 4 existing tools —
+    # significant surface expansion, so the minor version bumps to 0.4.0
+    # to signal a non-additive-only release for clients that diff the
+    # fingerprint.
+    fingerprint: "8197f97dcd06"
+    tools_added:
+      - name: get_agent_brief
+        description: |
+          Single-call composite "what should I focus on right now?" —
+          top priority actions, quick wins, failing deterministic checks,
+          and recent citation-rate movement. Designed to replace
+          chained get_business_hq + get_quick_wins + check_status calls
+          in opening-turn agent flows.
+      - name: list_profile_competitors
+        description: |
+          List the user-declared competitors on a business profile.
+          These bypass third-party domain filtering and rank ahead of
+          citation-only picks in head-to-head comparisons.
+      - name: set_profile_competitors
+        description: |
+          Replace the full list of profile competitors (max 10).
+          Pass [{name, website}] entries; PUT replaces. Use when the
+          user reports an obviously-relevant rival missing from H2H.
+      - name: recompute_health_scores
+        description: |
+          Force a fresh recomputation of business health scores after
+          profile/HQ edits — no crawl, no audit, just re-derive from
+          existing data.
+      - name: refresh_business_overview
+        description: |
+          Refresh cached audit / recommendation overview projections
+          for a business. scope ∈ {audit, recommendations, all}.
+      - name: create_persona
+        description: Create a target buyer persona on a business.
+      - name: update_persona
+        description: Update a persona (partial — only changed fields).
+      - name: delete_persona
+        description: Delete a persona.
+      - name: create_product
+        description: Create a product/service offering on a business.
+      - name: update_product
+        description: Update a product (partial).
+      - name: delete_product
+        description: Delete a product.
+      - name: create_buyer_intent
+        description: |
+          Create a buyer-intent entry tying personas to products
+          through specific decision moments — drives audit question
+          generation and per-intent coverage scoring.
+    tools_changed:
+      - name: get_business_hq
+        change_summary: |
+          New include flags ``include_agentic_readiness`` and
+          ``include_trust_signals`` add the agentic-readiness summary
+          and trust-signal evidence to the dashboard payload. Existing
+          callers are unaffected — both default to false.
+      - name: get_competitive_comparison
+        change_summary: |
+          Docstring now describes the new ``analysis_status`` and
+          ``last_analysis_run_at`` freshness fields on the response
+          (added in cited backend commit 2c716be). Tool behavior is
+          unchanged — these were already passed through; the docstring
+          was previously silent about them.
+      - name: get_recommendation_check_status
+        change_summary: |
+          Updated for Validation Engine Tier 4: now runs 72
+          deterministic checks (was 62). New checks fill
+          monitoring_adaptation and original_research domains
+          (knowledge_graph_linkage, aggregate_rating_present,
+          author_bio_on_blog_posts, sitemap_lastmod_freshness,
+          outbound_authority_citations, hreflang_and_lang_consistency,
+          well_known_agent_discovery). Response shape unchanged.
+      - name: crawl_business
+        change_summary: |
+          Docstring now notes the post-crawl auto-fill side effect:
+          empty business-profile fields (description, founding year,
+          NAICS, sameAs links) are populated from JSON-LD / meta tags
+          found on the homepage. User-supplied values are never
+          overwritten. (cited backend CIT-148.)
+    tools_removed: []
+    behavior_changed:
+      - area: plan_gating
+        change_summary: |
+          Tier assignments for the new tools:
+          - base (all tiers): ``list_profile_competitors``
+          - scale: ``set_profile_competitors``,
+            ``create/update/delete_persona``,
+            ``create/update/delete_product``,
+            ``create_buyer_intent``,
+            ``recompute_health_scores``,
+            ``refresh_business_overview``
+          - pro: ``get_agent_brief`` (matches the ``get_business_hq``
+            tier — same composite-dashboard semantics).
+
   - version: "0.3.15"
     released: "2026-05-05"
     # Fingerprint unchanged from 0.3.14 image runtime — pure observability +

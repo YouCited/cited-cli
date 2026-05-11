@@ -13,6 +13,7 @@ from cited_mcp.tools._helpers import (
     _api_error_response,
     _auth_check,
     _get_ctx,
+    _resolve_business_id,
     log_tool_call,
 )
 
@@ -194,6 +195,12 @@ async def crawl_business(ctx: Context[Any, CitedContext, Any], business_id: str)
     automatically if one is needed, so explicit crawling is not
     required for the standard workflow.
 
+    Side effect: a successful crawl will auto-fill empty business-profile
+    fields from JSON-LD / meta tags it finds on the homepage (e.g.
+    description, founding year, NAICS, social links). User-supplied values
+    are never overwritten — only blank fields get populated. After the
+    crawl finishes, call ``get_business`` to see what was filled in.
+
     Returns a job_id to poll with get_job_status. Typical time: 1-3 min.
     """
     cited_ctx = _get_ctx(ctx)
@@ -217,6 +224,107 @@ async def get_health_scores(ctx: Context[Any, CitedContext, Any], business_id: s
         return err
     try:
         return cited_ctx.client.get(endpoints.HEALTH_SCORES.format(business_id=business_id))
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
+    title="List Profile Competitors",
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
+)
+@log_tool_call
+async def list_profile_competitors(
+    ctx: Context[Any, CitedContext, Any],
+    business_id: str | None = None,
+) -> Any:
+    """List the competitors the user has explicitly declared on their business profile.
+
+    Returns a list of ``{id, name, website}``. These are competitors that
+    bypass third-party citation-only filtering during audits and
+    head-to-head comparisons — declared rivals are always analysed and
+    rank ahead of citation-only picks.
+
+    When to call: the user asks "who are we tracking as competitors?",
+    or before recommending ``set_profile_competitors`` so you can show
+    them the current list and append/replace intentionally. If the list
+    is empty and the user has complained about an obviously-relevant
+    rival missing from H2H comparisons, suggest adding it via
+    ``set_profile_competitors``.
+
+    Args:
+        ctx: MCP context
+        business_id: Business ID (uses default if omitted)
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    business_id = _resolve_business_id(cited_ctx, business_id)
+    if not business_id:
+        return {"error": True, "message": "business_id is required. Call list_businesses first."}
+    try:
+        return cited_ctx.client.get(
+            endpoints.PROFILE_COMPETITORS.format(business_id=business_id)
+        )
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
+    title="Set Profile Competitors",
+    annotations=ToolAnnotations(
+        readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
+)
+@log_tool_call
+async def set_profile_competitors(
+    ctx: Context[Any, CitedContext, Any],
+    competitors: list[dict[str, str]],
+    business_id: str | None = None,
+) -> Any:
+    """Replace the full list of profile competitors (max 10).
+
+    This is a REPLACE operation, not append — pass the entire desired list.
+    To add one competitor without losing existing ones, call
+    ``list_profile_competitors`` first, append to that list, then pass the
+    combined list here. To remove all, pass an empty list.
+
+    Profile competitors bypass third-party domain filtering and are ranked
+    ahead of citation-only picks in head-to-head comparisons. Add a
+    competitor here when an obviously-relevant rival isn't appearing in
+    audit results because they don't have enough citation signal.
+
+    Args:
+        ctx: MCP context
+        competitors: List of ``{"name": str, "website": str}`` dicts.
+            ``name`` is 2-255 chars; ``website`` must be a valid HTTP/HTTPS
+            URL. Maximum 10 entries.
+        business_id: Business ID (uses default if omitted)
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    business_id = _resolve_business_id(cited_ctx, business_id)
+    if not business_id:
+        return {"error": True, "message": "business_id is required. Call list_businesses first."}
+    if not isinstance(competitors, list):
+        return {
+            "error": True,
+            "message": "competitors must be a list of {name, website} dicts.",
+        }
+    if len(competitors) > 10:
+        return {
+            "error": True,
+            "message": (
+                f"Maximum 10 profile competitors per business — got {len(competitors)}."
+            ),
+        }
+    try:
+        return cited_ctx.client.put(
+            endpoints.PROFILE_COMPETITORS.format(business_id=business_id),
+            json={"competitors": competitors},
+        )
     except CitedAPIError as e:
         return _api_error_response(e)
 

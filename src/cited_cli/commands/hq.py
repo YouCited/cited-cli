@@ -5,8 +5,8 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from cited_cli.output.formatter import OutputContext, print_error, print_result
-from cited_cli.output.tables import render_bar
+from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
+from cited_cli.output.tables import render_bar, render_kv
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
 from cited_core.api import endpoints
 from cited_core.api.client import CitedClient
@@ -14,6 +14,9 @@ from cited_core.auth.store import TokenStore
 from cited_core.config.manager import ConfigManager
 
 hq_app = typer.Typer(name="hq", help="Business HQ dashboard.", invoke_without_command=True)
+persona_app = typer.Typer(name="persona", help="Manage buyer personas.")
+product_app = typer.Typer(name="product", help="Manage products and services.")
+intent_app = typer.Typer(name="intent", help="Manage buyer intents.")
 
 
 def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient]:
@@ -123,3 +126,295 @@ def hq_dashboard(
         handle_api_error(e, out.json_mode)
     finally:
         client.close()
+
+
+@hq_app.command("brief")
+def hq_brief(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+) -> None:
+    """Show the agent brief — top priority actions, quick wins, failing checks, citation trend."""
+    out, client = _get_client(ctx)
+    try:
+        path = endpoints.HQ_AGENT_BRIEF.format(business_id=business_id)
+        data = client.get(path)
+
+        def _human(d: object, console: Console) -> None:
+            if not isinstance(d, dict):
+                return
+            console.rule("[bold]Agent Brief[/bold]")
+            for section_key, label in [
+                ("priority_actions", "Top Priority Actions"),
+                ("quick_wins", "Quick Wins"),
+                ("failing_checks", "Failing Checks"),
+            ]:
+                items = d.get(section_key) or []
+                if not items:
+                    continue
+                console.print(f"\n[bold]{label}[/bold]")
+                for item in items[:10] if isinstance(items, list) else []:
+                    title = item.get("title") or item.get("message") or item.get("name", "")
+                    console.print(f"  - {title}")
+            trend = d.get("citation_trend") or d.get("trend")
+            if trend:
+                console.print("\n[bold]Citation Trend[/bold]")
+                if isinstance(trend, dict):
+                    for k, v in trend.items():
+                        console.print(f"  {k}: {v}")
+
+        print_result(data, out, human_formatter=_human)
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@hq_app.command("recompute")
+def hq_recompute(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+) -> None:
+    """Force a fresh recomputation of health scores."""
+    out, client = _get_client(ctx)
+    try:
+        path = endpoints.HQ_RECOMPUTE.format(business_id=business_id)
+        data = client.post(path)
+        print_result(data, out, human_formatter=lambda d, c: render_kv("Recomputed Scores", d, c))
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@hq_app.command("refresh")
+def hq_refresh(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+    scope: Annotated[
+        str,
+        typer.Option(
+            "--scope", "-s", help="audit | recommendations | all (default all)"
+        ),
+    ] = "all",
+) -> None:
+    """Refresh cached audit / recommendation overview data."""
+    out, client = _get_client(ctx)
+    scope_norm = scope.lower().strip()
+    if scope_norm == "audit":
+        path = endpoints.HQ_OVERVIEW_REFRESH_AUDIT.format(business_id=business_id)
+    elif scope_norm in ("recommendations", "rec", "recs"):
+        path = endpoints.HQ_OVERVIEW_REFRESH_RECS.format(business_id=business_id)
+    elif scope_norm == "all":
+        path = endpoints.HQ_OVERVIEW_REFRESH_ALL.format(business_id=business_id)
+    else:
+        print_error("--scope must be one of: audit, recommendations, all", out)
+        raise typer.Exit(ExitCode.VALIDATION_ERROR)
+    try:
+        data = client.post(path)
+        print_result(data, out, human_formatter=lambda d, c: render_kv("Refreshed", d, c))
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+# ---------------------------------------------------------------------------
+# Persona CRUD
+# ---------------------------------------------------------------------------
+
+
+@persona_app.command("create")
+def persona_create(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+    name: Annotated[str, typer.Option("--name", help="Persona name")],
+    description: Annotated[str | None, typer.Option("--description")] = None,
+    role: Annotated[str | None, typer.Option("--role")] = None,
+) -> None:
+    """Create a buyer persona."""
+    out, client = _get_client(ctx)
+    payload: dict[str, object] = {"name": name}
+    if description is not None:
+        payload["description"] = description
+    if role is not None:
+        payload["role"] = role
+    try:
+        path = endpoints.PERSONAS.format(business_id=business_id)
+        data = client.post(path, json=payload)
+        print_result(data, out, human_formatter=lambda d, c: render_kv("Created Persona", d, c))
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@persona_app.command("update")
+def persona_update(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+    persona_id: Annotated[str, typer.Argument(help="Persona ID")],
+    name: Annotated[str | None, typer.Option("--name")] = None,
+    description: Annotated[str | None, typer.Option("--description")] = None,
+    role: Annotated[str | None, typer.Option("--role")] = None,
+) -> None:
+    """Update a persona."""
+    out, client = _get_client(ctx)
+    payload: dict[str, object] = {}
+    if name is not None:
+        payload["name"] = name
+    if description is not None:
+        payload["description"] = description
+    if role is not None:
+        payload["role"] = role
+    if not payload:
+        print_error("No fields to update.", out)
+        raise typer.Exit(ExitCode.VALIDATION_ERROR)
+    try:
+        path = endpoints.PERSONA.format(business_id=business_id, persona_id=persona_id)
+        data = client.patch(path, json=payload)
+        print_result(data, out, human_formatter=lambda d, c: render_kv("Updated Persona", d, c))
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@persona_app.command("delete")
+def persona_delete(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+    persona_id: Annotated[str, typer.Argument(help="Persona ID")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation")] = False,
+) -> None:
+    """Delete a persona."""
+    out, client = _get_client(ctx)
+    if not yes and not out.json_mode:
+        typer.confirm(f"Delete persona {persona_id}?", abort=True)
+    try:
+        path = endpoints.PERSONA.format(business_id=business_id, persona_id=persona_id)
+        client.delete(path)
+        print_success(f"Deleted persona {persona_id[:8]}", out)
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+# ---------------------------------------------------------------------------
+# Product CRUD
+# ---------------------------------------------------------------------------
+
+
+@product_app.command("create")
+def product_create(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+    name: Annotated[str, typer.Option("--name", help="Product name")],
+    description: Annotated[str | None, typer.Option("--description")] = None,
+    url: Annotated[str | None, typer.Option("--url", help="Landing page URL")] = None,
+    category: Annotated[str | None, typer.Option("--category")] = None,
+) -> None:
+    """Create a product/service."""
+    out, client = _get_client(ctx)
+    payload: dict[str, object] = {"name": name}
+    if description is not None:
+        payload["description"] = description
+    if url is not None:
+        payload["url"] = url
+    if category is not None:
+        payload["category"] = category
+    try:
+        path = endpoints.PRODUCTS.format(business_id=business_id)
+        data = client.post(path, json=payload)
+        print_result(data, out, human_formatter=lambda d, c: render_kv("Created Product", d, c))
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@product_app.command("update")
+def product_update(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+    product_id: Annotated[str, typer.Argument(help="Product ID")],
+    name: Annotated[str | None, typer.Option("--name")] = None,
+    description: Annotated[str | None, typer.Option("--description")] = None,
+    url: Annotated[str | None, typer.Option("--url")] = None,
+    category: Annotated[str | None, typer.Option("--category")] = None,
+) -> None:
+    """Update a product."""
+    out, client = _get_client(ctx)
+    payload: dict[str, object] = {}
+    if name is not None:
+        payload["name"] = name
+    if description is not None:
+        payload["description"] = description
+    if url is not None:
+        payload["url"] = url
+    if category is not None:
+        payload["category"] = category
+    if not payload:
+        print_error("No fields to update.", out)
+        raise typer.Exit(ExitCode.VALIDATION_ERROR)
+    try:
+        path = endpoints.PRODUCT.format(business_id=business_id, product_id=product_id)
+        data = client.patch(path, json=payload)
+        print_result(data, out, human_formatter=lambda d, c: render_kv("Updated Product", d, c))
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@product_app.command("delete")
+def product_delete(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+    product_id: Annotated[str, typer.Argument(help="Product ID")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation")] = False,
+) -> None:
+    """Delete a product."""
+    out, client = _get_client(ctx)
+    if not yes and not out.json_mode:
+        typer.confirm(f"Delete product {product_id}?", abort=True)
+    try:
+        path = endpoints.PRODUCT.format(business_id=business_id, product_id=product_id)
+        client.delete(path)
+        print_success(f"Deleted product {product_id[:8]}", out)
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+# ---------------------------------------------------------------------------
+# Buyer-intent
+# ---------------------------------------------------------------------------
+
+
+@intent_app.command("create")
+def intent_create(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+    intent: Annotated[str, typer.Option("--intent", help="Intent label")],
+    description: Annotated[str | None, typer.Option("--description")] = None,
+) -> None:
+    """Create a buyer intent."""
+    out, client = _get_client(ctx)
+    payload: dict[str, object] = {"intent": intent}
+    if description is not None:
+        payload["description"] = description
+    try:
+        path = endpoints.BUYER_INTENTS.format(business_id=business_id)
+        data = client.post(path, json=payload)
+        print_result(data, out, human_formatter=lambda d, c: render_kv("Created Intent", d, c))
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+hq_app.add_typer(persona_app, name="persona")
+hq_app.add_typer(product_app, name="product")
+hq_app.add_typer(intent_app, name="intent")

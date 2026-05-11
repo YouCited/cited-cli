@@ -43,6 +43,16 @@ _SCALE_TOOLS: set[str] = {
     "mark_action_done",
     "dismiss_action",
     "get_action_progress",
+    "set_profile_competitors",
+    "create_persona",
+    "update_persona",
+    "delete_persona",
+    "create_product",
+    "update_product",
+    "delete_product",
+    "create_buyer_intent",
+    "recompute_health_scores",
+    "refresh_business_overview",
 }
 
 # Tools restricted to pro+ tier
@@ -54,6 +64,7 @@ _PRO_TOOLS: set[str] = {
     "get_semantic_health",
     "buyer_fit_query",
     "get_business_hq",
+    "get_agent_brief",
     "get_analytics_trends",
     "get_analytics_dashboard",
     "compare_audits",
@@ -156,6 +167,7 @@ _BASE_TOOLS: set[str] = {
     "get_business",
     "crawl_business",
     "get_health_scores",
+    "list_profile_competitors",
     "list_audit_templates",
     "get_audit_template",
     "start_audit",

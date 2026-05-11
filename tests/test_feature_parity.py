@@ -135,6 +135,21 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "agent comparison": "get_competitive_comparison",
     "agent semantic-health": "get_semantic_health",
     "agent buyer-fit": "buyer_fit_query",
+    # Profile-declared competitors
+    "business profile-competitors list": "list_profile_competitors",
+    "business profile-competitors set": "set_profile_competitors",
+    # HQ writes / composite reads
+    "hq brief": "get_agent_brief",
+    "hq recompute": "recompute_health_scores",
+    "hq refresh": "refresh_business_overview",
+    # Persona / Product / Buyer-intent CRUD
+    "hq persona create": "create_persona",
+    "hq persona update": "update_persona",
+    "hq persona delete": "delete_persona",
+    "hq product create": "create_product",
+    "hq product update": "update_product",
+    "hq product delete": "delete_product",
+    "hq intent create": "create_buyer_intent",
     # Status (top-level)
     "status": "check_auth_status",
 }

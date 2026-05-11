@@ -60,6 +60,19 @@ EXPECTED_TOOLS = [
     "cancel_job",
     # HQ
     "get_business_hq",
+    "get_agent_brief",
+    "recompute_health_scores",
+    "refresh_business_overview",
+    # HQ profile management
+    "list_profile_competitors",
+    "set_profile_competitors",
+    "create_persona",
+    "update_persona",
+    "delete_persona",
+    "create_product",
+    "update_product",
+    "delete_product",
+    "create_buyer_intent",
     # Analytics
     "get_analytics_trends",
     "get_analytics_dashboard",
