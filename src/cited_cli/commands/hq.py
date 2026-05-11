@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
-from cited_cli.output.tables import render_bar, render_kv
+from cited_cli.output.tables import render_bar, render_kv, render_table
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
 from cited_core.api import endpoints
 from cited_core.api.client import CitedClient
@@ -223,6 +223,35 @@ def hq_refresh(
 # ---------------------------------------------------------------------------
 
 
+@persona_app.command("list")
+def persona_list(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+) -> None:
+    """List buyer personas for the business."""
+    out, client = _get_client(ctx)
+    try:
+        path = endpoints.PERSONAS.format(business_id=business_id)
+        data = client.get(path)
+        items = data if isinstance(data, list) else []
+
+        def _human(d: object, console: Console) -> None:
+            rows: list[list[str]] = []
+            for p in items:
+                rows.append([
+                    str(p.get("id", ""))[:8],
+                    str(p.get("name", "")),
+                    str(p.get("role", "") or ""),
+                ])
+            render_table("Personas", ["ID", "Name", "Role"], rows, console)
+
+        print_result(items, out, human_formatter=_human)
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
 @persona_app.command("create")
 def persona_create(
     ctx: typer.Context,
@@ -303,6 +332,36 @@ def persona_delete(
 # ---------------------------------------------------------------------------
 # Product CRUD
 # ---------------------------------------------------------------------------
+
+
+@product_app.command("list")
+def product_list(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+) -> None:
+    """List products/services for the business."""
+    out, client = _get_client(ctx)
+    try:
+        path = endpoints.PRODUCTS.format(business_id=business_id)
+        data = client.get(path)
+        items = data if isinstance(data, list) else []
+
+        def _human(d: object, console: Console) -> None:
+            rows: list[list[str]] = []
+            for p in items:
+                rows.append([
+                    str(p.get("id", ""))[:8],
+                    str(p.get("name", "")),
+                    str(p.get("category", "") or ""),
+                    str(p.get("url", "") or ""),
+                ])
+            render_table("Products", ["ID", "Name", "Category", "URL"], rows, console)
+
+        print_result(items, out, human_formatter=_human)
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
 
 
 @product_app.command("create")
@@ -391,6 +450,43 @@ def product_delete(
 # ---------------------------------------------------------------------------
 # Buyer-intent
 # ---------------------------------------------------------------------------
+
+
+@intent_app.command("list")
+def intent_list(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+) -> None:
+    """List buyer intents for the business."""
+    out, client = _get_client(ctx)
+    try:
+        path = endpoints.BUYER_INTENTS.format(business_id=business_id)
+        data = client.get(path)
+        items = data if isinstance(data, list) else []
+
+        def _human(d: object, console: Console) -> None:
+            rows: list[list[str]] = []
+            for i in items:
+                personas = i.get("persona_ids") or []
+                products = i.get("product_ids") or []
+                rows.append([
+                    str(i.get("id", ""))[:8],
+                    str(i.get("intent", "")),
+                    str(len(personas)),
+                    str(len(products)),
+                ])
+            render_table(
+                "Buyer Intents",
+                ["ID", "Intent", "# Personas", "# Products"],
+                rows,
+                console,
+            )
+
+        print_result(items, out, human_formatter=_human)
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
 
 
 @intent_app.command("create")

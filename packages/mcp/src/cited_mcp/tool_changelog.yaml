@@ -21,6 +21,56 @@
 #      this file.
 
 versions:
+  - version: "0.5.0"
+    released: "2026-05-11"
+    # Three new read-only list_* tools to enable persona/product/buyer-intent
+    # CRUD flows (agents need IDs before they can call update/delete), plus a
+    # significant parameter-schema expansion on update_business / create_business
+    # to cover the full canonical BusinessUpdate/CreateRequest field set. Also
+    # fixes a latent bug: update_business previously sent HTTP PUT against a
+    # backend PATCH route. Bumps minor (not patch) because update_business /
+    # create_business signature changes shift parameter ordering and clients
+    # diffing the fingerprint should pick this up as non-additive.
+    fingerprint: "e0b3d44d7d61"
+    tools_added:
+      - name: list_personas
+        description: |
+          List buyer personas declared on the business profile. Required
+          before update_persona / delete_persona since the agent has no
+          other way to discover persona_ids.
+      - name: list_products
+        description: |
+          List products / service offerings declared on the business
+          profile. Required before update_product / delete_product to
+          discover product_ids.
+      - name: list_buyer_intents
+        description: |
+          List buyer-intent entries declared on the business profile.
+          Use before recommending a new create_buyer_intent to avoid
+          overlapping entries.
+    tools_changed:
+      - name: update_business
+        change_summary: |
+          Parameter set expanded from 4 fields (name, website, description,
+          industry) to the full BusinessUpdateRequest schema: adds
+          one_line_description, primary_customer, problem_solved,
+          offering_type, primary_market, service_areas,
+          headquarters_country, goals, discovery_channels,
+          success_definition, plus primary-location fields (address, city,
+          region, country). All new params are optional and keyword-only.
+          Also fixes a method bug: now sends PATCH (was PUT) to match the
+          backend @router.patch route.
+      - name: create_business
+        change_summary: |
+          Parameter set expanded to the full BusinessCreateRequest schema:
+          description is now optional (server composes from structured
+          fields if omitted); adds one_line_description, primary_customer,
+          problem_solved, offering_type, primary_market, service_areas,
+          headquarters_country, goals, discovery_channels,
+          success_definition. Existing 4-field callers unaffected
+          (description was already accepted; making it optional is
+          backward-compatible).
+
   - version: "0.4.0"
     released: "2026-05-08"
     # 12 new tools + docstring/parameter-schema edits on 4 existing tools —

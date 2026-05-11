@@ -250,6 +250,44 @@ async def refresh_business_overview(
 
 
 @mcp.tool(
+    title="List Personas",
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
+)
+@log_tool_call
+async def list_personas(
+    ctx: Context[Any, CitedContext, Any],
+    business_id: str | None = None,
+) -> Any:
+    """List buyer personas declared on the business profile.
+
+    Returns ``[{id, name, role, description, goals, pain_points, ...}]``.
+    The ``id`` is what ``update_persona`` and ``delete_persona`` need.
+
+    When to call: before any persona update/delete (the agent has no other
+    way to discover persona_ids), or when the user asks "what personas am
+    I tracking?" or wants to inspect / reorder them.
+
+    Args:
+        ctx: MCP context
+        business_id: Business ID (uses default if omitted)
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    business_id = _resolve_business_id(cited_ctx, business_id)
+    if not business_id:
+        return {"error": True, "message": "business_id is required. Call list_businesses first."}
+    try:
+        return cited_ctx.client.get(
+            endpoints.PERSONAS.format(business_id=business_id)
+        )
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
     title="Create Persona",
     annotations=ToolAnnotations(
         readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False
@@ -395,6 +433,44 @@ async def delete_persona(
 
 
 @mcp.tool(
+    title="List Products",
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
+)
+@log_tool_call
+async def list_products(
+    ctx: Context[Any, CitedContext, Any],
+    business_id: str | None = None,
+) -> Any:
+    """List products and service offerings declared on the business profile.
+
+    Returns ``[{id, name, description, url, category, ...}]``. The ``id`` is
+    what ``update_product`` and ``delete_product`` need.
+
+    When to call: before any product update/delete (the agent has no other
+    way to discover product_ids), or when the user asks "what products are
+    we tracking?".
+
+    Args:
+        ctx: MCP context
+        business_id: Business ID (uses default if omitted)
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    business_id = _resolve_business_id(cited_ctx, business_id)
+    if not business_id:
+        return {"error": True, "message": "business_id is required. Call list_businesses first."}
+    try:
+        return cited_ctx.client.get(
+            endpoints.PRODUCTS.format(business_id=business_id)
+        )
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
     title="Create Product",
     annotations=ToolAnnotations(
         readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False
@@ -526,6 +602,45 @@ async def delete_product(
             endpoints.PRODUCT.format(business_id=business_id, product_id=product_id)
         )
         return {"success": True, "product_id": product_id, "deleted": True}
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
+    title="List Buyer Intents",
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
+)
+@log_tool_call
+async def list_buyer_intents(
+    ctx: Context[Any, CitedContext, Any],
+    business_id: str | None = None,
+) -> Any:
+    """List buyer-intent entries declared on the business profile.
+
+    Returns ``[{id, intent, description, persona_ids, product_ids, ...}]``.
+    Buyer intents tie a persona's search/decision goal to the products that
+    address it, which drives audit question generation.
+
+    When to call: when the user asks "what intents are we tracking?" or
+    before recommending a new ``create_buyer_intent`` (so you can show the
+    existing list and suggest non-overlapping additions).
+
+    Args:
+        ctx: MCP context
+        business_id: Business ID (uses default if omitted)
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    business_id = _resolve_business_id(cited_ctx, business_id)
+    if not business_id:
+        return {"error": True, "message": "business_id is required. Call list_businesses first."}
+    try:
+        return cited_ctx.client.get(
+            endpoints.BUYER_INTENTS.format(business_id=business_id)
+        )
     except CitedAPIError as e:
         return _api_error_response(e)
 

@@ -66,12 +66,15 @@ EXPECTED_TOOLS = [
     # HQ profile management
     "list_profile_competitors",
     "set_profile_competitors",
+    "list_personas",
     "create_persona",
     "update_persona",
     "delete_persona",
+    "list_products",
     "create_product",
     "update_product",
     "delete_product",
+    "list_buyer_intents",
     "create_buyer_intent",
     # Analytics
     "get_analytics_trends",
