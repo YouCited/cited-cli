@@ -76,6 +76,8 @@ EXPECTED_TOOLS = [
     "delete_product",
     "list_buyer_intents",
     "create_buyer_intent",
+    "update_buyer_intent",
+    "delete_buyer_intent",
     # Analytics
     "get_analytics_trends",
     "get_analytics_dashboard",

@@ -31,7 +31,7 @@ versions:
     # backend PATCH route. Bumps minor (not patch) because update_business /
     # create_business signature changes shift parameter ordering and clients
     # diffing the fingerprint should pick this up as non-additive.
-    fingerprint: "e0b3d44d7d61"
+    fingerprint: "5bef45100c53"
     tools_added:
       - name: list_personas
         description: |
@@ -48,6 +48,18 @@ versions:
           List buyer-intent entries declared on the business profile.
           Use before recommending a new create_buyer_intent to avoid
           overlapping entries.
+      - name: update_buyer_intent
+        description: |
+          Update a buyer-intent entry (question, intent_type, priority,
+          is_answered, answering_page_url — all optional). Closes the
+          persona/product CRUD symmetry. Requires the cited backend with
+          PATCH /businesses/{id}/buyer-intents/{intent_id} (added in
+          companion backend PR).
+      - name: delete_buyer_intent
+        description: |
+          Delete a buyer intent. Confirm with the user before calling —
+          there's no undo. Requires the cited backend with
+          DELETE /businesses/{id}/buyer-intents/{intent_id}.
     tools_changed:
       - name: update_business
         change_summary: |

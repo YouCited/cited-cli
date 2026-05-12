@@ -511,6 +511,68 @@ def intent_create(
         client.close()
 
 
+@intent_app.command("update")
+def intent_update(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+    intent_id: Annotated[str, typer.Argument(help="Intent ID")],
+    question: Annotated[str | None, typer.Option("--question")] = None,
+    intent_type: Annotated[str | None, typer.Option("--intent-type")] = None,
+    priority: Annotated[str | None, typer.Option("--priority")] = None,
+    is_answered: Annotated[bool | None, typer.Option("--is-answered/--not-answered")] = None,
+    answering_page_url: Annotated[str | None, typer.Option("--answering-page-url")] = None,
+) -> None:
+    """Update a buyer intent."""
+    out, client = _get_client(ctx)
+    payload: dict[str, object] = {}
+    if question is not None:
+        payload["question"] = question
+    if intent_type is not None:
+        payload["intent_type"] = intent_type
+    if priority is not None:
+        payload["priority"] = priority
+    if is_answered is not None:
+        payload["is_answered"] = is_answered
+    if answering_page_url is not None:
+        payload["answering_page_url"] = answering_page_url
+    if not payload:
+        print_error("No fields to update.", out)
+        raise typer.Exit(ExitCode.VALIDATION_ERROR)
+    try:
+        path = endpoints.BUYER_INTENT.format(
+            business_id=business_id, intent_id=intent_id
+        )
+        data = client.patch(path, json=payload)
+        print_result(data, out, human_formatter=lambda d, c: render_kv("Updated Intent", d, c))
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@intent_app.command("delete")
+def intent_delete(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+    intent_id: Annotated[str, typer.Argument(help="Intent ID")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation")] = False,
+) -> None:
+    """Delete a buyer intent."""
+    out, client = _get_client(ctx)
+    if not yes and not out.json_mode:
+        typer.confirm(f"Delete buyer intent {intent_id}?", abort=True)
+    try:
+        path = endpoints.BUYER_INTENT.format(
+            business_id=business_id, intent_id=intent_id
+        )
+        client.delete(path)
+        print_success(f"Deleted buyer intent {intent_id[:8]}", out)
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
 hq_app.add_typer(persona_app, name="persona")
 hq_app.add_typer(product_app, name="product")
 hq_app.add_typer(intent_app, name="intent")

@@ -153,6 +153,8 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "hq product delete": "delete_product",
     "hq intent list": "list_buyer_intents",
     "hq intent create": "create_buyer_intent",
+    "hq intent update": "update_buyer_intent",
+    "hq intent delete": "delete_buyer_intent",
     # Status (top-level)
     "status": "check_auth_status",
 }

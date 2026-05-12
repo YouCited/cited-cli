@@ -51,6 +51,8 @@ _SCALE_TOOLS: set[str] = {
     "update_product",
     "delete_product",
     "create_buyer_intent",
+    "update_buyer_intent",
+    "delete_buyer_intent",
     "recompute_health_scores",
     "refresh_business_overview",
 }

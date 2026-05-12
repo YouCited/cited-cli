@@ -87,6 +87,7 @@ PERSONA = "/businesses/{business_id}/personas/{persona_id}"
 PRODUCTS = "/businesses/{business_id}/products"
 PRODUCT = "/businesses/{business_id}/products/{product_id}"
 BUYER_INTENTS = "/businesses/{business_id}/buyer-intents"
+BUYER_INTENT = "/businesses/{business_id}/buyer-intents/{intent_id}"
 AGENTIC_READINESS = "/businesses/{business_id}/agentic-readiness"
 TRUST_SIGNALS = "/businesses/{business_id}/trust-signals"
 

@@ -694,3 +694,106 @@ async def create_buyer_intent(
         )
     except CitedAPIError as e:
         return _api_error_response(e)
+
+
+@mcp.tool(
+    title="Update Buyer Intent",
+    annotations=ToolAnnotations(
+        readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
+)
+@log_tool_call
+async def update_buyer_intent(
+    ctx: Context[Any, CitedContext, Any],
+    intent_id: str,
+    question: str | None = None,
+    intent_type: str | None = None,
+    priority: str | None = None,
+    is_answered: bool | None = None,
+    answering_page_url: str | None = None,
+    business_id: str | None = None,
+) -> Any:
+    """Update a buyer-intent entry. Only provided fields are changed.
+
+    Discover ``intent_id`` via ``list_buyer_intents``. Use to re-classify
+    an intent (intent_type), bump priority, mark as answered after a page
+    is published, or attach an ``answering_page_url``.
+
+    Args:
+        ctx: MCP context
+        intent_id: Buyer intent id (UUID)
+        question: Updated buyer question (5-500 chars)
+        intent_type: One of "comparison", "decision", "informational",
+            "navigational", "transactional"
+        priority: One of "high", "medium", "low"
+        is_answered: Whether the business has a page answering this question
+        answering_page_url: URL of the page that answers this intent
+        business_id: Business ID (uses default if omitted)
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    business_id = _resolve_business_id(cited_ctx, business_id)
+    if not business_id:
+        return {"error": True, "message": "business_id is required. Call list_businesses first."}
+    payload: dict[str, Any] = {}
+    if question is not None:
+        payload["question"] = question
+    if intent_type is not None:
+        payload["intent_type"] = intent_type
+    if priority is not None:
+        payload["priority"] = priority
+    if is_answered is not None:
+        payload["is_answered"] = is_answered
+    if answering_page_url is not None:
+        payload["answering_page_url"] = answering_page_url
+    if not payload:
+        return {"error": True, "message": "At least one field must be provided."}
+    try:
+        return cited_ctx.client.patch(
+            endpoints.BUYER_INTENT.format(
+                business_id=business_id, intent_id=intent_id
+            ),
+            json=payload,
+        )
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
+    title="Delete Buyer Intent",
+    annotations=ToolAnnotations(
+        readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False
+    ),  # noqa: E501
+)
+@log_tool_call
+async def delete_buyer_intent(
+    ctx: Context[Any, CitedContext, Any],
+    intent_id: str,
+    business_id: str | None = None,
+) -> Any:
+    """Delete a buyer intent.
+
+    Removes the intent and its persona/product mappings. Confirm with the
+    user before calling — there's no undo.
+
+    Args:
+        ctx: MCP context
+        intent_id: Buyer intent id (UUID)
+        business_id: Business ID (uses default if omitted)
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    business_id = _resolve_business_id(cited_ctx, business_id)
+    if not business_id:
+        return {"error": True, "message": "business_id is required. Call list_businesses first."}
+    try:
+        cited_ctx.client.delete(
+            endpoints.BUYER_INTENT.format(
+                business_id=business_id, intent_id=intent_id
+            )
+        )
+        return {"success": True, "intent_id": intent_id, "deleted": True}
+    except CitedAPIError as e:
+        return _api_error_response(e)
