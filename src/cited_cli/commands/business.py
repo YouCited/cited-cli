@@ -16,6 +16,9 @@ from cited_core.config.constants import VALID_INDUSTRIES
 from cited_core.config.manager import ConfigManager
 
 business_app = typer.Typer(name="business", help="Manage businesses.")
+profile_competitors_app = typer.Typer(
+    name="profile-competitors", help="Manage profile-declared competitors."
+)
 
 
 def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient, str]:
@@ -215,3 +218,104 @@ def business_crawl(
         handle_api_error(e, out.json_mode)
     finally:
         client.close()
+
+
+# ---------------------------------------------------------------------------
+# Profile-declared competitors
+# ---------------------------------------------------------------------------
+
+
+@profile_competitors_app.command("list")
+def profile_competitors_list(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+) -> None:
+    """List the profile-declared competitors for a business."""
+    out, client, _ = _get_client(ctx)
+    try:
+        path = endpoints.PROFILE_COMPETITORS.format(business_id=business_id)
+        data = client.get(path)
+
+        def _human(d: object, console: Console) -> None:
+            items = d if isinstance(d, list) else []
+            rows = [[c.get("name", ""), c.get("website", "") or ""] for c in items]
+            render_table("Profile Competitors", ["Name", "Website"], rows, console)
+
+        print_result(data, out, human_formatter=_human)
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+def _parse_competitor(spec: str) -> dict[str, str]:
+    """Parse 'Name|website' into {name, website}."""
+    if "|" not in spec:
+        raise typer.BadParameter(
+            f"--competitor must be 'Name|website', got: {spec!r}"
+        )
+    name, website = spec.split("|", 1)
+    name = name.strip()
+    website = website.strip()
+    if not name or not website:
+        raise typer.BadParameter(
+            f"--competitor needs both name and website, got: {spec!r}"
+        )
+    return {"name": name, "website": website}
+
+
+@profile_competitors_app.command("set")
+def profile_competitors_set(
+    ctx: typer.Context,
+    business_id: Annotated[str, typer.Argument(help="Business ID")],
+    competitor: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--competitor",
+            "-c",
+            help="'Name|https://example.com' (repeat for each, max 10)",
+        ),
+    ] = None,
+    clear: Annotated[
+        bool, typer.Option("--clear", help="Replace with an empty list (remove all)")
+    ] = False,
+) -> None:
+    """Replace the full list of profile competitors (max 10).
+
+    PUT replaces — pass every competitor you want to keep.
+    """
+    out, client, _ = _get_client(ctx)
+    if not clear and not competitor:
+        print_error(
+            "Pass at least one --competitor 'Name|https://url' or use --clear.", out
+        )
+        raise typer.Exit(ExitCode.VALIDATION_ERROR)
+    competitors = [] if clear else [_parse_competitor(c) for c in (competitor or [])]
+    if len(competitors) > 10:
+        print_error(
+            f"Maximum 10 profile competitors per business — got {len(competitors)}.",
+            out,
+        )
+        raise typer.Exit(ExitCode.VALIDATION_ERROR)
+    try:
+        path = endpoints.PROFILE_COMPETITORS.format(business_id=business_id)
+        data = client.put(path, json={"competitors": competitors})
+
+        def _human(d: object, console: Console) -> None:
+            items = d if isinstance(d, list) else []
+            rows = [[c.get("name", ""), c.get("website", "") or ""] for c in items]
+            render_table(
+                f"Profile Competitors ({len(items)})",
+                ["Name", "Website"],
+                rows,
+                console,
+            )
+
+        print_result(data, out, human_formatter=_human)
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+business_app.add_typer(profile_competitors_app, name="profile-competitors")

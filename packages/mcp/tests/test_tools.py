@@ -247,12 +247,70 @@ class TestBusinessTools:
 
     def test_update_business(self, ctx):
         client = ctx.request_context.lifespan_context.client
-        client.put.return_value = {"id": "b1", "name": "Updated"}
+        client.patch.return_value = {"id": "b1", "name": "Updated"}
 
         result = run(update_business(ctx, business_id="b1", name="Updated"))
         assert result["name"] == "Updated"
-        payload = client.put.call_args[1]["json"]
+        payload = client.patch.call_args[1]["json"]
         assert payload == {"name": "Updated"}
+
+    def test_update_business_full_field_set(self, ctx):
+        """Verify the expanded parameter surface only sends provided fields."""
+        client = ctx.request_context.lifespan_context.client
+        client.patch.return_value = {"id": "b1"}
+
+        run(update_business(
+            ctx,
+            business_id="b1",
+            one_line_description="Tagline",
+            primary_market="local",
+            service_areas="Atlanta metro",
+            headquarters_country="US",
+            goals=["Be cited"],
+            address="123 Main St",
+            city="Atlanta",
+        ))
+        payload = client.patch.call_args[1]["json"]
+        assert payload == {
+            "one_line_description": "Tagline",
+            "primary_market": "local",
+            "service_areas": "Atlanta metro",
+            "headquarters_country": "US",
+            "goals": ["Be cited"],
+            "address": "123 Main St",
+            "city": "Atlanta",
+        }
+
+    def test_create_business_with_structured_fields(self, ctx):
+        """Verify create_business accepts the full onboarding field set."""
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = {"id": "new-id"}
+
+        from cited_mcp.tools.business import create_business as _create
+        run(_create(
+            ctx,
+            name="Acme",
+            website="https://acme.com",
+            primary_customer="Mid-market RevOps",
+            problem_solved="Manual rev-data wrangling",
+            offering_type="service",
+            primary_market="national",
+            headquarters_country="US",
+        ))
+        payload = client.post.call_args[1]["json"]
+        # Required fields always present
+        assert payload["name"] == "Acme"
+        assert payload["website"] == "https://acme.com"
+        assert payload["industry"] == "technology"  # default
+        # Optional structured fields passed through
+        assert payload["primary_customer"] == "Mid-market RevOps"
+        assert payload["problem_solved"] == "Manual rev-data wrangling"
+        assert payload["offering_type"] == "service"
+        assert payload["primary_market"] == "national"
+        assert payload["headquarters_country"] == "US"
+        # Omitted optional fields are NOT in payload
+        assert "description" not in payload
+        assert "goals" not in payload
 
     def test_delete_business(self, ctx):
         client = ctx.request_context.lifespan_context.client
