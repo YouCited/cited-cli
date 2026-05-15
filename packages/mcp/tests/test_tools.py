@@ -129,10 +129,26 @@ from cited_mcp.tools.business import (  # noqa: E402
     get_health_scores,
     get_usage_stats,
     list_businesses,
+    list_profile_competitors,
+    set_profile_competitors,
     update_business,
 )
 from cited_mcp.tools.changelog import whats_new  # noqa: E402
-from cited_mcp.tools.hq import get_business_hq  # noqa: E402
+from cited_mcp.tools.hq import (  # noqa: E402
+    create_buyer_intent,
+    create_persona,
+    create_product,
+    delete_buyer_intent,
+    delete_persona,
+    delete_product,
+    get_business_hq,
+    list_buyer_intents,
+    list_personas,
+    list_products,
+    update_buyer_intent,
+    update_persona,
+    update_product,
+)
 from cited_mcp.tools.job import cancel_job, get_job_status  # noqa: E402
 from cited_mcp.tools.recommend import (  # noqa: E402
     get_recommendation_check_status,
@@ -259,17 +275,19 @@ class TestBusinessTools:
         client = ctx.request_context.lifespan_context.client
         client.patch.return_value = {"id": "b1"}
 
-        run(update_business(
-            ctx,
-            business_id="b1",
-            one_line_description="Tagline",
-            primary_market="local",
-            service_areas="Atlanta metro",
-            headquarters_country="US",
-            goals=["Be cited"],
-            address="123 Main St",
-            city="Atlanta",
-        ))
+        run(
+            update_business(
+                ctx,
+                business_id="b1",
+                one_line_description="Tagline",
+                primary_market="local",
+                service_areas="Atlanta metro",
+                headquarters_country="US",
+                goals=["Be cited"],
+                address="123 Main St",
+                city="Atlanta",
+            )
+        )
         payload = client.patch.call_args[1]["json"]
         assert payload == {
             "one_line_description": "Tagline",
@@ -287,16 +305,19 @@ class TestBusinessTools:
         client.post.return_value = {"id": "new-id"}
 
         from cited_mcp.tools.business import create_business as _create
-        run(_create(
-            ctx,
-            name="Acme",
-            website="https://acme.com",
-            primary_customer="Mid-market RevOps",
-            problem_solved="Manual rev-data wrangling",
-            offering_type="service",
-            primary_market="national",
-            headquarters_country="US",
-        ))
+
+        run(
+            _create(
+                ctx,
+                name="Acme",
+                website="https://acme.com",
+                primary_customer="Mid-market RevOps",
+                problem_solved="Manual rev-data wrangling",
+                offering_type="service",
+                primary_market="national",
+                headquarters_country="US",
+            )
+        )
         payload = client.post.call_args[1]["json"]
         # Required fields always present
         assert payload["name"] == "Acme"
@@ -2449,3 +2470,441 @@ class TestActionPlanTools:
         result = run(get_action_progress(ctx, business_id="b1"))
         assert result["error"] is True
         assert result["status_code"] == 500
+
+
+# ---------------------------------------------------------------------------
+# Profile competitors (business.py — v0.4.0 surface)
+# ---------------------------------------------------------------------------
+
+
+class TestProfileCompetitorsTools:
+    """Coverage for list_profile_competitors + set_profile_competitors —
+    the user-declared competitors that bypass third-party citation-only
+    filtering in audits and head-to-head comparisons."""
+
+    def test_list_profile_competitors_unauth(self, unauth_ctx):
+        result = run(list_profile_competitors(unauth_ctx, business_id="b1"))
+        assert result["error"] is True
+
+    def test_list_profile_competitors_happy_path(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = [
+            {"id": "c1", "name": "Acme", "website": "https://acme.com"},
+            {"id": "c2", "name": "Globex", "website": "https://globex.com"},
+        ]
+        result = run(list_profile_competitors(ctx, business_id="b1"))
+        # log_tool_call wraps list responses as {data: [...], _request_id: ...}
+        assert len(result["data"]) == 2
+        assert result["data"][0]["name"] == "Acme"
+        path = client.get.call_args[0][0]
+        assert "/businesses/b1/profile-competitors" in path
+
+    def test_list_profile_competitors_requires_business_id(self, ctx):
+        # No business_id, no default — must return the actionable error so
+        # the agent knows to call list_businesses first.
+        result = run(list_profile_competitors(ctx))
+        assert result["error"] is True
+        assert "business_id" in result["message"]
+
+    def test_list_profile_competitors_uses_default_business(self, ctx):
+        ctx.request_context.lifespan_context.default_business_id = "default-biz"
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = []
+        run(list_profile_competitors(ctx))
+        path = client.get.call_args[0][0]
+        assert "/businesses/default-biz/profile-competitors" in path
+
+    def test_set_profile_competitors_unauth(self, unauth_ctx):
+        result = run(
+            set_profile_competitors(
+                unauth_ctx,
+                competitors=[{"name": "Acme", "website": "https://acme.com"}],
+                business_id="b1",
+            )
+        )
+        assert result["error"] is True
+
+    def test_set_profile_competitors_happy_path(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.put.return_value = [
+            {"id": "c1", "name": "Rival", "website": "https://rival.com"},
+        ]
+        result = run(
+            set_profile_competitors(
+                ctx,
+                competitors=[
+                    {"name": "Rival", "website": "https://rival.com"},
+                ],
+                business_id="b1",
+            )
+        )
+        # REPLACE semantics → returns the new state
+        # log_tool_call wraps list responses as {data: [...], _request_id: ...}
+        assert result["data"][0]["name"] == "Rival"
+        client.put.assert_called_once()
+        payload = client.put.call_args[1]["json"]
+        assert payload["competitors"][0]["name"] == "Rival"
+        path = client.put.call_args[0][0]
+        assert "/businesses/b1/profile-competitors" in path
+
+    def test_set_profile_competitors_caps_at_10(self, ctx):
+        """Max 10 competitors per business (matches backend rule)."""
+        too_many = [{"name": f"R{i}", "website": f"https://r{i}.com"} for i in range(11)]
+        result = run(set_profile_competitors(ctx, competitors=too_many, business_id="b1"))
+        assert result["error"] is True
+        assert "10" in result["message"]
+
+    def test_set_profile_competitors_rejects_non_list(self, ctx):
+        result = run(
+            set_profile_competitors(
+                ctx,
+                competitors="not-a-list",  # type: ignore[arg-type]
+                business_id="b1",
+            )
+        )
+        assert result["error"] is True
+        assert "list" in result["message"]
+
+
+# ---------------------------------------------------------------------------
+# Persona CRUD (hq.py — v0.4.0 surface)
+# ---------------------------------------------------------------------------
+
+
+class TestPersonaTools:
+    """Coverage for the persona CRUD chain: list_personas → create_persona
+    → update_persona → delete_persona. Agents need list_personas to
+    discover ids before update/delete; the update/delete paths use the
+    singular ``PERSONA`` endpoint with the persona_id."""
+
+    # ---- list_personas
+
+    def test_list_personas_unauth(self, unauth_ctx):
+        result = run(list_personas(unauth_ctx, business_id="b1"))
+        assert result["error"] is True
+
+    def test_list_personas_happy_path(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = [
+            {"id": "p1", "name": "RevOps lead", "role": "manager"},
+        ]
+        result = run(list_personas(ctx, business_id="b1"))
+        assert result["data"][0]["id"] == "p1"
+        path = client.get.call_args[0][0]
+        assert "/businesses/b1/personas" in path
+        # The plural endpoint (no persona_id segment)
+        assert not path.endswith("/p1")
+
+    def test_list_personas_requires_business_id(self, ctx):
+        result = run(list_personas(ctx))
+        assert result["error"] is True
+        assert "business_id" in result["message"]
+
+    # ---- create_persona
+
+    def test_create_persona_unauth(self, unauth_ctx):
+        result = run(create_persona(unauth_ctx, name="X", business_id="b1"))
+        assert result["error"] is True
+
+    def test_create_persona_happy_path(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = {"id": "p1", "name": "RevOps lead"}
+        result = run(
+            create_persona(
+                ctx,
+                name="RevOps lead",
+                description="Owns rev-data tooling",
+                role="manager",
+                goals=["Close more deals"],
+                pain_points=["Manual data wrangling"],
+                business_id="b1",
+            )
+        )
+        assert result["id"] == "p1"
+        client.post.assert_called_once()
+        payload = client.post.call_args[1]["json"]
+        assert payload["name"] == "RevOps lead"
+        assert payload["role"] == "manager"
+        assert payload["goals"] == ["Close more deals"]
+        assert payload["pain_points"] == ["Manual data wrangling"]
+        path = client.post.call_args[0][0]
+        assert "/businesses/b1/personas" in path
+
+    def test_create_persona_omits_unset_optional_fields(self, ctx):
+        """Optional fields with None default must NOT appear in the payload."""
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = {"id": "p1"}
+        run(create_persona(ctx, name="X", business_id="b1"))
+        payload = client.post.call_args[1]["json"]
+        assert payload == {"name": "X"}
+
+    # ---- update_persona
+
+    def test_update_persona_unauth(self, unauth_ctx):
+        result = run(update_persona(unauth_ctx, persona_id="p1", name="X", business_id="b1"))
+        assert result["error"] is True
+
+    def test_update_persona_happy_path_uses_patch(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.patch.return_value = {"id": "p1", "name": "Updated"}
+        result = run(update_persona(ctx, persona_id="p1", name="Updated", business_id="b1"))
+        assert result["name"] == "Updated"
+        # Mirror PATCH semantics — partial update, not PUT
+        client.patch.assert_called_once()
+        path = client.patch.call_args[0][0]
+        assert "/businesses/b1/personas/p1" in path
+        payload = client.patch.call_args[1]["json"]
+        assert payload == {"name": "Updated"}
+
+    def test_update_persona_requires_at_least_one_field(self, ctx):
+        """Calling update with no fields is meaningless and must error."""
+        result = run(update_persona(ctx, persona_id="p1", business_id="b1"))
+        assert result["error"] is True
+        assert "field" in result["message"].lower()
+
+    # ---- delete_persona
+
+    def test_delete_persona_unauth(self, unauth_ctx):
+        result = run(delete_persona(unauth_ctx, persona_id="p1", business_id="b1"))
+        assert result["error"] is True
+
+    def test_delete_persona_happy_path(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.delete.return_value = None
+        result = run(delete_persona(ctx, persona_id="p1", business_id="b1"))
+        assert result["success"] is True
+        assert result["persona_id"] == "p1"
+        client.delete.assert_called_once()
+        path = client.delete.call_args[0][0]
+        assert "/businesses/b1/personas/p1" in path
+
+
+# ---------------------------------------------------------------------------
+# Product CRUD (hq.py — v0.4.0 surface)
+# ---------------------------------------------------------------------------
+
+
+class TestProductTools:
+    """Coverage for the product CRUD chain. Same pattern as personas —
+    list/create/update/delete with the singular PRODUCT endpoint."""
+
+    # ---- list_products
+
+    def test_list_products_unauth(self, unauth_ctx):
+        result = run(list_products(unauth_ctx, business_id="b1"))
+        assert result["error"] is True
+
+    def test_list_products_happy_path(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = [{"id": "pr1", "name": "Widget"}]
+        result = run(list_products(ctx, business_id="b1"))
+        assert result["data"][0]["id"] == "pr1"
+        path = client.get.call_args[0][0]
+        assert "/businesses/b1/products" in path
+
+    # ---- create_product
+
+    def test_create_product_unauth(self, unauth_ctx):
+        result = run(create_product(unauth_ctx, name="X", business_id="b1"))
+        assert result["error"] is True
+
+    def test_create_product_happy_path(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = {"id": "pr1", "name": "Widget"}
+        result = run(
+            create_product(
+                ctx,
+                name="Widget",
+                description="A widget",
+                url="https://widget.com",
+                category="hardware",
+                business_id="b1",
+            )
+        )
+        assert result["id"] == "pr1"
+        payload = client.post.call_args[1]["json"]
+        assert payload["name"] == "Widget"
+        assert payload["url"] == "https://widget.com"
+        assert payload["category"] == "hardware"
+        path = client.post.call_args[0][0]
+        assert "/businesses/b1/products" in path
+
+    # ---- update_product
+
+    def test_update_product_unauth(self, unauth_ctx):
+        result = run(update_product(unauth_ctx, product_id="pr1", name="X", business_id="b1"))
+        assert result["error"] is True
+
+    def test_update_product_happy_path_uses_patch(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.patch.return_value = {"id": "pr1", "name": "Renamed"}
+        result = run(update_product(ctx, product_id="pr1", name="Renamed", business_id="b1"))
+        assert result["name"] == "Renamed"
+        client.patch.assert_called_once()
+        path = client.patch.call_args[0][0]
+        assert "/businesses/b1/products/pr1" in path
+
+    def test_update_product_requires_at_least_one_field(self, ctx):
+        result = run(update_product(ctx, product_id="pr1", business_id="b1"))
+        assert result["error"] is True
+
+    # ---- delete_product
+
+    def test_delete_product_unauth(self, unauth_ctx):
+        result = run(delete_product(unauth_ctx, product_id="pr1", business_id="b1"))
+        assert result["error"] is True
+
+    def test_delete_product_happy_path(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.delete.return_value = None
+        result = run(delete_product(ctx, product_id="pr1", business_id="b1"))
+        assert result["success"] is True
+        assert result["product_id"] == "pr1"
+        path = client.delete.call_args[0][0]
+        assert "/businesses/b1/products/pr1" in path
+
+
+# ---------------------------------------------------------------------------
+# Buyer-intent CRUD (hq.py — v0.4.0 list/create + v0.5.0 update/delete)
+# ---------------------------------------------------------------------------
+
+
+class TestBuyerIntentTools:
+    """Coverage for the buyer-intent CRUD chain. update_buyer_intent and
+    delete_buyer_intent are the v0.5.0 additions that fill the symmetry
+    gap with personas/products. The backend routes are PATCH/DELETE
+    ``/businesses/{id}/buyer-intents/{intent_id}``."""
+
+    # ---- list_buyer_intents
+
+    def test_list_buyer_intents_unauth(self, unauth_ctx):
+        result = run(list_buyer_intents(unauth_ctx, business_id="b1"))
+        assert result["error"] is True
+
+    def test_list_buyer_intents_happy_path(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = [{"id": "i1", "intent": "evaluating CRM"}]
+        result = run(list_buyer_intents(ctx, business_id="b1"))
+        assert result["data"][0]["id"] == "i1"
+        path = client.get.call_args[0][0]
+        assert "/businesses/b1/buyer-intents" in path
+
+    # ---- create_buyer_intent
+
+    def test_create_buyer_intent_unauth(self, unauth_ctx):
+        result = run(create_buyer_intent(unauth_ctx, intent="X", business_id="b1"))
+        assert result["error"] is True
+
+    def test_create_buyer_intent_happy_path(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = {"id": "i1", "intent": "evaluating CRM"}
+        result = run(
+            create_buyer_intent(
+                ctx,
+                intent="evaluating CRM",
+                description="Mid-market shopping CRMs",
+                persona_ids=["p1", "p2"],
+                product_ids=["pr1"],
+                business_id="b1",
+            )
+        )
+        assert result["id"] == "i1"
+        payload = client.post.call_args[1]["json"]
+        assert payload["intent"] == "evaluating CRM"
+        assert payload["persona_ids"] == ["p1", "p2"]
+        assert payload["product_ids"] == ["pr1"]
+        path = client.post.call_args[0][0]
+        assert "/businesses/b1/buyer-intents" in path
+
+    # ---- update_buyer_intent (v0.5.0)
+
+    def test_update_buyer_intent_unauth(self, unauth_ctx):
+        result = run(
+            update_buyer_intent(unauth_ctx, intent_id="i1", question="X", business_id="b1")
+        )
+        assert result["error"] is True
+
+    def test_update_buyer_intent_happy_path_uses_patch(self, ctx):
+        """v0.5.0: full PATCH against singular /buyer-intents/{intent_id}."""
+        client = ctx.request_context.lifespan_context.client
+        client.patch.return_value = {"id": "i1", "question": "Renamed?"}
+        result = run(
+            update_buyer_intent(
+                ctx,
+                intent_id="i1",
+                question="Renamed?",
+                priority="high",
+                is_answered=True,
+                business_id="b1",
+            )
+        )
+        assert result["question"] == "Renamed?"
+        client.patch.assert_called_once()
+        path = client.patch.call_args[0][0]
+        assert "/businesses/b1/buyer-intents/i1" in path
+        payload = client.patch.call_args[1]["json"]
+        assert payload["question"] == "Renamed?"
+        assert payload["priority"] == "high"
+        assert payload["is_answered"] is True
+
+    def test_update_buyer_intent_omits_unset_fields(self, ctx):
+        """Partial-update semantics: only provided fields in the payload."""
+        client = ctx.request_context.lifespan_context.client
+        client.patch.return_value = {"id": "i1"}
+        run(update_buyer_intent(ctx, intent_id="i1", priority="low", business_id="b1"))
+        payload = client.patch.call_args[1]["json"]
+        assert payload == {"priority": "low"}
+
+    def test_update_buyer_intent_requires_at_least_one_field(self, ctx):
+        result = run(update_buyer_intent(ctx, intent_id="i1", business_id="b1"))
+        assert result["error"] is True
+        assert "field" in result["message"].lower()
+
+    # ---- delete_buyer_intent (v0.5.0)
+
+    def test_delete_buyer_intent_unauth(self, unauth_ctx):
+        result = run(delete_buyer_intent(unauth_ctx, intent_id="i1", business_id="b1"))
+        assert result["error"] is True
+
+    def test_delete_buyer_intent_happy_path(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.delete.return_value = None
+        result = run(delete_buyer_intent(ctx, intent_id="i1", business_id="b1"))
+        assert result["success"] is True
+        assert result["intent_id"] == "i1"
+        path = client.delete.call_args[0][0]
+        assert "/businesses/b1/buyer-intents/i1" in path
+
+
+# ---------------------------------------------------------------------------
+# update_business / create_business — additional error-path coverage
+# (the happy paths already exist; this fills the gaps around HTTP method
+# correctness and the 422/404 hint pattern that test_mcp_tools.py uses
+# for create_business but not for update/delete.)
+# ---------------------------------------------------------------------------
+
+
+class TestBusinessWriteErrorHandling:
+    def test_update_business_404_returns_structured_error(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.patch.side_effect = CitedAPIError(404, "Business not found")
+        result = run(update_business(ctx, business_id="missing", name="X"))
+        assert result["error"] is True
+        assert result["status_code"] == 404
+
+    def test_update_business_422_returns_structured_error(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.patch.side_effect = CitedAPIError(422, "validation failed")
+        result = run(update_business(ctx, business_id="b1", industry="not-real"))
+        assert result["error"] is True
+        assert result["status_code"] == 422
+
+    def test_delete_business_403_indicates_plan_limit(self, ctx):
+        """Single-business plans return 403 on delete — verify the tool
+        surfaces a structured error (the chat agent will format an upgrade
+        prompt from this)."""
+        client = ctx.request_context.lifespan_context.client
+        client.delete.side_effect = CitedAPIError(403, "plan limit")
+        result = run(delete_business(ctx, business_id="b1"))
+        assert result["error"] is True
+        assert result["status_code"] == 403

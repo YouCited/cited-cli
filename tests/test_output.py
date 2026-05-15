@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import json
-import sys
-from io import StringIO
 
-from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
+from cited_cli.output.formatter import OutputContext, print_result, print_success
 
 
 def test_print_result_json(capsys):

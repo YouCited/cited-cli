@@ -84,8 +84,8 @@ def test_full_live_pipeline():
     """Full customer journey against the live dev API."""
     _ensure_mcp_initialized()
 
+    from cited_mcp.tools.audit import create_audit_template, get_audit_result, start_audit
     from cited_mcp.tools.auth import check_auth_status
-    from cited_mcp.tools.audit import create_audit_template, start_audit, get_audit_result
     from cited_mcp.tools.business import (
         create_business,
         delete_business,
@@ -129,7 +129,9 @@ def test_full_live_pipeline():
 
         # 3. Get health scores (baseline, may be empty)
         scores = _run(get_health_scores(ctx, business_id))
-        assert not isinstance(scores, dict) or not scores.get("error"), f"Health scores failed: {scores}"
+        assert not isinstance(scores, dict) or not scores.get("error"), (
+            f"Health scores failed: {scores}"
+        )
         print(f"  Health scores: {type(scores).__name__}")
 
         # 4. Create audit template
@@ -165,7 +167,7 @@ def test_full_live_pipeline():
         audit_result = _run(get_audit_result(ctx, audit_job_id))
         assert audit_result is not None
         assert not (isinstance(audit_result, dict) and audit_result.get("error"))
-        print(f"  Audit result: OK")
+        print("  Audit result: OK")
 
         # 8. Start recommendation
         rec = _run(start_recommendation(ctx, audit_job_id))
@@ -191,11 +193,7 @@ def test_full_live_pipeline():
 
         # 11. Start solution from first question insight (if available)
         if qi:
-            sol = _run(
-                start_solution(
-                    ctx, rec_job_id, qi[0]["source_type"], qi[0]["source_id"]
-                )
-            )
+            sol = _run(start_solution(ctx, rec_job_id, qi[0]["source_type"], qi[0]["source_id"]))
             assert "job_id" in sol, f"Solution start failed: {sol}"
             sol_job_id = sol["job_id"]
             print(f"  Solution job: {sol_job_id}")
@@ -209,7 +207,7 @@ def test_full_live_pipeline():
             sol_result = _run(get_solution_result(ctx, sol_job_id))
             assert sol_result is not None
             assert not (isinstance(sol_result, dict) and sol_result.get("error"))
-            print(f"  Solution result: OK")
+            print("  Solution result: OK")
 
         print("  Pipeline complete!")
 

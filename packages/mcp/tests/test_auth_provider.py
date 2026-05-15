@@ -1,4 +1,5 @@
 """Tests for the CitedOAuthProvider — specifically JWT expiry handling."""
+
 from __future__ import annotations
 
 import asyncio
@@ -59,14 +60,16 @@ class TestLoadAccessToken:
     def test_rejects_expired_user_jwt(self):
         provider = _make_provider()
         now = int(time.time())
-        token = provider._encode_token({
-            "typ": "access",
-            "sub": "client-123",
-            "scopes": ["cited"],
-            "user_jwt": _make_jwt(-60),  # expired backend JWT
-            "exp": now + 3600,
-            "iat": now,
-        })
+        token = provider._encode_token(
+            {
+                "typ": "access",
+                "sub": "client-123",
+                "scopes": ["cited"],
+                "user_jwt": _make_jwt(-60),  # expired backend JWT
+                "exp": now + 3600,
+                "iat": now,
+            }
+        )
 
         result = run(provider.load_access_token(token))
         assert result is None
@@ -75,14 +78,16 @@ class TestLoadAccessToken:
         provider = _make_provider()
         valid_jwt = _make_jwt(3600)
         now = int(time.time())
-        token = provider._encode_token({
-            "typ": "access",
-            "sub": "client-123",
-            "scopes": ["cited"],
-            "user_jwt": valid_jwt,
-            "exp": now + 3600,
-            "iat": now,
-        })
+        token = provider._encode_token(
+            {
+                "typ": "access",
+                "sub": "client-123",
+                "scopes": ["cited"],
+                "user_jwt": valid_jwt,
+                "exp": now + 3600,
+                "iat": now,
+            }
+        )
 
         result = run(provider.load_access_token(token))
         assert result is not None
@@ -94,14 +99,16 @@ class TestLoadRefreshToken:
         provider = _make_provider()
         client = _make_client()
         now = int(time.time())
-        token = provider._encode_token({
-            "typ": "refresh",
-            "sub": client.client_id,
-            "scopes": ["cited"],
-            "user_jwt": _make_jwt(-60),  # expired backend JWT
-            "exp": now + 86400,
-            "iat": now,
-        })
+        token = provider._encode_token(
+            {
+                "typ": "refresh",
+                "sub": client.client_id,
+                "scopes": ["cited"],
+                "user_jwt": _make_jwt(-60),  # expired backend JWT
+                "exp": now + 86400,
+                "iat": now,
+            }
+        )
 
         result = run(provider.load_refresh_token(client, token))
         assert result is None
@@ -111,14 +118,16 @@ class TestLoadRefreshToken:
         client = _make_client()
         valid_jwt = _make_jwt(3600)
         now = int(time.time())
-        token = provider._encode_token({
-            "typ": "refresh",
-            "sub": client.client_id,
-            "scopes": ["cited"],
-            "user_jwt": valid_jwt,
-            "exp": now + 86400,
-            "iat": now,
-        })
+        token = provider._encode_token(
+            {
+                "typ": "refresh",
+                "sub": client.client_id,
+                "scopes": ["cited"],
+                "user_jwt": valid_jwt,
+                "exp": now + 86400,
+                "iat": now,
+            }
+        )
 
         result = run(provider.load_refresh_token(client, token))
         assert result is not None

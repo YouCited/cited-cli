@@ -5,49 +5,50 @@ preventing feature drift between the two interfaces. When adding a new
 feature, add it to BOTH the CLI and MCP, then update the exceptions
 below if the gap is intentional.
 """
+
 from __future__ import annotations
 
 import pytest
 
-
 # Intentional gaps — features that only make sense in one interface.
 # Each entry must have a comment explaining WHY it's CLI-only or MCP-only.
 CLI_ONLY = {
-    "auth token",       # Raw JWT export — only useful for CLI scripting/piping
-    "auth register",    # Account creation — one-time flow, not suited for MCP
-    "register",         # Top-level alias for auth register
-    "config set",       # Local config management — no equivalent in MCP
-    "config get",       # Local config management
-    "config show",      # Local config management
+    "auth token",  # Raw JWT export — only useful for CLI scripting/piping
+    "auth register",  # Account creation — one-time flow, not suited for MCP
+    "register",  # Top-level alias for auth register
+    "config set",  # Local config management — no equivalent in MCP
+    "config get",  # Local config management
+    "config show",  # Local config management
     "config environments",  # Local config management
-    "mcp serve",        # Starts the MCP server itself — meta, not a tool
-    "job watch",        # Live Rich progress bar — interactive terminal only
-    "version",          # CLI version display — not meaningful for MCP
+    "mcp serve",  # Starts the MCP server itself — meta, not a tool
+    "job watch",  # Live Rich progress bar — interactive terminal only
+    "version",  # CLI version display — not meaningful for MCP
 }
 
 MCP_ONLY = {
-    "ping",                     # Lightweight readiness check — CLI users run `cited status` instead
-    "get_pricing",              # Agent payment discovery — CLI users visit billing page
-    "upgrade_plan",             # Agent plan upgrade — CLI users visit billing page
-    "whats_new",                # Tool-surface diff for stale MCP-client caches — CLI doesn't have a tool cache
-    "get_usage_stats",          # Aggregated stats — CLI uses auth status + business list
-    "get_job_status",           # MCP probes types; CLI uses job watch (live polling)
+    "ping",  # Lightweight readiness check — CLI users run `cited status` instead
+    "get_pricing",  # Agent payment discovery — CLI users visit billing page
+    "upgrade_plan",  # Agent plan upgrade — CLI users visit billing page
+    "whats_new",  # Tool-surface diff for stale MCP-client caches — CLI doesn't have a tool cache
+    "get_usage_stats",  # Aggregated stats — CLI uses auth status + business list
+    "get_job_status",  # MCP probes types; CLI uses job watch (live polling)
     "get_audit_question_detail",  # Drill-down from summary — CLI uses audit result (full)
     "get_recommendation_insight_detail",  # Drill-down from summary — CLI uses recommend full
-    "start_solutions_batch",    # Bulk operation — CLI users call solution start in a loop
+    "start_solutions_batch",  # Bulk operation — CLI users call solution start in a loop
     # Action plan tools — agent/conversational checklist UX, no CLI equivalent yet
-    "get_action_plan",          # Conversational ranked checklist — agents only
-    "get_quick_wins",           # Filtered checklist for "what should I do now?" — agents only
-    "mark_action_done",         # Stateful progress mark — agents update checklist via chat
-    "dismiss_action",           # Stateful progress mark — agents dismiss via chat
-    "get_action_progress",      # Progress summary — surfaced inline by the agent
+    "get_action_plan",  # Conversational ranked checklist — agents only
+    "get_quick_wins",  # Filtered checklist for "what should I do now?" — agents only
+    "mark_action_done",  # Stateful progress mark — agents update checklist via chat
+    "dismiss_action",  # Stateful progress mark — agents dismiss via chat
+    "get_action_progress",  # Progress summary — surfaced inline by the agent
 }
 
 
 def _get_cli_commands() -> set[str]:
     """Extract all CLI commands as 'group subcommand' strings."""
-    from cited_cli.app import app
     import typer
+
+    from cited_cli.app import app
 
     commands: set[str] = set()
 
@@ -208,6 +209,4 @@ def test_mapped_mcp_tools_actually_exist():
     for cli_cmd, mcp_tool in _CLI_TO_MCP.items():
         tools = [mcp_tool] if isinstance(mcp_tool, str) else mcp_tool
         for t in tools:
-            assert t in mcp_tools, (
-                f"CLI '{cli_cmd}' maps to MCP tool '{t}' which is not registered"
-            )
+            assert t in mcp_tools, f"CLI '{cli_cmd}' maps to MCP tool '{t}' which is not registered"
