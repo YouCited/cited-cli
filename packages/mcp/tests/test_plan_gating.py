@@ -73,6 +73,79 @@ class TestIsToolAllowed:
     def test_get_usage_stats_enterprise_allowed(self):
         assert is_tool_allowed("get_usage_stats", "enterprise") is True
 
+    # ---- v0.4.0 / v0.5.0 write tools — Scale-gated.
+    # Tier misclassifications here translate to either revenue loss (giving
+    # Scale features away free) or angry-customer paging (gating something
+    # that should be free). Per-tool assertions catch both directions; the
+    # bulk count test only catches gross deletions.
+
+    # Profile competitors
+    def test_list_profile_competitors_base_allowed(self):
+        assert is_tool_allowed("list_profile_competitors", "free") is True
+
+    def test_set_profile_competitors_growth_blocked(self):
+        assert is_tool_allowed("set_profile_competitors", "growth") is False
+
+    def test_set_profile_competitors_scale_allowed(self):
+        assert is_tool_allowed("set_profile_competitors", "scale") is True
+
+    # Persona CRUD
+    def test_create_persona_growth_blocked(self):
+        assert is_tool_allowed("create_persona", "growth") is False
+
+    def test_create_persona_scale_allowed(self):
+        assert is_tool_allowed("create_persona", "scale") is True
+
+    def test_update_persona_growth_blocked(self):
+        assert is_tool_allowed("update_persona", "growth") is False
+
+    def test_update_persona_scale_allowed(self):
+        assert is_tool_allowed("update_persona", "scale") is True
+
+    def test_delete_persona_growth_blocked(self):
+        assert is_tool_allowed("delete_persona", "growth") is False
+
+    def test_delete_persona_scale_allowed(self):
+        assert is_tool_allowed("delete_persona", "scale") is True
+
+    # Product CRUD
+    def test_create_product_growth_blocked(self):
+        assert is_tool_allowed("create_product", "growth") is False
+
+    def test_create_product_scale_allowed(self):
+        assert is_tool_allowed("create_product", "scale") is True
+
+    def test_update_product_growth_blocked(self):
+        assert is_tool_allowed("update_product", "growth") is False
+
+    def test_update_product_scale_allowed(self):
+        assert is_tool_allowed("update_product", "scale") is True
+
+    def test_delete_product_growth_blocked(self):
+        assert is_tool_allowed("delete_product", "growth") is False
+
+    def test_delete_product_scale_allowed(self):
+        assert is_tool_allowed("delete_product", "scale") is True
+
+    # Buyer-intent CRUD (v0.5.0 added update + delete)
+    def test_create_buyer_intent_growth_blocked(self):
+        assert is_tool_allowed("create_buyer_intent", "growth") is False
+
+    def test_create_buyer_intent_scale_allowed(self):
+        assert is_tool_allowed("create_buyer_intent", "scale") is True
+
+    def test_update_buyer_intent_growth_blocked(self):
+        assert is_tool_allowed("update_buyer_intent", "growth") is False
+
+    def test_update_buyer_intent_scale_allowed(self):
+        assert is_tool_allowed("update_buyer_intent", "scale") is True
+
+    def test_delete_buyer_intent_growth_blocked(self):
+        assert is_tool_allowed("delete_buyer_intent", "growth") is False
+
+    def test_delete_buyer_intent_scale_allowed(self):
+        assert is_tool_allowed("delete_buyer_intent", "scale") is True
+
 
 class TestRequiredTier:
     def test_ungated_tool(self):

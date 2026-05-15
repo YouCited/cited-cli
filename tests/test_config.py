@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 
 def test_config_set_and_get(runner, cli_app, tmp_path, monkeypatch):
     config_dir = tmp_path / ".cited"

@@ -207,24 +207,31 @@ def test_register_password_flow(runner, cli_app, tmp_path, monkeypatch):
 
     respx.post("https://api.youcited.com/auth/cli-register").mock(
         return_value=httpx.Response(
-            201, json={"message": "Verification email sent. Check your inbox to complete registration."}
+            201,
+            json={"message": "Verification email sent. Check your inbox to complete registration."},
         )
     )
     respx.post("https://api.youcited.com/auth/cli-verify-email").mock(
-        return_value=httpx.Response(
-            200, json={"token": "register-jwt-token", "user": _FAKE_USER}
-        )
+        return_value=httpx.Response(200, json={"token": "register-jwt-token", "user": _FAKE_USER})
     )
 
-    fake_verify_url = "https://app.youcited.com/complete-registration?token=fake-verification-token-abc123xyz"
+    fake_verify_url = (
+        "https://app.youcited.com/complete-registration?token=fake-verification-token-abc123xyz"
+    )
 
     result = runner.invoke(
         cli_app,
         [
-            "--env", "prod", "auth", "register",
-            "--email", "new@example.com",
-            "--name", "Test User",
-            "--password", "Secret1234",
+            "--env",
+            "prod",
+            "auth",
+            "register",
+            "--email",
+            "new@example.com",
+            "--name",
+            "Test User",
+            "--password",
+            "Secret1234",
         ],
         input=f"{fake_verify_url}\n",
     )
@@ -243,24 +250,30 @@ def test_top_level_register(runner, cli_app, tmp_path, monkeypatch):
 
     respx.post("https://api.youcited.com/auth/cli-register").mock(
         return_value=httpx.Response(
-            201, json={"message": "Verification email sent. Check your inbox to complete registration."}
+            201,
+            json={"message": "Verification email sent. Check your inbox to complete registration."},
         )
     )
     respx.post("https://api.youcited.com/auth/cli-verify-email").mock(
-        return_value=httpx.Response(
-            200, json={"token": "top-register-jwt", "user": _FAKE_USER}
-        )
+        return_value=httpx.Response(200, json={"token": "top-register-jwt", "user": _FAKE_USER})
     )
 
-    fake_verify_url = "https://app.youcited.com/complete-registration?token=fake-verification-token-abc123xyz"
+    fake_verify_url = (
+        "https://app.youcited.com/complete-registration?token=fake-verification-token-abc123xyz"
+    )
 
     result = runner.invoke(
         cli_app,
         [
-            "--env", "prod", "register",
-            "--email", "new@example.com",
-            "--name", "Test User",
-            "--password", "Secret1234",
+            "--env",
+            "prod",
+            "register",
+            "--email",
+            "new@example.com",
+            "--name",
+            "Test User",
+            "--password",
+            "Secret1234",
         ],
         input=f"{fake_verify_url}\n",
     )

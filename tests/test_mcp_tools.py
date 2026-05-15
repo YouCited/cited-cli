@@ -22,12 +22,15 @@ def _mcp_available():
         pytest.skip("mcp not installed")
     # Ensure the MCP server instance is created so tools can register
     import cited_mcp.server as server_mod
+
     if server_mod.mcp is None:
         server_mod.create_stdio_server()
     # Pre-seed tier cache so plan gating doesn't make unexpected /auth/me calls
     import hashlib
     import time
+
     from cited_mcp.tools._helpers import _tier_cache
+
     cache_key = hashlib.sha256(b"test-token").hexdigest()[:16]
     _tier_cache[cache_key] = ("pro", time.monotonic() + 3600)
     yield
@@ -115,7 +118,11 @@ def test_create_business():
     )
     cited_ctx = _make_cited_ctx()
     ctx = _make_mcp_ctx(cited_ctx)
-    result = _run(create_business(ctx, "NewCo", "https://newco.com", "A new company for testing", "technology"))
+    result = _run(
+        create_business(
+            ctx, "NewCo", "https://newco.com", "A new company for testing", "technology"
+        )
+    )
     assert result["id"] == "b2"
     cited_ctx.client.close()
 
@@ -189,18 +196,26 @@ def test_get_recommendation_insights():
     from cited_mcp.tools.recommend import get_recommendation_insights
 
     respx.get(f"{DEV_API}/recommendations/rj1/result").mock(
-        return_value=httpx.Response(200, json={
-            "question_insights": [
-                {"question_id": "q1", "question_text": "Q?", "risk_level": "high", "coverage_score": 0.3}
-            ],
-            "head_to_head_comparisons": [
-                {"competitor_domain": "comp.com", "overall_winner": "business"}
-            ],
-            "strengthening_tips": [
-                {"category": "llms_txt", "title": "Create llms.txt", "priority": "high"}
-            ],
-            "priority_actions": [],
-        })
+        return_value=httpx.Response(
+            200,
+            json={
+                "question_insights": [
+                    {
+                        "question_id": "q1",
+                        "question_text": "Q?",
+                        "risk_level": "high",
+                        "coverage_score": 0.3,
+                    }
+                ],
+                "head_to_head_comparisons": [
+                    {"competitor_domain": "comp.com", "overall_winner": "business"}
+                ],
+                "strengthening_tips": [
+                    {"category": "llms_txt", "title": "Create llms.txt", "priority": "high"}
+                ],
+                "priority_actions": [],
+            },
+        )
     )
     cited_ctx = _make_cited_ctx()
     ctx = _make_mcp_ctx(cited_ctx)
@@ -306,8 +321,8 @@ def test_logout():
 def test_login_force_clears_token():
     from unittest.mock import MagicMock, patch
 
-    from cited_mcp.tools.auth import login
     import cited_mcp.tools.auth as auth_mod
+    from cited_mcp.tools.auth import login
 
     # Ensure no stale pending login from other tests
     auth_mod._pending_login = None
@@ -352,9 +367,15 @@ def test_api_error_403_includes_hint():
     )
     cited_ctx = _make_cited_ctx()
     ctx = _make_mcp_ctx(cited_ctx)
-    result = _run(create_business(
-        ctx, "Test", "https://test.com", "A test business description", "technology",
-    ))
+    result = _run(
+        create_business(
+            ctx,
+            "Test",
+            "https://test.com",
+            "A test business description",
+            "technology",
+        )
+    )
     assert result["error"] is True
     assert result["status_code"] == 403
     assert "hint" in result
@@ -372,9 +393,7 @@ def test_api_error_422_includes_hint():
     )
     cited_ctx = _make_cited_ctx()
     ctx = _make_mcp_ctx(cited_ctx)
-    result = _run(
-        create_business(ctx, "Test", "https://fake.example.com", "Short", "technology")
-    )
+    result = _run(create_business(ctx, "Test", "https://fake.example.com", "Short", "technology"))
     assert result["error"] is True
     assert result["status_code"] == 422
     assert "hint" in result
