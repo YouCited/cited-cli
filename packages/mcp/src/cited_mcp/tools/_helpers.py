@@ -500,9 +500,7 @@ def log_tool_call(
             # with restricted IAM access. Email is not transmitted anywhere
             # else from this line. If we later move to hashed identifiers,
             # the suppression can be removed.
-            logger.info(  # lgtm[py/clear-text-logging-sensitive-data]
-                json.dumps(payload, default=str)
-            )
+            logger.info(json.dumps(payload, default=str))  # noqa: E501 lgtm[py/clear-text-logging-sensitive-data]
 
         # Rate limit check
         if rl_err := _check_rate_limit(rl_key):
