@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import functools
 import hashlib
 import json
@@ -21,6 +22,20 @@ from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
 
 logger = logging.getLogger("cited_mcp.usage")
+
+# ---------------------------------------------------------------------------
+# Per-request forensic context (set by remote.py _RequestContextMiddleware).
+#
+# These let tool_call log lines carry the request's source IP and User-Agent
+# without threading an HTTP request object through every tool function. For
+# stdio transport (no HTTP) they remain None and are emitted as null in logs.
+# ---------------------------------------------------------------------------
+_request_ip: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "cited_mcp_request_ip", default=None
+)
+_request_ua: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "cited_mcp_request_ua", default=None
+)
 
 # ---------------------------------------------------------------------------
 # Response size guardrails
@@ -244,18 +259,84 @@ def _extract_user(token: str | None) -> str:
         return "unknown"
 
 
-def _extract_client_id(token: str | None) -> str | None:
-    """Decode OAuth client_id from a JWT (for connector-mix analytics)."""
-    if not token:
+def _extract_client_id_from_oauth() -> str | None:
+    """Return the OAuth client_id from the current access token, truncated.
+
+    The MCP server's client_id is itself a signed JWT (RFC 7591 dynamic
+    registration encoded into the id), so we truncate to a 12-char prefix
+    sufficient to group connector traffic without bloating log lines.
+
+    Returns None for stdio transport (no OAuth context), or whenever the
+    access-token contextvar is unset.
+
+    Note: this used to decode the user_jwt looking for client_id/aud/azp
+    claims, but backend session JWTs do not carry OAuth-client identity —
+    so the field was always empty in production logs. This implementation
+    reads from the OAuth access token instead.
+    """
+    try:
+        from mcp.server.auth.middleware.auth_context import get_access_token
+    except ImportError:
         return None
     try:
-        payload = pyjwt.decode(token, options={"verify_signature": False})
-        cid = payload.get("client_id") or payload.get("aud") or payload.get("azp")
-        if isinstance(cid, list):
-            cid = cid[0] if cid else None
-        return str(cid) if cid else None
+        access_token = get_access_token()
     except Exception:
         return None
+    if not access_token:
+        return None
+    cid = getattr(access_token, "client_id", None)
+    if not cid:
+        return None
+    return str(cid)[:12]
+
+
+def _extract_auth_kind(
+    ctx: Context[Any, CitedContext, Any], token: str | None
+) -> str:
+    """Categorize the auth path for forensic logging.
+
+    Returns one of:
+      - ``anonymous`` — no token, no agent key
+      - ``agent_key`` — CitedClient has agent_api_key set (stdio mode)
+      - ``oauth_email`` — OAuth flow, user_jwt has email claim
+      - ``oauth_no_email`` — OAuth flow, user_jwt decoded but no email
+      - ``oauth_malformed`` — OAuth flow, user_jwt couldn't be decoded
+      - ``stdio_email`` — stdio mode, token is a JWT with email claim
+      - ``stdio_no_email`` — stdio mode, token decoded but no email
+      - ``stdio_malformed`` — stdio mode, token isn't a parseable JWT
+
+    Lets us tell apart the practical cases — including the case where
+    ``_extract_user`` returns ``"unknown"`` because the token was not a
+    JWT at all versus because the JWT had no email/sub claim. Without
+    this, the ``<unknown>`` bucket in usage reports is unactionable.
+    """
+    try:
+        lc = ctx.request_context.lifespan_context
+        if getattr(lc.client, "agent_api_key", None):
+            return "agent_key"
+    except Exception:
+        pass
+
+    method = "stdio"
+    try:
+        from mcp.server.auth.middleware.auth_context import get_access_token
+
+        if get_access_token() is not None:
+            method = "oauth"
+    except Exception:
+        pass
+
+    if not token:
+        return "anonymous" if method == "stdio" else "oauth_no_token"
+
+    try:
+        payload = pyjwt.decode(token, options={"verify_signature": False})
+    except Exception:
+        return f"{method}_malformed"
+
+    if payload.get("email"):
+        return f"{method}_email"
+    return f"{method}_no_email"
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +465,8 @@ def log_tool_call(
         token = _resolve_token(ctx)
         rl_key = _rate_limit_key(token)
         user = _extract_user(token)
-        client_id = _extract_client_id(token)
+        auth_kind = _extract_auth_kind(ctx, token)
+        client_id = _extract_client_id_from_oauth()
         request_id = uuid.uuid4().hex[:12]
         start = time.monotonic()
         build = _get_build_identity()
@@ -399,7 +481,10 @@ def log_tool_call(
                 "request_id": request_id,
                 "tool": tool_name,
                 "user": user,
+                "auth_kind": auth_kind,
                 "client_id": client_id,
+                "ip": _request_ip.get(),
+                "user_agent": _request_ua.get(),
                 "server_version": build["server_version"],
                 "tools_fingerprint": build["tools_fingerprint"],
                 "deployment_id": build["deployment_id"],

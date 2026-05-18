@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cited-mcp"
-version = "0.5.0"
+version = "0.5.1"
 description = "MCP server for the Cited GEO platform"
 readme = "README.md"
 license = "LicenseRef-Proprietary"

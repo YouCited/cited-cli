@@ -1707,6 +1707,170 @@ class TestEnrichedLogging:
         assert rec.get("status_code") == 404
 
 
+class TestForensicTelemetry:
+    """Verify tool_call lines carry the forensic fields that let us trace a
+    request back to its source: auth_kind, client_id, ip, user_agent.
+
+    Motivation: a previous incident showed an ``unknown`` user calling a
+    fake tool name 5 times in 18 minutes on dev — but with no ip / ua /
+    client_id captured, the source was untraceable.
+    """
+
+    @staticmethod
+    def _tool_call_records(caplog):
+        import json
+        return [
+            json.loads(r.message)
+            for r in caplog.records
+            if r.name == "cited_mcp.usage" and '"event": "tool_call"' in r.message
+        ]
+
+    def test_log_has_new_forensic_fields(self, ctx, caplog):
+        """Every tool_call log line carries auth_kind, client_id, ip, user_agent."""
+        import logging
+
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = {"id": "biz-abc"}
+
+        with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+            run(get_business(ctx, business_id="biz-abc"))
+
+        rec = self._tool_call_records(caplog)[-1]
+        assert "auth_kind" in rec
+        assert "client_id" in rec
+        assert "ip" in rec
+        assert "user_agent" in rec
+
+    def test_auth_kind_anonymous_when_no_token(self, unauth_ctx, caplog):
+        """A tool_call with no token at all is logged as anonymous."""
+        import logging
+
+        with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+            run(list_businesses(unauth_ctx))
+
+        assert self._tool_call_records(caplog)[-1]["auth_kind"] == "anonymous"
+
+    def test_auth_kind_agent_key(self, ctx, caplog):
+        """If the CitedClient is using an agent API key, auth_kind=agent_key."""
+        import logging
+
+        client = ctx.request_context.lifespan_context.client
+        client.agent_api_key = "agk_secret_123"
+        client.get.return_value = []
+
+        with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+            run(list_businesses(ctx))
+
+        assert self._tool_call_records(caplog)[-1]["auth_kind"] == "agent_key"
+
+    def test_auth_kind_stdio_email_for_jwt_with_email(self, caplog):
+        """Stdio mode + JWT carrying an email claim -> auth_kind=stdio_email."""
+        import logging
+
+        import jwt as pyjwt
+
+        token = pyjwt.encode(
+            {"email": "user@example.com", "sub": "u1"}, "test-secret", algorithm="HS256"
+        )
+        ctx = make_ctx(token=token)
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = []
+
+        with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+            run(list_businesses(ctx))
+
+        rec = self._tool_call_records(caplog)[-1]
+        assert rec["auth_kind"] == "stdio_email"
+        assert rec["user"] == "user@example.com"
+
+    def test_auth_kind_stdio_no_email_when_jwt_missing_email(self, caplog):
+        """JWT without email claim -> auth_kind=stdio_no_email."""
+        import logging
+
+        import jwt as pyjwt
+
+        token = pyjwt.encode({"sub": "u1"}, "test-secret", algorithm="HS256")
+        ctx = make_ctx(token=token)
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = []
+
+        with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+            run(list_businesses(ctx))
+
+        assert self._tool_call_records(caplog)[-1]["auth_kind"] == "stdio_no_email"
+
+    def test_auth_kind_stdio_malformed_for_non_jwt_token(self, caplog):
+        """Non-JWT token string -> auth_kind=stdio_malformed.
+
+        This is the case that disambiguates the ``<unknown>`` user bucket
+        we saw in the dev usage report — was it a malformed-token probe
+        or a backend-issued JWT with no email? Now we know.
+        """
+        import logging
+
+        ctx = make_ctx(token="this-is-not-a-jwt")
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = []
+
+        with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+            run(list_businesses(ctx))
+
+        assert self._tool_call_records(caplog)[-1]["auth_kind"] == "stdio_malformed"
+
+    def test_ip_and_user_agent_flow_from_contextvars(self, ctx, caplog):
+        """When the remote middleware sets the request contextvars, tool_call
+        log lines must include the captured ip + user_agent."""
+        import logging
+
+        from cited_mcp.tools._helpers import _request_ip, _request_ua
+
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = []
+
+        token_ip = _request_ip.set("203.0.113.42")
+        token_ua = _request_ua.set("claude-desktop/1.2.3")
+        try:
+            with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+                run(list_businesses(ctx))
+        finally:
+            _request_ip.reset(token_ip)
+            _request_ua.reset(token_ua)
+
+        rec = self._tool_call_records(caplog)[-1]
+        assert rec["ip"] == "203.0.113.42"
+        assert rec["user_agent"] == "claude-desktop/1.2.3"
+
+    def test_client_id_from_oauth_access_token(self, ctx, caplog, monkeypatch):
+        """``client_id`` is read from the OAuth access token's ``client_id``
+        attribute (truncated to 12 chars), not from user_jwt claims.
+
+        Regression: backend session JWTs never carry OAuth client identity
+        claims (client_id / aud / azp), so the previous extractor always
+        emitted client_id=null. This test pins the corrected source.
+        """
+        import logging
+        from unittest.mock import MagicMock
+
+        client = ctx.request_context.lifespan_context.client
+        client.get.return_value = []
+
+        fake_access_token = MagicMock()
+        fake_access_token.client_id = "eyJ0eXAiOiJjbGllbnQ" + "x" * 200  # JWT-shaped
+        monkeypatch.setattr(
+            "mcp.server.auth.middleware.auth_context.get_access_token",
+            lambda: fake_access_token,
+        )
+
+        with caplog.at_level(logging.INFO, logger="cited_mcp.usage"):
+            run(list_businesses(ctx))
+
+        rec = self._tool_call_records(caplog)[-1]
+        # Truncated to a 12-char prefix
+        assert rec["client_id"] == "eyJ0eXAiOiJj"
+        # And with an OAuth access token present, auth_kind switches to oauth_*
+        assert rec["auth_kind"].startswith("oauth_")
+
+
 class TestTransportErrors:
     def test_timeout_returns_error(self, ctx):
         """httpx.TimeoutException should return a structured error, not crash."""
