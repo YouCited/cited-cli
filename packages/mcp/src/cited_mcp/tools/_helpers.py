@@ -492,7 +492,17 @@ def log_tool_call(
             if resources:
                 payload["resources"] = resources
             payload.update(extra)
-            logger.info(json.dumps(payload, default=str))
+            # CodeQL flags this as clear-text logging of sensitive data because
+            # `user` is sourced from a JWT email claim. This is by design —
+            # operator usage reports (scripts/mcp_usage_report.py) attribute
+            # tool calls to users by email, which is necessary for forensics
+            # and abuse investigation. Logs flow to a private CloudWatch group
+            # with restricted IAM access. Email is not transmitted anywhere
+            # else from this line. If we later move to hashed identifiers,
+            # the suppression can be removed.
+            logger.info(  # lgtm[py/clear-text-logging-sensitive-data]
+                json.dumps(payload, default=str)
+            )
 
         # Rate limit check
         if rl_err := _check_rate_limit(rl_key):
