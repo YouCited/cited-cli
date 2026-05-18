@@ -204,6 +204,56 @@ class _OAuthEventLogMiddleware:
             logger.info("[oauth-event] %s", kv)
 
 
+class _RequestContextMiddleware:
+    """ASGI middleware that captures the request's source IP and User-Agent
+    into contextvars consumed by the tool-call decorator.
+
+    Why: ``tool_call`` log lines previously carried no source-identifying
+    metadata beyond the (possibly absent) decoded user JWT. When a probe
+    came in with a non-standard token — logged as user=``unknown`` — there
+    was no way to trace the source. Threading an HTTP request object
+    through every tool function is invasive; contextvars stay scoped to
+    the request's async task without touching tool signatures.
+
+    For stdio transport this middleware is not in the chain, so the
+    contextvars stay None and the log fields render as null.
+
+    We prefer the leftmost value of ``X-Forwarded-For`` when present
+    because the ALB inserts the original client IP there and the immediate
+    ``scope["client"]`` is the ALB's internal address. Trusting X-F-F is
+    only safe behind a known proxy — which is the deploy topology here.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        from cited_mcp.tools._helpers import _request_ip, _request_ua
+
+        headers = {k: v for k, v in scope.get("headers", [])}
+        xff = headers.get(b"x-forwarded-for", b"").decode("latin-1", errors="replace")
+        if xff:
+            ip: str | None = xff.split(",")[0].strip() or None
+        else:
+            client = scope.get("client") or ("?", 0)
+            ip = client[0] if client and client[0] != "?" else None
+
+        ua_bytes = headers.get(b"user-agent", b"")
+        ua = ua_bytes.decode("latin-1", errors="replace")[:120] if ua_bytes else None
+
+        token_ip = _request_ip.set(ip)
+        token_ua = _request_ua.set(ua)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            _request_ip.reset(token_ip)
+            _request_ua.reset(token_ua)
+
+
 @asynccontextmanager
 async def cited_remote_lifespan(server: FastMCP) -> AsyncIterator[CitedContext]:
     """Lifespan for the remote MCP server.
@@ -403,9 +453,13 @@ def run_remote_server() -> None:
     starlette_app = server.streamable_http_app()
     # Order: oauth-event log on the OUTSIDE of the registration patcher so
     # patcher-rejected /register calls (400 invalid_redirect_uri) still
-    # produce an event line.
+    # produce an event line. RequestContextMiddleware sits innermost so
+    # its contextvars (ip, user_agent) are set in the same task that
+    # dispatches the tool call.
     patched_app = _OAuthEventLogMiddleware(
-        _PatchRegistrationMiddleware(starlette_app)
+        _PatchRegistrationMiddleware(
+            _RequestContextMiddleware(starlette_app)
+        )
     )
 
     config = uvicorn.Config(

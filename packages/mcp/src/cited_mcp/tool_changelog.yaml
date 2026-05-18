@@ -21,6 +21,18 @@
 #      this file.
 
 versions:
+  - version: "0.5.1"
+    released: "2026-05-18"
+    # Telemetry-only release: tool surface is unchanged (fingerprint matches
+    # 0.5.0). Adds forensic fields to every tool_call log line — ip,
+    # user_agent, and a new auth_kind discriminator (anonymous / agent_key /
+    # oauth_email / oauth_no_email / oauth_malformed / stdio_email /
+    # stdio_no_email / stdio_malformed). Also fixes client_id extraction
+    # which was reading from user_jwt claims (always null in prod) instead
+    # of the OAuth access token. Motivated by a 2026-05-02 dev probe that
+    # logged user=unknown with no traceable source.
+    fingerprint: "5bef45100c53"
+
   - version: "0.5.0"
     released: "2026-05-11"
     # Three new read-only list_* tools to enable persona/product/buyer-intent

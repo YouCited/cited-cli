@@ -26,6 +26,7 @@ watch_job is monkeypatched to return an instant "completed" dict — this keeps
 tests fast and avoids Rich's Live renderer interacting with the CliRunner's
 StringIO stdout.
 """
+
 from __future__ import annotations
 
 import json
@@ -42,13 +43,13 @@ from cited_cli.app import app
 # Pipeline-wide ID constants
 # These UUIDs are used as the canonical IDs throughout all tests in this file.
 # ─────────────────────────────────────────────────────────────────────────────
-BUSINESS_ID       = "b1a2c3d4-e5f6-7890-abcd-ef1234567890"
-TEMPLATE_ID       = "t1a2c3d4-e5f6-7890-abcd-ef1234567891"
-AUDIT_JOB_ID      = "a1a2c3d4-e5f6-7890-abcd-ef1234567892"
-RECOMMEND_JOB_ID  = "r1a2c3d4-e5f6-7890-abcd-ef1234567893"
-SOLUTION_JOB_ID   = "s1a2c3d4-e5f6-7890-abcd-ef1234567894"
-CRAWL_JOB_ID      = "c1a2c3d4-e5f6-7890-abcd-ef1234567895"
-QI_SOURCE_ID      = "qi-abc123def456"       # question_insight source
+BUSINESS_ID = "b1a2c3d4-e5f6-7890-abcd-ef1234567890"
+TEMPLATE_ID = "t1a2c3d4-e5f6-7890-abcd-ef1234567891"
+AUDIT_JOB_ID = "a1a2c3d4-e5f6-7890-abcd-ef1234567892"
+RECOMMEND_JOB_ID = "r1a2c3d4-e5f6-7890-abcd-ef1234567893"
+SOLUTION_JOB_ID = "s1a2c3d4-e5f6-7890-abcd-ef1234567894"
+CRAWL_JOB_ID = "c1a2c3d4-e5f6-7890-abcd-ef1234567895"
+QI_SOURCE_ID = "qi-abc123def456"  # question_insight source
 HTH_COMPETITOR_DOMAIN = "competitorx.com"  # head_to_head competitor_domain
 
 # Dev API base URL (matches cited_cli/config/constants.py ENVIRONMENTS["dev"])
@@ -209,13 +210,24 @@ MOCK_SOLUTION_STARTED = {
 MOCK_TEMPLATE_LIST = [MOCK_TEMPLATE]
 
 # Reusable list of audits (for history endpoint)
-MOCK_AUDIT_LIST = [{"job_id": AUDIT_JOB_ID, "business_name": "Acme GEO Corp", "status": "completed", "created_at": "2026-03-17T12:02:00Z"}]
+MOCK_AUDIT_LIST = [
+    {
+        "job_id": AUDIT_JOB_ID,
+        "business_name": "Acme GEO Corp",
+        "status": "completed",
+        "created_at": "2026-03-17T12:02:00Z",
+    }
+]
 
 # Reusable list of recommendations (for history endpoint)
-MOCK_RECOMMEND_LIST = [{"job_id": RECOMMEND_JOB_ID, "status": "completed", "created_at": "2026-03-17T12:05:00Z"}]
+MOCK_RECOMMEND_LIST = [
+    {"job_id": RECOMMEND_JOB_ID, "status": "completed", "created_at": "2026-03-17T12:05:00Z"}
+]
 
 # Reusable list of solutions (for history endpoint)
-MOCK_SOLUTION_LIST = [{"job_id": SOLUTION_JOB_ID, "status": "completed", "created_at": "2026-03-17T12:10:00Z"}]
+MOCK_SOLUTION_LIST = [
+    {"job_id": SOLUTION_JOB_ID, "status": "completed", "created_at": "2026-03-17T12:10:00Z"}
+]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -238,13 +250,13 @@ def _setup_logged_in(tmp_path, monkeypatch) -> None:
     """
     config_dir = tmp_path / ".cited"
     config_file = config_dir / "config.toml"
-    creds_file  = config_dir / "credentials.json"
+    creds_file = config_dir / "credentials.json"
 
-    monkeypatch.setattr("cited_core.config.constants.CONFIG_DIR",      config_dir)
-    monkeypatch.setattr("cited_core.config.constants.CONFIG_FILE",     config_file)
+    monkeypatch.setattr("cited_core.config.constants.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("cited_core.config.constants.CONFIG_FILE", config_file)
     monkeypatch.setattr("cited_core.config.constants.CREDENTIALS_FILE", creds_file)
-    monkeypatch.setattr("cited_core.auth.store.CONFIG_DIR",             config_dir)
-    monkeypatch.setattr("cited_core.auth.store.CREDENTIALS_FILE",       creds_file)
+    monkeypatch.setattr("cited_core.auth.store.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("cited_core.auth.store.CREDENTIALS_FILE", creds_file)
     # Disable keyring so credentials go to the plain JSON file
     monkeypatch.setattr("cited_core.auth.store.TokenStore._has_keyring", lambda self: False)
 
@@ -255,18 +267,17 @@ def _setup_logged_in(tmp_path, monkeypatch) -> None:
 
 def _mock_watch_job_completed(job_id: str):
     """Return a monkeypatch target that resolves watch_job instantly as completed."""
+
     def _instant_complete(client, status_path, console, poll_interval=2.0):
         return {"status": "completed", "job_id": job_id, "progress": 1.0}
+
     return _instant_complete
 
 
 def _invoke(runner, cli_app, args: list[str]) -> Any:
     """Run a CLI command and assert it succeeded, returning the parsed JSON."""
     result = runner.invoke(cli_app, args)
-    assert result.exit_code == 0, (
-        f"Command failed: cited {' '.join(args)}\n"
-        f"Output: {result.output}"
-    )
+    assert result.exit_code == 0, f"Command failed: cited {' '.join(args)}\nOutput: {result.output}"
     return result
 
 
@@ -274,21 +285,32 @@ def _invoke(runner, cli_app, args: list[str]) -> Any:
 # Step 1 — Business Creation
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @respx.mock
 def test_business_create_returns_id(runner, cli_app, tmp_path, monkeypatch):
     """business create outputs JSON with an 'id' field in --json mode."""
     _setup_logged_in(tmp_path, monkeypatch)
-    respx.post(f"{DEV_API}/businesses").mock(
-        return_value=httpx.Response(201, json=MOCK_BUSINESS)
-    )
+    respx.post(f"{DEV_API}/businesses").mock(return_value=httpx.Response(201, json=MOCK_BUSINESS))
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "business", "create",
-        "--name", "Acme GEO Corp",
-        "--website", "https://acme.example.com",
-        "--description", "Acme makes AI-powered tools for enterprise teams with great GEO presence.",
-        "--industry", "SaaS",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "business",
+            "create",
+            "--name",
+            "Acme GEO Corp",
+            "--website",
+            "https://acme.example.com",
+            "--description",
+            "Acme makes AI-powered tools for enterprise teams with great GEO presence.",
+            "--industry",
+            "SaaS",
+        ],
+    )
 
     data = json.loads(result.output)
     assert data["id"] == BUSINESS_ID
@@ -300,16 +322,24 @@ def test_business_create_returns_id(runner, cli_app, tmp_path, monkeypatch):
 def test_business_create_human_output(runner, cli_app, tmp_path, monkeypatch):
     """business create renders a key-value panel in human mode."""
     _setup_logged_in(tmp_path, monkeypatch)
-    respx.post(f"{DEV_API}/businesses").mock(
-        return_value=httpx.Response(201, json=MOCK_BUSINESS)
-    )
+    respx.post(f"{DEV_API}/businesses").mock(return_value=httpx.Response(201, json=MOCK_BUSINESS))
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "business", "create",
-        "--name", "Acme GEO Corp",
-        "--website", "https://acme.example.com",
-        "--description", "Acme makes AI-powered tools for enterprise teams with great GEO presence.",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "business",
+            "create",
+            "--name",
+            "Acme GEO Corp",
+            "--website",
+            "https://acme.example.com",
+            "--description",
+            "Acme makes AI-powered tools for enterprise teams with great GEO presence.",
+        ],
+    )
 
     assert "Acme GEO Corp" in result.output
     assert "acme.example.com" in result.output
@@ -323,12 +353,21 @@ def test_business_create_api_error(runner, cli_app, tmp_path, monkeypatch):
         return_value=httpx.Response(422, json={"detail": "website is not a valid URL"})
     )
 
-    result = runner.invoke(cli_app, [
-        "--env", "dev", "business", "create",
-        "--name", "Bad Business",
-        "--website", "not-a-url",
-        "--description", "This should fail because the website is invalid per the backend.",
-    ])
+    result = runner.invoke(
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "business",
+            "create",
+            "--name",
+            "Bad Business",
+            "--website",
+            "not-a-url",
+            "--description",
+            "This should fail because the website is invalid per the backend.",
+        ],
+    )
 
     assert result.exit_code != 0
 
@@ -340,12 +379,21 @@ def test_business_create_requires_auth(runner, cli_app, tmp_path, monkeypatch):
     creds_file = tmp_path / ".cited" / "credentials.json"
     creds_file.write_text(json.dumps({}))
 
-    result = runner.invoke(cli_app, [
-        "--env", "dev", "business", "create",
-        "--name", "X",
-        "--website", "https://x.com",
-        "--description", "A valid description that is long enough for the check.",
-    ])
+    result = runner.invoke(
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "business",
+            "create",
+            "--name",
+            "X",
+            "--website",
+            "https://x.com",
+            "--description",
+            "A valid description that is long enough for the check.",
+        ],
+    )
 
     assert result.exit_code != 0
     assert "Not logged in" in result.output
@@ -355,22 +403,35 @@ def test_business_create_requires_auth(runner, cli_app, tmp_path, monkeypatch):
 # Step 2 — Audit Template CRUD
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @respx.mock
 def test_template_create_returns_id(runner, cli_app, tmp_path, monkeypatch):
     """audit template create returns JSON with an 'id' field usable as next step input."""
     _setup_logged_in(tmp_path, monkeypatch)
-    respx.post(f"{DEV_API}/named-audits").mock(
-        return_value=httpx.Response(201, json=MOCK_TEMPLATE)
-    )
+    respx.post(f"{DEV_API}/named-audits").mock(return_value=httpx.Response(201, json=MOCK_TEMPLATE))
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "audit", "template", "create",
-        "--name", "Q4 GEO Audit",
-        "--business", BUSINESS_ID,
-        "--description", "Checks citation presence across key GEO keywords",
-        "--question", "Are you cited when people ask about AI tools?",
-        "--question", "Does your product appear for enterprise GEO searches?",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "audit",
+            "template",
+            "create",
+            "--name",
+            "Q4 GEO Audit",
+            "--business",
+            BUSINESS_ID,
+            "--description",
+            "Checks citation presence across key GEO keywords",
+            "--question",
+            "Are you cited when people ask about AI tools?",
+            "--question",
+            "Does your product appear for enterprise GEO searches?",
+        ],
+    )
 
     data = json.loads(result.output)
     assert data["id"] == TEMPLATE_ID
@@ -382,16 +443,25 @@ def test_template_create_returns_id(runner, cli_app, tmp_path, monkeypatch):
 def test_template_create_human_output_shows_run_hint(runner, cli_app, tmp_path, monkeypatch):
     """audit template create (human mode) prints a hint for the next command."""
     _setup_logged_in(tmp_path, monkeypatch)
-    respx.post(f"{DEV_API}/named-audits").mock(
-        return_value=httpx.Response(201, json=MOCK_TEMPLATE)
-    )
+    respx.post(f"{DEV_API}/named-audits").mock(return_value=httpx.Response(201, json=MOCK_TEMPLATE))
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "audit", "template", "create",
-        "--name", "Q4 GEO Audit",
-        "--business", BUSINESS_ID,
-        "--question", "Are you cited when people ask about AI tools?",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "audit",
+            "template",
+            "create",
+            "--name",
+            "Q4 GEO Audit",
+            "--business",
+            BUSINESS_ID,
+            "--question",
+            "Are you cited when people ask about AI tools?",
+        ],
+    )
 
     assert "cited audit start" in result.output
     assert TEMPLATE_ID in result.output
@@ -424,10 +494,19 @@ def test_template_list_filtered_by_business(runner, cli_app, tmp_path, monkeypat
 
     respx.get(f"{DEV_API}/named-audits").mock(side_effect=_capture)
 
-    _invoke(runner, cli_app, [
-        "--env", "dev", "audit", "template", "list",
-        "--business", BUSINESS_ID,
-    ])
+    _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "audit",
+            "template",
+            "list",
+            "--business",
+            BUSINESS_ID,
+        ],
+    )
 
     assert captured_params.get("business_id") == BUSINESS_ID
 
@@ -461,12 +540,25 @@ def test_template_update_replaces_questions(runner, cli_app, tmp_path, monkeypat
 
     respx.put(f"{DEV_API}/named-audits/{TEMPLATE_ID}").mock(side_effect=_capture)
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "audit", "template", "update", TEMPLATE_ID,
-        "--question", "Are we cited for AI safety research?",
-        "--question", "Do enterprise buyers find us via AI assistants?",
-        "--question", "Are we mentioned in responsible AI discussions?",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "audit",
+            "template",
+            "update",
+            TEMPLATE_ID,
+            "--question",
+            "Are we cited for AI safety research?",
+            "--question",
+            "Do enterprise buyers find us via AI assistants?",
+            "--question",
+            "Are we mentioned in responsible AI discussions?",
+        ],
+    )
 
     data = json.loads(result.output)
     assert data["id"] == TEMPLATE_ID
@@ -488,10 +580,21 @@ def test_template_update_name_only(runner, cli_app, tmp_path, monkeypatch):
 
     respx.put(f"{DEV_API}/named-audits/{TEMPLATE_ID}").mock(side_effect=_capture)
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "audit", "template", "update", TEMPLATE_ID,
-        "--name", "Q4 GEO Audit Revised",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "audit",
+            "template",
+            "update",
+            TEMPLATE_ID,
+            "--name",
+            "Q4 GEO Audit Revised",
+        ],
+    )
 
     data = json.loads(result.output)
     assert data["name"] == "Q4 GEO Audit Revised"
@@ -507,10 +610,19 @@ def test_template_update_human_shows_questions(runner, cli_app, tmp_path, monkey
         return_value=httpx.Response(200, json=MOCK_TEMPLATE_UPDATED)
     )
 
-    result = runner.invoke(cli_app, [
-        "--env", "dev", "audit", "template", "update", TEMPLATE_ID,
-        "--question", "Are we cited for AI safety research?",
-    ])
+    result = runner.invoke(
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "audit",
+            "template",
+            "update",
+            TEMPLATE_ID,
+            "--question",
+            "Are we cited for AI safety research?",
+        ],
+    )
 
     assert result.exit_code == 0
     assert "Template Updated" in result.output
@@ -522,9 +634,17 @@ def test_template_update_no_args_exits_with_error(runner, cli_app, tmp_path, mon
     """audit template update with no flags exits with validation error."""
     _setup_logged_in(tmp_path, monkeypatch)
 
-    result = runner.invoke(cli_app, [
-        "--env", "dev", "audit", "template", "update", TEMPLATE_ID,
-    ])
+    result = runner.invoke(
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "audit",
+            "template",
+            "update",
+            TEMPLATE_ID,
+        ],
+    )
 
     assert result.exit_code == 4  # VALIDATION_ERROR
 
@@ -533,13 +653,21 @@ def test_template_update_no_args_exits_with_error(runner, cli_app, tmp_path, mon
 def test_template_delete_with_flag_skips_prompt(runner, cli_app, tmp_path, monkeypatch):
     """audit template delete --yes deletes without confirmation prompt."""
     _setup_logged_in(tmp_path, monkeypatch)
-    respx.delete(f"{DEV_API}/named-audits/{TEMPLATE_ID}").mock(
-        return_value=httpx.Response(204)
-    )
+    respx.delete(f"{DEV_API}/named-audits/{TEMPLATE_ID}").mock(return_value=httpx.Response(204))
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "audit", "template", "delete", TEMPLATE_ID, "--yes",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "audit",
+            "template",
+            "delete",
+            TEMPLATE_ID,
+            "--yes",
+        ],
+    )
 
     assert result.exit_code == 0
 
@@ -548,9 +676,7 @@ def test_template_delete_with_flag_skips_prompt(runner, cli_app, tmp_path, monke
 def test_template_delete_prompts_without_flag(runner, cli_app, tmp_path, monkeypatch):
     """audit template delete without --yes prompts for confirmation."""
     _setup_logged_in(tmp_path, monkeypatch)
-    respx.delete(f"{DEV_API}/named-audits/{TEMPLATE_ID}").mock(
-        return_value=httpx.Response(204)
-    )
+    respx.delete(f"{DEV_API}/named-audits/{TEMPLATE_ID}").mock(return_value=httpx.Response(204))
 
     # Answer "n" → Abort
     result = runner.invoke(
@@ -565,6 +691,7 @@ def test_template_delete_prompts_without_flag(runner, cli_app, tmp_path, monkeyp
 # Step 3 — Audit Start
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @respx.mock
 def test_audit_start_returns_job_id(runner, cli_app, tmp_path, monkeypatch):
     """audit start returns JSON with a job_id field."""
@@ -573,9 +700,18 @@ def test_audit_start_returns_job_id(runner, cli_app, tmp_path, monkeypatch):
         return_value=httpx.Response(202, json=MOCK_AUDIT_STARTED)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "audit", "start", TEMPLATE_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "audit",
+            "start",
+            TEMPLATE_ID,
+        ],
+    )
 
     data = json.loads(result.output)
     assert data["job_id"] == AUDIT_JOB_ID
@@ -595,10 +731,19 @@ def test_audit_start_sends_named_audit_id(runner, cli_app, tmp_path, monkeypatch
 
     respx.post(f"{DEV_API}/audit/start").mock(side_effect=_capture)
 
-    _invoke(runner, cli_app, [
-        "--env", "dev", "audit", "start", TEMPLATE_ID,
-        "--business", BUSINESS_ID,
-    ])
+    _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "audit",
+            "start",
+            TEMPLATE_ID,
+            "--business",
+            BUSINESS_ID,
+        ],
+    )
 
     assert captured_body.get("named_audit_id") == TEMPLATE_ID
     assert captured_body.get("business_id") == BUSINESS_ID
@@ -619,11 +764,21 @@ def test_audit_start_with_providers(runner, cli_app, tmp_path, monkeypatch):
 
     respx.post(f"{DEV_API}/audit/start").mock(side_effect=_capture)
 
-    _invoke(runner, cli_app, [
-        "--env", "dev", "audit", "start", TEMPLATE_ID,
-        "--provider", "openai",
-        "--provider", "perplexity",
-    ])
+    _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "audit",
+            "start",
+            TEMPLATE_ID,
+            "--provider",
+            "openai",
+            "--provider",
+            "perplexity",
+        ],
+    )
 
     assert set(captured_body.get("providers", [])) == {"openai", "perplexity"}
 
@@ -646,6 +801,7 @@ def test_audit_start_human_output_shows_watch_hint(runner, cli_app, tmp_path, mo
 # Step 4 — Job Watch (Audit)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @respx.mock
 def test_job_watch_audit_completes(runner, cli_app, tmp_path, monkeypatch):
     """job watch polls the audit status endpoint and prints 'completed' on success."""
@@ -655,9 +811,19 @@ def test_job_watch_audit_completes(runner, cli_app, tmp_path, monkeypatch):
         _mock_watch_job_completed(AUDIT_JOB_ID),
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "job", "watch", AUDIT_JOB_ID, "--type", "audit",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "job",
+            "watch",
+            AUDIT_JOB_ID,
+            "--type",
+            "audit",
+        ],
+    )
 
     assert "completed" in result.output.lower()
 
@@ -695,9 +861,18 @@ def test_job_watch_failed_job_exits_nonzero(runner, cli_app, tmp_path, monkeypat
         },
     )
 
-    result = runner.invoke(cli_app, [
-        "--env", "dev", "job", "watch", AUDIT_JOB_ID, "--type", "audit",
-    ])
+    result = runner.invoke(
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "job",
+            "watch",
+            AUDIT_JOB_ID,
+            "--type",
+            "audit",
+        ],
+    )
 
     assert result.exit_code != 0
     assert "failed" in result.output.lower() or "Provider timeout" in result.output
@@ -707,6 +882,7 @@ def test_job_watch_failed_job_exits_nonzero(runner, cli_app, tmp_path, monkeypat
 # Step 5 — Audit Result
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @respx.mock
 def test_audit_result_json_output(runner, cli_app, tmp_path, monkeypatch):
     """audit result returns JSON with question-level citation data."""
@@ -715,9 +891,18 @@ def test_audit_result_json_output(runner, cli_app, tmp_path, monkeypatch):
         return_value=httpx.Response(200, json=MOCK_AUDIT_RESULT)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "audit", "result", AUDIT_JOB_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "audit",
+            "result",
+            AUDIT_JOB_ID,
+        ],
+    )
 
     data = json.loads(result.output)
     assert data["job_id"] == AUDIT_JOB_ID
@@ -746,6 +931,7 @@ def test_audit_list_renders_table(runner, cli_app, tmp_path, monkeypatch):
 # Step 6 — Business Crawl
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @respx.mock
 def test_business_crawl_starts_successfully(runner, cli_app, tmp_path, monkeypatch):
     """business crawl posts to the crawl endpoint and shows 'Crawl Started'."""
@@ -768,9 +954,18 @@ def test_business_crawl_json_output(runner, cli_app, tmp_path, monkeypatch):
         return_value=httpx.Response(202, json=MOCK_CRAWL_STARTED)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "business", "crawl", BUSINESS_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "business",
+            "crawl",
+            BUSINESS_ID,
+        ],
+    )
 
     data = json.loads(result.output)
     assert data["business_id"] == BUSINESS_ID
@@ -781,6 +976,7 @@ def test_business_crawl_json_output(runner, cli_app, tmp_path, monkeypatch):
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 7 — Business Health (view crawl results)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @respx.mock
 def test_business_health_renders_score_bars(runner, cli_app, tmp_path, monkeypatch):
@@ -806,9 +1002,18 @@ def test_business_health_json_output(runner, cli_app, tmp_path, monkeypatch):
         return_value=httpx.Response(200, json=MOCK_HEALTH_SCORES)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "business", "health", BUSINESS_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "business",
+            "health",
+            BUSINESS_ID,
+        ],
+    )
 
     data = json.loads(result.output)
     scores = data.get("scores", {})
@@ -820,6 +1025,7 @@ def test_business_health_json_output(runner, cli_app, tmp_path, monkeypatch):
 # Step 8 — Recommend Start
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @respx.mock
 def test_recommend_start_returns_job_id(runner, cli_app, tmp_path, monkeypatch):
     """recommend start returns JSON with a job_id to feed into job watch."""
@@ -828,9 +1034,18 @@ def test_recommend_start_returns_job_id(runner, cli_app, tmp_path, monkeypatch):
         return_value=httpx.Response(202, json=MOCK_RECOMMEND_STARTED)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "recommend", "start", AUDIT_JOB_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "recommend",
+            "start",
+            AUDIT_JOB_ID,
+        ],
+    )
 
     data = json.loads(result.output)
     assert data["job_id"] == RECOMMEND_JOB_ID
@@ -873,6 +1088,7 @@ def test_recommend_start_human_output_shows_watch_hint(runner, cli_app, tmp_path
 # Step 9 — Job Watch (Recommendations)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @respx.mock
 def test_job_watch_recommend_completes(runner, cli_app, tmp_path, monkeypatch):
     """job watch on a recommendations job exits zero and prints completion."""
@@ -882,10 +1098,19 @@ def test_job_watch_recommend_completes(runner, cli_app, tmp_path, monkeypatch):
         _mock_watch_job_completed(RECOMMEND_JOB_ID),
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "job", "watch", RECOMMEND_JOB_ID,
-        "--type", "recommendations",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "job",
+            "watch",
+            RECOMMEND_JOB_ID,
+            "--type",
+            "recommendations",
+        ],
+    )
 
     assert "completed" in result.output.lower()
 
@@ -918,6 +1143,7 @@ def test_job_watch_auto_detects_recommend_type(runner, cli_app, tmp_path, monkey
 # Step 10 — Recommend Insights
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @respx.mock
 def test_recommend_insights_table_contains_source_ids(runner, cli_app, tmp_path, monkeypatch):
     """recommend insights renders a table with Type, Source ID, and Description columns."""
@@ -926,9 +1152,17 @@ def test_recommend_insights_table_contains_source_ids(runner, cli_app, tmp_path,
         return_value=httpx.Response(200, json=MOCK_RECOMMEND_RESULT)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "recommend", "insights", RECOMMEND_JOB_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "recommend",
+            "insights",
+            RECOMMEND_JOB_ID,
+        ],
+    )
 
     assert "Available Insights" in result.output
     # question_id is the source_id for question_insights
@@ -951,9 +1185,17 @@ def test_recommend_insights_shows_solution_command_hint(runner, cli_app, tmp_pat
         return_value=httpx.Response(200, json=MOCK_RECOMMEND_RESULT)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "recommend", "insights", RECOMMEND_JOB_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "recommend",
+            "insights",
+            RECOMMEND_JOB_ID,
+        ],
+    )
 
     assert "cited solution start" in result.output
     assert RECOMMEND_JOB_ID in result.output
@@ -967,9 +1209,18 @@ def test_recommend_insights_json_output(runner, cli_app, tmp_path, monkeypatch):
         return_value=httpx.Response(200, json=MOCK_RECOMMEND_RESULT)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "recommend", "insights", RECOMMEND_JOB_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "recommend",
+            "insights",
+            RECOMMEND_JOB_ID,
+        ],
+    )
 
     data = json.loads(result.output)
     # Real API uses question_id (not id) for question_insights
@@ -993,9 +1244,17 @@ def test_recommend_insights_field_name_regression(runner, cli_app, tmp_path, mon
         return_value=httpx.Response(200, json=MOCK_RECOMMEND_RESULT)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "recommend", "insights", RECOMMEND_JOB_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "recommend",
+            "insights",
+            RECOMMEND_JOB_ID,
+        ],
+    )
 
     # question_insight row: source_id is question_id value
     assert QI_SOURCE_ID in result.output
@@ -1017,9 +1276,18 @@ def test_recommend_list_renders_table(runner, cli_app, tmp_path, monkeypatch):
         return_value=httpx.Response(200, json=MOCK_RECOMMEND_LIST)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "recommend", "list", "--audit", AUDIT_JOB_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "recommend",
+            "list",
+            "--audit",
+            AUDIT_JOB_ID,
+        ],
+    )
 
     assert "Recommendations" in result.output
     assert "completed" in result.output
@@ -1029,6 +1297,7 @@ def test_recommend_list_renders_table(runner, cli_app, tmp_path, monkeypatch):
 # Step 11 — Solution Start
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @respx.mock
 def test_solution_start_returns_job_id(runner, cli_app, tmp_path, monkeypatch):
     """solution start returns JSON with a job_id."""
@@ -1037,11 +1306,22 @@ def test_solution_start_returns_job_id(runner, cli_app, tmp_path, monkeypatch):
         return_value=httpx.Response(202, json=MOCK_SOLUTION_STARTED)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "solution", "start", RECOMMEND_JOB_ID,
-        "--type", "question_insight",
-        "--source", QI_SOURCE_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "solution",
+            "start",
+            RECOMMEND_JOB_ID,
+            "--type",
+            "question_insight",
+            "--source",
+            QI_SOURCE_ID,
+        ],
+    )
 
     data = json.loads(result.output)
     assert data["job_id"] == SOLUTION_JOB_ID
@@ -1069,11 +1349,21 @@ def test_solution_start_uses_solution_request_endpoint(runner, cli_app, tmp_path
     respx.post(f"{DEV_API}/solutions/request").mock(side_effect=_capture_request)
     respx.post(f"{DEV_API}/solutions/create").mock(side_effect=_deprecated_called_handler)
 
-    _invoke(runner, cli_app, [
-        "--env", "dev", "solution", "start", RECOMMEND_JOB_ID,
-        "--type", "question_insight",
-        "--source", QI_SOURCE_ID,
-    ])
+    _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "solution",
+            "start",
+            RECOMMEND_JOB_ID,
+            "--type",
+            "question_insight",
+            "--source",
+            QI_SOURCE_ID,
+        ],
+    )
 
     # Correct endpoint was called with the right payload
     assert captured_body.get("recommendation_job_id") == RECOMMEND_JOB_ID
@@ -1093,11 +1383,21 @@ def test_solution_start_shows_web_nudge(runner, cli_app, tmp_path, monkeypatch):
         return_value=httpx.Response(202, json=MOCK_SOLUTION_STARTED)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "solution", "start", RECOMMEND_JOB_ID,
-        "--type", "question_insight",
-        "--source", QI_SOURCE_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "solution",
+            "start",
+            RECOMMEND_JOB_ID,
+            "--type",
+            "question_insight",
+            "--source",
+            QI_SOURCE_ID,
+        ],
+    )
 
     # Web nudge must include the solution job ID and point to the dev web origin
     assert SOLUTION_JOB_ID in result.output
@@ -1112,11 +1412,21 @@ def test_solution_start_shows_watch_hint(runner, cli_app, tmp_path, monkeypatch)
         return_value=httpx.Response(202, json=MOCK_SOLUTION_STARTED)
     )
 
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "solution", "start", RECOMMEND_JOB_ID,
-        "--type", "question_insight",
-        "--source", QI_SOURCE_ID,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "solution",
+            "start",
+            RECOMMEND_JOB_ID,
+            "--type",
+            "question_insight",
+            "--source",
+            QI_SOURCE_ID,
+        ],
+    )
 
     assert "cited job watch" in result.output
 
@@ -1126,10 +1436,17 @@ def test_solution_start_requires_type_and_source(runner, cli_app, tmp_path, monk
     """solution start exits with a usage error when --type or --source is missing."""
     _setup_logged_in(tmp_path, monkeypatch)
 
-    result = runner.invoke(cli_app, [
-        "--env", "dev", "solution", "start", RECOMMEND_JOB_ID,
-        # Missing --type and --source
-    ])
+    result = runner.invoke(
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "solution",
+            "start",
+            RECOMMEND_JOB_ID,
+            # Missing --type and --source
+        ],
+    )
 
     assert result.exit_code != 0
 
@@ -1156,6 +1473,7 @@ def test_solution_list_renders_table(runner, cli_app, tmp_path, monkeypatch):
 #   BUSINESS_ID=$(cited --env dev --json business create ...)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @respx.mock
 def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
     """
@@ -1180,12 +1498,8 @@ def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
     monkeypatch.setattr("cited_cli.commands.job.watch_job", _fast_watch)
 
     # ── Register all API mocks ────────────────────────────────────────────────
-    respx.post(f"{DEV_API}/businesses").mock(
-        return_value=httpx.Response(201, json=MOCK_BUSINESS)
-    )
-    respx.post(f"{DEV_API}/named-audits").mock(
-        return_value=httpx.Response(201, json=MOCK_TEMPLATE)
-    )
+    respx.post(f"{DEV_API}/businesses").mock(return_value=httpx.Response(201, json=MOCK_BUSINESS))
+    respx.post(f"{DEV_API}/named-audits").mock(return_value=httpx.Response(201, json=MOCK_TEMPLATE))
     respx.put(f"{DEV_API}/named-audits/{TEMPLATE_ID}").mock(
         return_value=httpx.Response(200, json=MOCK_TEMPLATE_UPDATED)
     )
@@ -1218,27 +1532,53 @@ def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
     )
 
     # ── Step 1: Create a business ─────────────────────────────────────────────
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "business", "create",
-        "--name", "Acme GEO Corp",
-        "--website", "https://acme.example.com",
-        "--description", "Acme makes AI-powered tools for enterprise teams with great GEO presence.",
-        "--industry", "SaaS",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "business",
+            "create",
+            "--name",
+            "Acme GEO Corp",
+            "--website",
+            "https://acme.example.com",
+            "--description",
+            "Acme makes AI-powered tools for enterprise teams with great GEO presence.",
+            "--industry",
+            "SaaS",
+        ],
+    )
     business = json.loads(result.output)
     business_id = business["id"]  # ← threading state into next step
 
     assert business_id == BUSINESS_ID
 
     # ── Step 2: Create an audit template ─────────────────────────────────────
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "audit", "template", "create",
-        "--name", "Q4 GEO Audit",
-        "--business", business_id,  # ← uses business_id from step 1
-        "--description", "Checks citation presence across key GEO keywords",
-        "--question", "Are you cited when people ask about AI tools?",
-        "--question", "Does your product appear for enterprise GEO searches?",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "audit",
+            "template",
+            "create",
+            "--name",
+            "Q4 GEO Audit",
+            "--business",
+            business_id,  # ← uses business_id from step 1
+            "--description",
+            "Checks citation presence across key GEO keywords",
+            "--question",
+            "Are you cited when people ask about AI tools?",
+            "--question",
+            "Does your product appear for enterprise GEO searches?",
+        ],
+    )
     template = json.loads(result.output)
     template_id = template["id"]  # ← threading state into next step
 
@@ -1247,25 +1587,47 @@ def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
 
     # ── Step 2b: Refine the template questions ──────────────────────────────
     # Auto-generated questions are rarely perfect — update before running audit
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "audit", "template", "update",
-        template_id,
-        "--name", "Q4 GEO Audit Revised",
-        "--question", "Are we cited for AI safety research?",
-        "--question", "Do enterprise buyers find us via AI assistants?",
-        "--question", "Are we mentioned in responsible AI discussions?",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "audit",
+            "template",
+            "update",
+            template_id,
+            "--name",
+            "Q4 GEO Audit Revised",
+            "--question",
+            "Are we cited for AI safety research?",
+            "--question",
+            "Do enterprise buyers find us via AI assistants?",
+            "--question",
+            "Are we mentioned in responsible AI discussions?",
+        ],
+    )
     updated = json.loads(result.output)
     assert updated["id"] == template_id
     assert len(updated["questions"]) == 3
     assert updated["name"] == "Q4 GEO Audit Revised"
 
     # ── Step 3: Start the audit ───────────────────────────────────────────────
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "audit", "start",
-        template_id,  # ← uses template_id from step 2
-        "--business", business_id,
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "audit",
+            "start",
+            template_id,  # ← uses template_id from step 2
+            "--business",
+            business_id,
+        ],
+    )
     audit_started = json.loads(result.output)
     audit_job_id = audit_started["job_id"]  # ← threading state into next step
 
@@ -1273,33 +1635,57 @@ def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
     assert audit_started["status"] == "pending"
 
     # ── Step 4: Watch audit job until completion ──────────────────────────────
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "job", "watch",
-        audit_job_id,  # ← uses audit_job_id from step 3
-        "--type", "audit",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "job",
+            "watch",
+            audit_job_id,  # ← uses audit_job_id from step 3
+            "--type",
+            "audit",
+        ],
+    )
     assert "completed" in result.output.lower()
 
     # ── Step 5: View audit results in CLI ─────────────────────────────────────
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "audit", "result",
-        audit_job_id,  # ← same audit_job_id
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "audit",
+            "result",
+            audit_job_id,  # ← same audit_job_id
+        ],
+    )
     audit_result = json.loads(result.output)
 
     assert audit_result["job_id"] == audit_job_id
     assert len(audit_result["questions"]) == 2
     # One question was cited, one was not
-    cited_questions    = [q for q in audit_result["questions"] if q["cited"]]
-    uncited_questions  = [q for q in audit_result["questions"] if not q["cited"]]
+    cited_questions = [q for q in audit_result["questions"] if q["cited"]]
+    uncited_questions = [q for q in audit_result["questions"] if not q["cited"]]
     assert len(cited_questions) == 1
     assert len(uncited_questions) == 1
 
     # ── Step 6: Scan/crawl the business ──────────────────────────────────────
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "business", "crawl",
-        business_id,  # ← uses business_id from step 1
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "business",
+            "crawl",
+            business_id,  # ← uses business_id from step 1
+        ],
+    )
     crawl = json.loads(result.output)
 
     assert crawl["status"] == "crawling"
@@ -1308,16 +1694,34 @@ def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
     # Extract crawl job_id and watch it
     crawl_job_id = crawl.get("job_id", "")
     assert crawl_job_id == CRAWL_JOB_ID
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "job", "watch", crawl_job_id, "--type", "audit",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "job",
+            "watch",
+            crawl_job_id,
+            "--type",
+            "audit",
+        ],
+    )
     assert "completed" in result.output.lower()
 
     # ── Step 7: View crawl results (health scores) in CLI ────────────────────
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "business", "health",
-        business_id,  # ← uses business_id from step 1
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "business",
+            "health",
+            business_id,  # ← uses business_id from step 1
+        ],
+    )
     health = json.loads(result.output)
 
     scores = health["scores"]
@@ -1328,10 +1732,18 @@ def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
         assert value >= 0, f"{score_name} should be non-negative"
 
     # ── Step 8: Generate recommendations ─────────────────────────────────────
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "recommend", "start",
-        audit_job_id,  # ← uses audit_job_id from step 3
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "recommend",
+            "start",
+            audit_job_id,  # ← uses audit_job_id from step 3
+        ],
+    )
     recommend_started = json.loads(result.output)
     recommend_job_id = recommend_started["job_id"]  # ← threading state into next step
 
@@ -1339,18 +1751,34 @@ def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
     assert recommend_started["audit_job_id"] == audit_job_id
 
     # ── Step 9: Watch recommendation job until completion ────────────────────
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "job", "watch",
-        recommend_job_id,  # ← uses recommend_job_id from step 8
-        "--type", "recommendations",
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "job",
+            "watch",
+            recommend_job_id,  # ← uses recommend_job_id from step 8
+            "--type",
+            "recommendations",
+        ],
+    )
     assert "completed" in result.output.lower()
 
     # ── Step 10: View insights — discover what to solve ──────────────────────
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "--json", "recommend", "insights",
-        recommend_job_id,  # ← uses recommend_job_id from step 8
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "recommend",
+            "insights",
+            recommend_job_id,  # ← uses recommend_job_id from step 8
+        ],
+    )
     insights = json.loads(result.output)
 
     # Extract the first question_insight source_id (what the user will pass to solution start)
@@ -1363,12 +1791,21 @@ def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
 
     # ── Step 11: Start a solution for that insight ────────────────────────────
     # Run in human mode to verify the web nudge is printed
-    result = _invoke(runner, cli_app, [
-        "--env", "dev", "solution", "start",
-        recommend_job_id,          # ← uses recommend_job_id from step 8
-        "--type", "question_insight",
-        "--source", source_id,     # ← uses source_id from step 10
-    ])
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "solution",
+            "start",
+            recommend_job_id,  # ← uses recommend_job_id from step 8
+            "--type",
+            "question_insight",
+            "--source",
+            source_id,  # ← uses source_id from step 10
+        ],
+    )
 
     # Verify the job started
     assert "Solution Started" in result.output
@@ -1379,3 +1816,456 @@ def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
 
     # Verify the watch hint is shown
     assert "cited job watch" in result.output
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# v0.4.0 / v0.5.0 HQ CRUD CLI commands — list/create/update/delete for
+# personas, products, buyer intents; profile-competitors list/set.
+#
+# These commands close the parity gap with the MCP tool surface. Tests use
+# the same pattern as the business/audit/recommend pipeline above: respx-mock
+# the backend endpoints, invoke via Typer CliRunner, assert on output + payload.
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+PERSONA_ID = "p1a2c3d4-e5f6-7890-abcd-ef1234567892"
+PRODUCT_ID = "pr1a2c3d4-e5f6-7890-abcd-ef1234567893"
+INTENT_ID = "i1a2c3d4-e5f6-7890-abcd-ef1234567894"
+
+MOCK_PERSONA = {
+    "id": PERSONA_ID,
+    "name": "Mid-market RevOps lead",
+    "role": "Manager",
+    "description": "Owns rev-data tooling for a 200-person team.",
+}
+MOCK_PRODUCT = {
+    "id": PRODUCT_ID,
+    "name": "Acme Widget",
+    "category": "hardware",
+    "url": "https://acme.com/widget",
+}
+MOCK_INTENT = {
+    "id": INTENT_ID,
+    "question": "What's the cheapest acme widget?",
+    "intent_type": "informational",
+    "priority": "medium",
+    "is_answered": False,
+    "source": "manual",
+}
+MOCK_COMPETITORS = [
+    {"id": "c1", "name": "Rival One", "website": "https://rival1.com"},
+    {"id": "c2", "name": "Rival Two", "website": "https://rival2.com"},
+]
+
+
+# ─── Personas ────────────────────────────────────────────────────────────────
+
+
+@respx.mock
+def test_hq_persona_list(runner, cli_app, tmp_path, monkeypatch):
+    _setup_logged_in(tmp_path, monkeypatch)
+    respx.get(f"{DEV_API}/businesses/{BUSINESS_ID}/personas").mock(
+        return_value=httpx.Response(200, json=[MOCK_PERSONA])
+    )
+
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "hq",
+            BUSINESS_ID,
+            "persona",
+            "list",
+            BUSINESS_ID,
+        ],
+    )
+    data = json.loads(result.output)
+    assert data[0]["id"] == PERSONA_ID
+
+
+@respx.mock
+def test_hq_persona_create(runner, cli_app, tmp_path, monkeypatch):
+    _setup_logged_in(tmp_path, monkeypatch)
+    respx.post(f"{DEV_API}/businesses/{BUSINESS_ID}/personas").mock(
+        return_value=httpx.Response(201, json=MOCK_PERSONA)
+    )
+
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "hq",
+            BUSINESS_ID,
+            "persona",
+            "create",
+            BUSINESS_ID,
+            "--name",
+            "Mid-market RevOps lead",
+            "--description",
+            "Owns rev-data tooling for a 200-person team.",
+        ],
+    )
+    data = json.loads(result.output)
+    assert data["id"] == PERSONA_ID
+    # Verify payload — only declared fields are sent
+    sent = json.loads(respx.calls[0].request.content)
+    assert sent["name"] == "Mid-market RevOps lead"
+    assert sent["description"] == "Owns rev-data tooling for a 200-person team."
+
+
+@respx.mock
+def test_hq_persona_update_partial(runner, cli_app, tmp_path, monkeypatch):
+    """Update with only --name should send a PATCH with only name in the payload."""
+    _setup_logged_in(tmp_path, monkeypatch)
+    respx.patch(f"{DEV_API}/businesses/{BUSINESS_ID}/personas/{PERSONA_ID}").mock(
+        return_value=httpx.Response(200, json={**MOCK_PERSONA, "name": "Renamed"})
+    )
+
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "hq",
+            BUSINESS_ID,
+            "persona",
+            "update",
+            BUSINESS_ID,
+            PERSONA_ID,
+            "--name",
+            "Renamed",
+        ],
+    )
+    data = json.loads(result.output)
+    assert data["name"] == "Renamed"
+    # Confirm partial-update — payload only has the supplied field
+    sent = json.loads(respx.calls[0].request.content)
+    assert sent == {"name": "Renamed"}
+
+
+def test_hq_persona_delete_skips_prompt_with_flag(runner, cli_app, tmp_path, monkeypatch):
+    _setup_logged_in(tmp_path, monkeypatch)
+    with respx.mock:
+        respx.delete(f"{DEV_API}/businesses/{BUSINESS_ID}/personas/{PERSONA_ID}").mock(
+            return_value=httpx.Response(204)
+        )
+
+        result = runner.invoke(
+            cli_app,
+            [
+                "--env",
+                "dev",
+                "hq",
+                BUSINESS_ID,
+                "persona",
+                "delete",
+                BUSINESS_ID,
+                PERSONA_ID,
+                "--yes",
+            ],
+        )
+    assert result.exit_code == 0
+    assert "Deleted persona" in result.output
+
+
+# ─── Products ────────────────────────────────────────────────────────────────
+
+
+@respx.mock
+def test_hq_product_list(runner, cli_app, tmp_path, monkeypatch):
+    _setup_logged_in(tmp_path, monkeypatch)
+    respx.get(f"{DEV_API}/businesses/{BUSINESS_ID}/products").mock(
+        return_value=httpx.Response(200, json=[MOCK_PRODUCT])
+    )
+
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "hq",
+            BUSINESS_ID,
+            "product",
+            "list",
+            BUSINESS_ID,
+        ],
+    )
+    data = json.loads(result.output)
+    assert data[0]["id"] == PRODUCT_ID
+    assert data[0]["category"] == "hardware"
+
+
+@respx.mock
+def test_hq_product_create(runner, cli_app, tmp_path, monkeypatch):
+    _setup_logged_in(tmp_path, monkeypatch)
+    respx.post(f"{DEV_API}/businesses/{BUSINESS_ID}/products").mock(
+        return_value=httpx.Response(201, json=MOCK_PRODUCT)
+    )
+
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "hq",
+            BUSINESS_ID,
+            "product",
+            "create",
+            BUSINESS_ID,
+            "--name",
+            "Acme Widget",
+            "--category",
+            "hardware",
+            "--url",
+            "https://acme.com/widget",
+        ],
+    )
+    data = json.loads(result.output)
+    assert data["id"] == PRODUCT_ID
+    sent = json.loads(respx.calls[0].request.content)
+    assert sent["category"] == "hardware"
+    assert sent["url"] == "https://acme.com/widget"
+
+
+@respx.mock
+def test_hq_product_update_uses_patch(runner, cli_app, tmp_path, monkeypatch):
+    _setup_logged_in(tmp_path, monkeypatch)
+    respx.patch(f"{DEV_API}/businesses/{BUSINESS_ID}/products/{PRODUCT_ID}").mock(
+        return_value=httpx.Response(200, json={**MOCK_PRODUCT, "name": "Renamed"})
+    )
+
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "hq",
+            BUSINESS_ID,
+            "product",
+            "update",
+            BUSINESS_ID,
+            PRODUCT_ID,
+            "--name",
+            "Renamed",
+        ],
+    )
+    data = json.loads(result.output)
+    assert data["name"] == "Renamed"
+    assert respx.calls[0].request.method == "PATCH"
+
+
+def test_hq_product_delete_with_yes(runner, cli_app, tmp_path, monkeypatch):
+    _setup_logged_in(tmp_path, monkeypatch)
+    with respx.mock:
+        respx.delete(f"{DEV_API}/businesses/{BUSINESS_ID}/products/{PRODUCT_ID}").mock(
+            return_value=httpx.Response(204)
+        )
+
+        result = runner.invoke(
+            cli_app,
+            [
+                "--env",
+                "dev",
+                "hq",
+                BUSINESS_ID,
+                "product",
+                "delete",
+                BUSINESS_ID,
+                PRODUCT_ID,
+                "--yes",
+            ],
+        )
+    assert result.exit_code == 0
+
+
+# ─── Buyer intents (v0.5.0 added update + delete) ────────────────────────────
+
+
+@respx.mock
+def test_hq_intent_list(runner, cli_app, tmp_path, monkeypatch):
+    _setup_logged_in(tmp_path, monkeypatch)
+    respx.get(f"{DEV_API}/businesses/{BUSINESS_ID}/buyer-intents").mock(
+        return_value=httpx.Response(200, json=[MOCK_INTENT])
+    )
+
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "hq",
+            BUSINESS_ID,
+            "intent",
+            "list",
+            BUSINESS_ID,
+        ],
+    )
+    data = json.loads(result.output)
+    assert data[0]["id"] == INTENT_ID
+
+
+@respx.mock
+def test_hq_intent_create(runner, cli_app, tmp_path, monkeypatch):
+    _setup_logged_in(tmp_path, monkeypatch)
+    respx.post(f"{DEV_API}/businesses/{BUSINESS_ID}/buyer-intents").mock(
+        return_value=httpx.Response(201, json=MOCK_INTENT)
+    )
+
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "hq",
+            BUSINESS_ID,
+            "intent",
+            "create",
+            BUSINESS_ID,
+            "--intent",
+            "What's the cheapest acme widget?",
+            "--description",
+            "Pricing-sensitive shoppers",
+        ],
+    )
+    data = json.loads(result.output)
+    assert data["id"] == INTENT_ID
+
+
+@respx.mock
+def test_hq_intent_update_partial(runner, cli_app, tmp_path, monkeypatch):
+    """v0.5.0: update_buyer_intent — partial PATCH against /buyer-intents/{id}."""
+    _setup_logged_in(tmp_path, monkeypatch)
+    respx.patch(f"{DEV_API}/businesses/{BUSINESS_ID}/buyer-intents/{INTENT_ID}").mock(
+        return_value=httpx.Response(
+            200, json={**MOCK_INTENT, "priority": "high", "is_answered": True}
+        )
+    )
+
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "hq",
+            BUSINESS_ID,
+            "intent",
+            "update",
+            BUSINESS_ID,
+            INTENT_ID,
+            "--priority",
+            "high",
+            "--is-answered",
+        ],
+    )
+    data = json.loads(result.output)
+    assert data["priority"] == "high"
+    assert data["is_answered"] is True
+    sent = json.loads(respx.calls[0].request.content)
+    # Only the supplied fields land in the PATCH body
+    assert sent == {"priority": "high", "is_answered": True}
+    assert respx.calls[0].request.method == "PATCH"
+
+
+def test_hq_intent_delete_with_yes(runner, cli_app, tmp_path, monkeypatch):
+    """v0.5.0: delete_buyer_intent — DELETE against the singular endpoint."""
+    _setup_logged_in(tmp_path, monkeypatch)
+    with respx.mock:
+        respx.delete(f"{DEV_API}/businesses/{BUSINESS_ID}/buyer-intents/{INTENT_ID}").mock(
+            return_value=httpx.Response(204)
+        )
+
+        result = runner.invoke(
+            cli_app,
+            [
+                "--env",
+                "dev",
+                "hq",
+                BUSINESS_ID,
+                "intent",
+                "delete",
+                BUSINESS_ID,
+                INTENT_ID,
+                "--yes",
+            ],
+        )
+    assert result.exit_code == 0
+    assert "Deleted buyer intent" in result.output
+
+
+# ─── Profile competitors ─────────────────────────────────────────────────────
+
+
+@respx.mock
+def test_business_profile_competitors_list(runner, cli_app, tmp_path, monkeypatch):
+    _setup_logged_in(tmp_path, monkeypatch)
+    respx.get(f"{DEV_API}/businesses/{BUSINESS_ID}/profile-competitors").mock(
+        return_value=httpx.Response(200, json=MOCK_COMPETITORS)
+    )
+
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "business",
+            "profile-competitors",
+            "list",
+            BUSINESS_ID,
+        ],
+    )
+    data = json.loads(result.output)
+    assert len(data) == 2
+    assert data[0]["name"] == "Rival One"
+
+
+@respx.mock
+def test_business_profile_competitors_set_replaces(runner, cli_app, tmp_path, monkeypatch):
+    """set is REPLACE semantics — pass the whole desired list, backend returns
+    the new state."""
+    _setup_logged_in(tmp_path, monkeypatch)
+    new_state = [{"id": "c3", "name": "Acme", "website": "https://acme.com"}]
+    respx.put(f"{DEV_API}/businesses/{BUSINESS_ID}/profile-competitors").mock(
+        return_value=httpx.Response(200, json=new_state)
+    )
+
+    result = _invoke(
+        runner,
+        cli_app,
+        [
+            "--env",
+            "dev",
+            "--json",
+            "business",
+            "profile-competitors",
+            "set",
+            BUSINESS_ID,
+            "--competitor",
+            "Acme|https://acme.com",
+        ],
+    )
+    data = json.loads(result.output)
+    assert data[0]["name"] == "Acme"
+    sent = json.loads(respx.calls[0].request.content)
+    assert sent == {"competitors": [{"name": "Acme", "website": "https://acme.com"}]}
