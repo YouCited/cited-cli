@@ -1,6 +1,6 @@
 # cited-mcp
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 73 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 74 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
 
@@ -146,6 +146,7 @@ Cited adds new tools regularly. To access new tools after a release, **disconnec
 ### Audits
 | Tool | Description |
 |------|-------------|
+| `free_audit` | Free GEO audit of any website, no login needed. Call again with the same URL for progress and the full report |
 | `start_audit` | Run a GEO audit using a template |
 | `get_audit_status` | Check audit job status |
 | `get_audit_result` | Get completed audit results |
@@ -231,9 +232,9 @@ Tools are gated by subscription tier. All tiers can read data; write operations 
 
 | Tier | Tools Available |
 |------|----------------|
-| **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list), all recommendation tools, action-plan reads (get_action_plan, get_quick_wins), Validation Engine reads, job status — **31 tools** |
-| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, batch solutions, export audit, cancel job, action-plan writes (mark_action_done, dismiss_action, get_action_progress) — **62 tools** |
-| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **73 tools** |
+| **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list), all recommendation tools, action-plan reads (get_action_plan, get_quick_wins), Validation Engine reads, job status, free audit — **32 tools** |
+| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, batch solutions, export audit, cancel job, action-plan writes (mark_action_done, dismiss_action, get_action_progress) — **63 tools** |
+| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **74 tools** |
 
 When a user calls a tool above their plan, the server returns a structured error with an upgrade link:
 

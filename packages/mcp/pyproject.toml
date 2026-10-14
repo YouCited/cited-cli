@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cited-mcp"
-version = "0.5.1"
+version = "0.5.2"
 description = "MCP server for the Cited GEO platform"
 readme = "README.md"
 license = "LicenseRef-Proprietary"
 requires-python = ">=3.11"
 authors = [{ name = "Cited", email = "support@youcited.com" }]
 dependencies = [
-    "cited-core>=0.5.1",
-    "mcp>=1.27.0",
+    "cited-core>=0.5.2",
+    "mcp>=1.27.0,<2",
     "PyJWT>=2.8.0",
     "PyYAML>=6.0",
 ]

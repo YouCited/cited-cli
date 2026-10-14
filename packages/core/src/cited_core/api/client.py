@@ -72,8 +72,16 @@ class CitedClient:
             message = response.text or message
         raise CitedAPIError(response.status_code, str(message), error_code)
 
-    def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        response = self._client.get(path, params=params)
+    def get(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> Any:
+        kwargs: dict[str, Any] = {"params": params}
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        response = self._client.get(path, **kwargs)
         return self._handle_response(response)
 
     def post(
