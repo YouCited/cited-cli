@@ -165,6 +165,7 @@ _BASE_TOOLS: set[str] = {
     "get_pricing",
     "upgrade_plan",
     "whats_new",
+    "free_audit",
     "list_businesses",
     "get_business",
     "crawl_business",

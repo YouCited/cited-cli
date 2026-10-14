@@ -87,6 +87,7 @@ EXPECTED_TOOLS = [
     "upgrade_plan",
     # Changelog
     "whats_new",
+    "free_audit",
     # Agent API
     "get_business_facts",
     "get_business_claims",

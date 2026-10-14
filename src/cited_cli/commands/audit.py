@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Annotated
+import time
+from contextlib import nullcontext
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -13,6 +15,7 @@ from cited_core.api import endpoints
 from cited_core.api.client import LONG_TIMEOUT, CitedClient
 from cited_core.auth.store import TokenStore
 from cited_core.config.manager import ConfigManager
+from cited_core.free_audit import check_free_audit, is_finished
 
 audit_app = typer.Typer(name="audit", help="Run and manage audits.")
 
@@ -32,6 +35,95 @@ def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient, str]:
         raise typer.Exit(ExitCode.AUTH_ERROR)
 
     return out, CitedClient(base_url=api_url, token=token), env
+
+
+FREE_AUDIT_POLL_SECONDS = 15
+FREE_AUDIT_MAX_WAIT_SECONDS = 15 * 60
+
+
+def _render_free_audit(data: dict[str, Any], console: Console) -> None:
+    if data.get("status") != "completed":
+        render_kv(
+            "Free Audit",
+            {
+                "Domain": data.get("domain", ""),
+                "Status": data.get("status", ""),
+                "Progress": f"{data.get('progress', 0)}%",
+                "Report": data.get("report_url", ""),
+            },
+            console,
+        )
+        if data.get("error"):
+            console.print(f"[red]{data['error']}[/red]")
+        return
+
+    summary = data.get("summary", {})
+    render_kv(
+        f"Free Audit: {data.get('domain', '')}",
+        {
+            "Your site cited in": (
+                f"{summary.get('questions_where_brand_cited', 0)} of "
+                f"{summary.get('questions_checked', 0)} questions"
+            ),
+            "High-risk questions": summary.get("high_risk_questions", 0),
+            "Share of voice": f"{summary.get('share_of_voice') or 0:.0f}%",
+            "AI providers": ", ".join(data.get("providers_used") or []),
+            "Full report": data.get("share_url", ""),
+        },
+        console,
+    )
+    render_table(
+        "Questions",
+        ["Question", "Risk", "You cited", "AI cited instead"],
+        [
+            [
+                q.get("question", ""),
+                q.get("risk_level") or "",
+                "yes" if q.get("brand_cited") else "no",
+                ", ".join(q.get("cited_domains") or []),
+            ]
+            for q in data.get("questions", [])
+        ],
+        console,
+    )
+    console.print("\nFor more questions and fixes, create an account: [bold]cited register[/bold]")
+
+
+@audit_app.command("free")
+def audit_free(
+    ctx: typer.Context,
+    url: Annotated[str | None, typer.Argument(help="Website to audit, e.g. example.com")] = None,
+    wait: Annotated[
+        bool,
+        typer.Option("--wait/--no-wait", help="Wait for the audit to finish (2-4 minutes)"),
+    ] = True,
+) -> None:
+    """Run a free GEO visibility audit for any website. No login needed."""
+    obj = ctx.obj or {}
+    out: OutputContext = obj.get("output", OutputContext())
+    cfg: ConfigManager = obj.get("config", ConfigManager())
+    api_url = cfg.get_api_url(obj.get("profile", "default"), obj.get("env_override"))
+    url = prompt_if_missing(url, "URL", "Website to audit", out)
+
+    client = CitedClient(base_url=api_url)
+    try:
+        deadline = time.monotonic() + FREE_AUDIT_MAX_WAIT_SECONDS
+        # No spinner in JSON mode: stdout must carry only the JSON document.
+        status = nullcontext() if out.json_mode else out.console.status("Running free audit...")
+        with status as spinner:
+            data = check_free_audit(client, url)
+            while wait and not is_finished(data) and time.monotonic() < deadline:
+                if spinner is not None:
+                    spinner.update(f"Running free audit... {data.get('progress', 0)}%")
+                time.sleep(FREE_AUDIT_POLL_SECONDS)
+                data = check_free_audit(client, url)
+        print_result(data, out, human_formatter=_render_free_audit)
+        if not out.json_mode and not is_finished(data):
+            out.console.print(f"\nCheck again later: [bold]cited audit free {url}[/bold]")
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
 
 
 @audit_app.command("start")

@@ -7,6 +7,7 @@ from mcp.types import ToolAnnotations
 
 from cited_core.api import endpoints
 from cited_core.errors import CitedAPIError
+from cited_core.free_audit import check_free_audit, is_finished
 from cited_mcp.context import CitedContext
 from cited_mcp.server import mcp
 from cited_mcp.tools._helpers import (
@@ -366,3 +367,31 @@ async def list_audits(
         return cited_ctx.client.get(endpoints.AUDIT_HISTORY, params=params)
     except CitedAPIError as e:
         return _api_error_response(e)
+
+
+@mcp.tool(
+    title="Free Audit",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True),  # noqa: E501
+)
+@log_tool_call
+async def free_audit(ctx: Context[Any, CitedContext, Any], url: str) -> Any:
+    """Run a free GEO visibility audit for any website. No login or plan needed.
+
+    Checks how often AI assistants cite the site for a handful of buyer
+    questions and which sites they cite instead. The first call starts the
+    audit (2-4 minutes); call again with the same url to get progress, and the
+    full report once status is "completed". Re-running a domain within 24 hours
+    returns the same audit.
+
+    Args:
+        ctx: MCP context
+        url: Website to audit, e.g. "example.com"
+    """
+    cited_ctx = _get_ctx(ctx)
+    try:
+        report = check_free_audit(cited_ctx.client, url)
+    except CitedAPIError as e:
+        return _api_error_response(e)
+    if not is_finished(report):
+        report["hint"] = "Audit still running. Call free_audit again with the same url in ~30s."
+    return _truncate_response(report)

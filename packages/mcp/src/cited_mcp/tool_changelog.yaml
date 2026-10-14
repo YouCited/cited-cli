@@ -21,6 +21,23 @@
 #      this file.
 
 versions:
+  - version: "0.5.2"
+    released: "unreleased"
+    # Adds free_audit: the no-login GEO audit behind the youcited.com homepage
+    # prompt, so agents can audit a site before the user has an account.
+    # Recompute the fingerprint at release if any other tool changes land.
+    fingerprint: "8e42f3842abe"
+    tools_added:
+      - name: free_audit
+        description: |
+          Free GEO visibility audit of any website, no login or plan needed.
+          The first call starts it; call again with the same url for progress
+          and the full report (questions, whether the site was cited, which
+          domains AI cited instead). Requires the cited backend with
+          GET /free-audit (YouCited/cited#132).
+    tools_changed: []
+    tools_removed: []
+
   - version: "0.5.1"
     released: "2026-05-18"
     # Telemetry-only release: tool surface is unchanged (fingerprint matches

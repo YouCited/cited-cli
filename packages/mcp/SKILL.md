@@ -19,6 +19,7 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 
 ### 2. Run an Audit
 - `create_audit_template` — Define what questions to audit (e.g., "What is [business]?", "Best [industry] tools")
+- `free_audit` — Free GEO audit of any website, no login or plan needed. Use it when the user has no Cited account yet. Call again with the same `url` every ~30 seconds until `status` is `completed` (2-4 minutes).
 - `start_audit` — Launch the audit using a template (2-4 minutes). Poll `get_audit_status` every 30-60 seconds.
 - `get_audit_result` — Returns a summary by default (aggregate KPIs, competitor leaderboard, question IDs). Use `full=True` for detailed per-question citations — warning: full results can be very large.
 
@@ -50,9 +51,9 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 
 Tools are gated by subscription tier. If a tool is above the user's plan, it returns an upgrade message with a billing link.
 
-- **Growth** (entry tier): Read-only — list/get businesses, run audits, view recommendations (31 tools)
-- **Scale**: Full write access — create/update/delete, solutions, export, cancel (62 tools)
-- **Pro**: Everything + HQ dashboard, analytics, agent API (73 tools)
+- **Growth** (entry tier): Read-only — list/get businesses, run audits, view recommendations (32 tools)
+- **Scale**: Full write access — create/update/delete, solutions, export, cancel (63 tools)
+- **Pro**: Everything + HQ dashboard, analytics, agent API (74 tools)
 
 Always call `check_auth_status` first — it shows the user's plan and remaining limits.
 

@@ -63,6 +63,7 @@ EXPECTED_TOOLS_V0_5_0: set[str] = {
     "get_pricing",
     "upgrade_plan",
     "whats_new",
+    "free_audit",
     "get_usage_stats",
     # Businesses
     "list_businesses",

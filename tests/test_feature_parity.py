@@ -108,6 +108,7 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "audit result": "get_audit_result",
     "audit list": "list_audits",
     "audit export": "export_audit",
+    "audit free": "free_audit",
     # Recommendations
     "recommend start": "start_recommendation",
     "recommend status": "get_recommendation_status",

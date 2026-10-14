@@ -43,6 +43,10 @@ AUDIT_EXPORT_PDF = "/audit/{job_id}/export/pdf"
 AUDIT_EXPORT_URL = "/audit/{job_id}/export/url"
 AUDIT_HISTORY = "/audit/history"
 AUDIT_CANCEL = "/audit/{job_id}/cancel"
+
+# Free audit (no login; same audit the youcited.com homepage prompt runs)
+FREE_AUDIT = "/free-audit"
+FREE_AUDIT_REPORT = "/free-audit/report/{token}"
 AUDIT_DELETE = "/audit/{job_id}"
 AUDIT_PROVIDERS = "/audit/{job_id}/providers"
 AUDIT_QUESTION_DETAIL = "/audit/{job_id}/question/{question_id}"
