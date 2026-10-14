@@ -22,10 +22,9 @@
 
 versions:
   - version: "0.5.2"
-    released: "unreleased"
+    released: "2026-10-14"
     # Adds free_audit: the no-login GEO audit behind the youcited.com homepage
     # prompt, so agents can audit a site before the user has an account.
-    # Recompute the fingerprint at release if any other tool changes land.
     fingerprint: "8e42f3842abe"
     tools_added:
       - name: free_audit
