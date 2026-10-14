@@ -2,6 +2,13 @@
 
 Command-line interface for the [Cited](https://youcited.com) GEO (Generative Engine Optimization) platform. Audit how often your business is cited by AI assistants, generate recommendations, and produce AI-ready content solutions — all from the terminal or a Python script.
 
+## For AI agents
+
+- **Free audit, no login:** call the `free_audit` MCP tool (or run `cited audit free example.com`) to see how often ChatGPT, Perplexity and Google AI cite a site, and who they cite instead.
+- **MCP server:** `https://mcp.youcited.com/mcp` (streamable HTTP, OAuth login on first use). Also on PyPI as [`cited-mcp`](https://pypi.org/project/cited-mcp/) for local stdio.
+- **One-command setup:** `cited agent setup` connects Claude Code, Cursor and Codex (and prints the Claude Desktop connector steps). Add `--dry-run` to preview.
+- **Docs:** `search_docs` / `get_doc` tools, or `cited docs search "<question>"`, search the public [Cited docs](https://youcited.com/docs) without a login.
+
 ## Installation
 
 ### Homebrew (recommended)
@@ -75,6 +82,29 @@ cited register --email you@example.com --name "Your Name" --password "Secret123!
 
 This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 76 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
 
+### Quick setup
+
+```bash
+cited agent setup             # configure every AI client found on this machine
+cited agent setup --dry-run   # preview the changes first
+cited agent setup --client cursor --yes
+```
+
+`cited agent setup` merges into your existing config (it never replaces an existing `cited` entry), backs up any file it changes, and supports `--client claude-code|claude-desktop|cursor|codex|all`, `--dry-run`, `--yes` and `--json`. The manual steps for each client follow.
+
+### Claude Code
+
+```bash
+claude mcp add --transport http --scope user cited https://mcp.youcited.com/mcp
+```
+
+Then run `/mcp` in Claude Code and choose **Authenticate**. For Cited slash commands, skills and the `geo-analyst` agent, also install the plugin:
+
+```
+/plugin marketplace add YouCited/cited-plugins
+/plugin install cited@youcited-cited-plugins
+```
+
 ### Claude Desktop (Custom Connector — recommended)
 
 No local install required. Claude connects to Cited's hosted MCP server directly:
@@ -127,7 +157,21 @@ Get your token with `cited login` then `cited auth token`.
 
 ### Cursor
 
-Add a `.cursor/mcp.json` file to your project root (or `~/.cursor/mcp.json` for global access):
+Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` in your project root — or run `cited agent setup --client cursor`:
+
+```json
+{
+  "mcpServers": {
+    "cited": {
+      "url": "https://mcp.youcited.com/mcp"
+    }
+  }
+}
+```
+
+Open Settings (`Cmd+,`) → **MCP**, click **Login** next to `cited`, and verify it shows a green status. Use tools in Agent mode.
+
+**Fallback** (older Cursor versions without remote-server support) — proxy through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), which needs Node.js:
 
 ```json
 {
@@ -140,9 +184,14 @@ Add a `.cursor/mcp.json` file to your project root (or `~/.cursor/mcp.json` for 
 }
 ```
 
-Verify Node.js is installed (`node --version`), or install with `brew install node`.
+### Codex
 
-Open Settings (`Cmd+,`) → search "MCP" → verify the server shows a green status. Use tools in Composer (Agent mode).
+```bash
+codex mcp add cited --url https://mcp.youcited.com/mcp
+codex mcp login cited
+```
+
+Or add `[mcp_servers.cited]` with `url = "https://mcp.youcited.com/mcp"` to `~/.codex/config.toml` (`cited agent setup --client codex` does this for you).
 
 ### Updating to new Cited features
 
@@ -161,6 +210,7 @@ Claude will chain the tools automatically — `list_businesses` → `start_audit
 | Category | Tools |
 |----------|-------|
 | **Auth** | `check_auth_status`, `login`, `logout` |
+| **No login needed** | `free_audit`, `search_docs`, `get_doc` |
 | **Businesses** | `list_businesses`, `get_business`, `create_business`, `update_business`, `delete_business`, `crawl_business`, `get_health_scores`, `get_usage_stats` |
 | **Audit Templates** | `list_audit_templates`, `get_audit_template`, `create_audit_template`, `update_audit_template`, `delete_audit_template` |
 | **Audits** | `start_audit`, `get_audit_status`, `get_audit_result`, `list_audits`, `export_audit` |
@@ -500,7 +550,10 @@ cited hq <business_id> [--full] [--personas] [--products] [--intents] [--actions
 
 cited analytics compare|trends|summary
 
+cited agent setup                             ← Connect Claude Code / Cursor / Codex / Claude Desktop
 cited agent facts|claims|comparison|semantic-health|buyer-fit
+
+cited docs search|get                         ← Search and read the public docs (no login)
 
 cited job watch|cancel
 ```

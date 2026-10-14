@@ -19,6 +19,10 @@ uvx cited-mcp
 
 ## Usage
 
+The hosted server is at **`https://mcp.youcited.com/mcp`** (streamable HTTP; your browser opens to log in on first use). The `free_audit`, `search_docs` and `get_doc` tools work without logging in.
+
+**Quick setup:** with the [cited-cli](https://pypi.org/project/cited-cli/) installed, `cited agent setup` configures Claude Code, Cursor and Codex for you and prints the Claude Desktop connector steps (`--dry-run` to preview). It merges into existing config and backs up files before changing them.
+
 ### Claude Desktop (Custom Connector — recommended)
 
 No local install required. Claude connects to Cited's hosted MCP server directly:
@@ -73,11 +77,29 @@ Get your token by running `cited login` and then `cited auth token` with the [ci
 
 ### Claude Code
 
-Add the remote server as a tool source in your Claude Code settings or use the `cited-plugins/` configuration from the monorepo.
+```bash
+claude mcp add --transport http --scope user cited https://mcp.youcited.com/mcp
+```
+
+Then run `/mcp` in Claude Code and choose **Authenticate**. For Cited slash commands, skills and the `geo-analyst` agent, also install the plugin with `/plugin marketplace add YouCited/cited-plugins` and `/plugin install cited@youcited-cited-plugins`.
 
 ### Cursor
 
-Add a `.cursor/mcp.json` file to your project root (or configure globally in `~/.cursor/mcp.json`):
+Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "cited": {
+      "url": "https://mcp.youcited.com/mcp"
+    }
+  }
+}
+```
+
+Then in Cursor: open Settings (`Cmd+,`) → **MCP**, click **Login** next to `cited`, and verify it shows a green status indicator. Use Cited tools in Agent mode.
+
+**Fallback** (older Cursor versions without remote-server support) — proxy through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), which needs Node.js (`node --version` should print v18+):
 
 ```json
 {
@@ -90,15 +112,14 @@ Add a `.cursor/mcp.json` file to your project root (or configure globally in `~/
 }
 ```
 
-Verify Node.js is installed first:
+### Codex
 
 ```bash
-node --version   # should print v18+ or v20+
+codex mcp add cited --url https://mcp.youcited.com/mcp
+codex mcp login cited
 ```
 
-If not installed, run `brew install node` or download from [nodejs.org](https://nodejs.org).
-
-Then in Cursor: open Settings (`Cmd+,`) → search "MCP" → verify the server appears and shows a green status indicator. Use Cited tools in Composer (Agent mode) or Chat by asking Claude to interact with your GEO data.
+Or add `[mcp_servers.cited]` with `url = "https://mcp.youcited.com/mcp"` to `~/.codex/config.toml`.
 
 ### Standalone
 
