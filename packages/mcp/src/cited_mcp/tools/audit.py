@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 from cited_core.api import endpoints
+from cited_core.api.client import CitedClient
 from cited_core.errors import CitedAPIError
 from cited_core.free_audit import check_free_audit, is_finished
 from cited_mcp.context import CitedContext
@@ -388,10 +390,16 @@ async def free_audit(ctx: Context[Any, CitedContext, Any], url: str) -> Any:
         url: Website to audit, e.g. "example.com"
     """
     cited_ctx = _get_ctx(ctx)
+    # Anonymous client: no user cookie. The hosted server's agent key (when set)
+    # exempts it from the backend's per-IP limit, which all its users share.
+    agent_key = os.environ.get("CITED_AGENT_API_KEY") or cited_ctx.client.agent_api_key
+    client = CitedClient(base_url=cited_ctx.api_url, agent_api_key=agent_key)
     try:
-        report = check_free_audit(cited_ctx.client, url)
+        report = check_free_audit(client, url)
     except CitedAPIError as e:
         return _api_error_response(e)
+    finally:
+        client.close()
     if not is_finished(report):
         report["hint"] = "Audit still running. Call free_audit again with the same url in ~30s."
     return _truncate_response(report)

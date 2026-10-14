@@ -150,3 +150,24 @@ def test_mcp_free_audit_returns_completed_report():
     assert result["status"] == "completed"
     assert result["questions"][0]["cited_domains"] == ["yelp.com", "angi.com"]
     assert "hint" not in result
+
+
+@pytest.mark.usefixtures("_mcp_available")
+@respx.mock
+def test_mcp_free_audit_sends_server_agent_key_not_user_cookie(monkeypatch):
+    from cited_mcp.tools.audit import free_audit
+
+    monkeypatch.setenv("CITED_AGENT_API_KEY", "server-key")
+    start = respx.get(f"{DEV_API}/free-audit").mock(
+        return_value=httpx.Response(202, json=STARTED)
+    )
+    respx.get(f"{DEV_API}/free-audit/report/{TOKEN}").mock(
+        return_value=httpx.Response(200, json=PROCESSING)
+    )
+
+    ctx = _make_mcp_ctx(_make_cited_ctx(token="user-jwt"))
+    _run(free_audit(ctx, url="acme-plumbing.com"))
+
+    sent = start.calls.last.request.headers
+    assert sent["x-agent-api-key"] == "server-key"
+    assert "cookie" not in sent
