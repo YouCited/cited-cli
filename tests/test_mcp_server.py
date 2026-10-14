@@ -88,6 +88,9 @@ EXPECTED_TOOLS = [
     # Changelog
     "whats_new",
     "free_audit",
+    # Docs
+    "search_docs",
+    "get_doc",
     # Agent API
     "get_business_facts",
     "get_business_claims",

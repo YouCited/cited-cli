@@ -47,13 +47,17 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 - `compare_audits` — Compare an audit against its baseline
 - Agent API: `get_business_facts`, `get_business_claims`, `get_competitive_comparison`, `get_semantic_health`, `buyer_fit_query`
 
+### Help & Docs (no login)
+- `search_docs` — Search the public Cited docs (how-tos, GEO concepts, feature guides). Use it before guessing how a Cited feature works.
+- `get_doc` — Read one doc as markdown, by the `path` from a `search_docs` result.
+
 ## Plan Requirements
 
 Tools are gated by subscription tier. If a tool is above the user's plan, it returns an upgrade message with a billing link.
 
-- **Growth** (entry tier): Read-only — list/get businesses, run audits, view recommendations (32 tools)
-- **Scale**: Full write access — create/update/delete, solutions, export, cancel (63 tools)
-- **Pro**: Everything + HQ dashboard, analytics, agent API (74 tools)
+- **Growth** (entry tier): Read-only — list/get businesses, run audits, view recommendations (34 tools)
+- **Scale**: Full write access — create/update/delete, solutions, export, cancel (65 tools)
+- **Pro**: Everything + HQ dashboard, analytics, agent API (76 tools)
 
 Always call `check_auth_status` first — it shows the user's plan and remaining limits.
 
