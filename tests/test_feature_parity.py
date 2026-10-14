@@ -23,6 +23,7 @@ CLI_ONLY = {
     "mcp serve",  # Starts the MCP server itself — meta, not a tool
     "job watch",  # Live Rich progress bar — interactive terminal only
     "version",  # CLI version display — not meaningful for MCP
+    "agent setup",  # Writes MCP config for local AI clients on this machine — not a remote tool
 }
 
 MCP_ONLY = {

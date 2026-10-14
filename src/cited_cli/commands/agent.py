@@ -4,6 +4,7 @@ from typing import Annotated
 
 import typer
 
+from cited_cli.commands.agent_setup import agent_setup
 from cited_cli.output.formatter import OutputContext, print_error, print_result
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
 from cited_cli.utils.interactive import prompt_if_missing
@@ -13,8 +14,10 @@ from cited_core.config.manager import ConfigManager
 
 agent_app = typer.Typer(
     name="agent",
-    help="Agent API (v1) — structured business data for AI agents.",
+    help="Connect AI agents to Cited (setup) and the Agent API (v1) for structured data.",
 )
+
+agent_app.command("setup")(agent_setup)
 
 
 def _get_agent_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient]:
