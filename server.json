@@ -1,0 +1,60 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.youcited/cited",
+  "title": "Cited",
+  "description": "Measure and improve how often AI assistants cite your business: GEO audits, fixes, and docs.",
+  "version": "0.5.2",
+  "websiteUrl": "https://youcited.com",
+  "repository": {
+    "url": "https://github.com/YouCited/cited-cli",
+    "source": "github",
+    "id": "1180329762",
+    "subfolder": "packages/mcp"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.youcited.com/mcp"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "cited-mcp",
+      "version": "0.5.2",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "CITED_TOKEN",
+          "description": "Cited login token (run `cited login`, then `cited auth token`). Optional: without it, use the login tool or the no-login free_audit and search_docs tools.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "CITED_AGENT_API_KEY",
+          "description": "Cited Agent API key for the structured Agent API tools (facts, claims, comparisons). Optional.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "CITED_ENV",
+          "description": "Cited environment to use.",
+          "isRequired": false,
+          "format": "string",
+          "default": "prod",
+          "choices": [
+            "prod",
+            "dev",
+            "local"
+          ]
+        }
+      ]
+    }
+  ]
+}

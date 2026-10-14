@@ -1,5 +1,8 @@
 # cited-mcp
 
+<!-- MCP Registry ownership verification for PyPI (must match "name" in server.json) -->
+<!-- mcp-name: com.youcited/cited -->
+
 MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 76 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
