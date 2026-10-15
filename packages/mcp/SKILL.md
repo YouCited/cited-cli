@@ -55,9 +55,9 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 
 Tools are gated by subscription tier. If a tool is above the user's plan, it returns an upgrade message with a billing link.
 
-- **Growth** (entry tier): Read-only — list/get businesses, run audits, view recommendations (34 tools)
-- **Scale**: Full write access — create/update/delete, solutions, export, cancel (65 tools)
-- **Pro**: Everything + HQ dashboard, analytics, agent API (76 tools)
+- **Growth** (entry tier): Read-only — list/get businesses, run audits, view recommendations (35 tools)
+- **Scale**: Full write access — create/update/delete, solutions, export, cancel (66 tools)
+- **Pro**: Everything + HQ dashboard, analytics, agent API (77 tools)
 
 Always call `check_auth_status` first — it shows the user's plan and remaining limits.
 

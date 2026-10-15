@@ -50,6 +50,8 @@ FREE_AUDIT_REPORT = "/free-audit/report/{token}"
 AUDIT_DELETE = "/audit/{job_id}"
 AUDIT_PROVIDERS = "/audit/{job_id}/providers"
 AUDIT_QUESTION_DETAIL = "/audit/{job_id}/question/{question_id}"
+AUDIT_MODELS = "/audit/models"
+AUDIT_MODEL_RESULTS = "/audit/{job_id}/models"
 
 # Recommendations
 RECOMMEND_START = "/recommendations/start"

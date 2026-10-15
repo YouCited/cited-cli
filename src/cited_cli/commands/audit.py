@@ -140,6 +140,17 @@ def audit_start(
         list[str] | None,
         typer.Option("--provider", help="Citation provider to use (repeatable)"),
     ] = None,
+    models: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--model",
+            "-m",
+            help=(
+                "Model to compare, as provider:model, e.g. anthropic:claude-opus-5-5 "
+                "(repeatable; see `cited audit models`)"
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Start a new audit job from a template."""
     out, client, _ = _get_client(ctx)
@@ -152,6 +163,8 @@ def audit_start(
             payload["business_id"] = business_id
         if providers:
             payload["providers"] = providers
+        if models:
+            payload["models"] = models
         data = client.post(
             endpoints.AUDIT_START,
             json=payload,
@@ -161,6 +174,64 @@ def audit_start(
         print_result(data, out, human_formatter=lambda d, c: render_kv("Audit Started", d, c))
         if not out.json_mode and job_id:
             out.console.print(f"\nTrack progress: [bold]cited job watch {job_id}[/bold]")
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@audit_app.command("models")
+def audit_models(
+    ctx: typer.Context,
+    job_id: Annotated[
+        str | None,
+        typer.Argument(help="Audit job ID; omit to list the models an audit can compare"),
+    ] = None,
+) -> None:
+    """Compare AI models for an audit, or list the models you can choose from."""
+    out, client, _ = _get_client(ctx)
+    try:
+        if job_id is None:
+            data = client.get(endpoints.AUDIT_MODELS)
+
+            def _human_catalog(d: dict[str, Any], console: Console) -> None:
+                rows = [[m.get("id", "")] for m in d.get("models", [])]
+                render_table("Models you can compare", ["Model"], rows, console)
+                limit = d.get("max_models_per_audit")
+                if limit:
+                    console.print(
+                        f"\nUse up to {limit} with: cited audit start <template> "
+                        "--model provider:model"
+                    )
+
+            print_result(data, out, human_formatter=_human_catalog)
+            return
+
+        data = client.get(endpoints.AUDIT_MODEL_RESULTS.format(job_id=job_id))
+
+        def _human_results(d: dict[str, Any], console: Console) -> None:
+            models = d.get("models", [])
+            if not models:
+                console.print(f"No per-model results yet (status: {d.get('status', '?')}).")
+                return
+            rows = [
+                [
+                    m.get("id", ""),
+                    f"{m.get('questions_cited', 0)}/{m.get('questions_answered', 0)}",
+                    f"{(m.get('citation_rate') or 0) * 100:.0f}%",
+                    f"{(m.get('share_of_citations') or 0) * 100:.0f}%",
+                    str(m.get("questions_failed", 0)),
+                ]
+                for m in models
+            ]
+            render_table(
+                "Citations by model",
+                ["Model", "Questions cited", "Citation rate", "Share of citations", "Failed"],
+                rows,
+                console,
+            )
+
+        print_result(data, out, human_formatter=_human_results)
     except CitedAPIError as e:
         handle_api_error(e, out.json_mode)
     finally:
