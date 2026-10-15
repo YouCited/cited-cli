@@ -65,6 +65,9 @@ EXPECTED_TOOLS_V0_5_0: set[str] = {
     "whats_new",
     "free_audit",
     "get_usage_stats",
+    # Docs (public, no login)
+    "search_docs",
+    "get_doc",
     # Businesses
     "list_businesses",
     "get_business",

@@ -49,9 +49,13 @@ This opens `claude_desktop_config.json`. Add the `mcpServers` section:
 
 Save the file, then quit and reopen Claude Desktop (Cmd+Q on Mac, or close fully on Windows).
 
+> **Shortcut:** if you have the [Cited CLI](https://github.com/YouCited/cited-cli) installed, `cited agent setup --client claude-desktop --desktop-config` adds this entry for you (it merges into your existing config and backs the file up first). Use either the connector (Option A) or this config, not both — otherwise Cited's tools appear twice.
+
 ## Try It Out
 
 Start a new conversation in Claude Desktop and try any of these:
+
+- **"Run a free Cited audit of example.com"** — works before you log in
 
 - **"List my businesses"** — shows all your businesses on Cited
 - **"Run a GEO audit on [business name]"** — audits your AI search presence

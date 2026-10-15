@@ -1,6 +1,9 @@
 # cited-mcp
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 74 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+<!-- MCP Registry ownership verification for PyPI (must match "name" in server.json) -->
+<!-- mcp-name: com.youcited/cited -->
+
+MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 76 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
 
@@ -15,6 +18,10 @@ uvx cited-mcp
 ```
 
 ## Usage
+
+The hosted server is at **`https://mcp.youcited.com/mcp`** (streamable HTTP; your browser opens to log in on first use). The `free_audit`, `search_docs` and `get_doc` tools work without logging in.
+
+**Quick setup:** with the [cited-cli](https://pypi.org/project/cited-cli/) installed, `cited agent setup` configures Claude Code, Cursor and Codex for you and prints the Claude Desktop connector steps (`--dry-run` to preview). It merges into existing config and backs up files before changing them.
 
 ### Claude Desktop (Custom Connector — recommended)
 
@@ -70,11 +77,29 @@ Get your token by running `cited login` and then `cited auth token` with the [ci
 
 ### Claude Code
 
-Add the remote server as a tool source in your Claude Code settings or use the `cited-plugins/` configuration from the monorepo.
+```bash
+claude mcp add --transport http --scope user cited https://mcp.youcited.com/mcp
+```
+
+Then run `/mcp` in Claude Code and choose **Authenticate**. For Cited slash commands, skills and the `geo-analyst` agent, also install the plugin with `/plugin marketplace add YouCited/cited-plugins` and `/plugin install cited@youcited-cited-plugins`.
 
 ### Cursor
 
-Add a `.cursor/mcp.json` file to your project root (or configure globally in `~/.cursor/mcp.json`):
+Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "cited": {
+      "url": "https://mcp.youcited.com/mcp"
+    }
+  }
+}
+```
+
+Then in Cursor: open Settings (`Cmd+,`) → **MCP**, click **Login** next to `cited`, and verify it shows a green status indicator. Use Cited tools in Agent mode.
+
+**Fallback** (older Cursor versions without remote-server support) — proxy through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), which needs Node.js (`node --version` should print v18+):
 
 ```json
 {
@@ -87,15 +112,14 @@ Add a `.cursor/mcp.json` file to your project root (or configure globally in `~/
 }
 ```
 
-Verify Node.js is installed first:
+### Codex
 
 ```bash
-node --version   # should print v18+ or v20+
+codex mcp add cited --url https://mcp.youcited.com/mcp
+codex mcp login cited
 ```
 
-If not installed, run `brew install node` or download from [nodejs.org](https://nodejs.org).
-
-Then in Cursor: open Settings (`Cmd+,`) → search "MCP" → verify the server appears and shows a green status indicator. Use Cited tools in Composer (Agent mode) or Chat by asking Claude to interact with your GEO data.
+Or add `[mcp_servers.cited]` with `url = "https://mcp.youcited.com/mcp"` to `~/.codex/config.toml`.
 
 ### Standalone
 
@@ -142,6 +166,12 @@ Cited adds new tools regularly. To access new tools after a release, **disconnec
 | `create_audit_template` | Create a new audit template |
 | `update_audit_template` | Update template name, description, or questions |
 | `delete_audit_template` | Delete an audit template |
+
+### Docs (no login)
+| Tool | Description |
+|------|-------------|
+| `search_docs` | Search the public Cited documentation by keyword; returns doc paths, titles, and descriptions |
+| `get_doc` | Read one doc as markdown by its `category/slug` path |
 
 ### Audits
 | Tool | Description |
@@ -232,9 +262,9 @@ Tools are gated by subscription tier. All tiers can read data; write operations 
 
 | Tier | Tools Available |
 |------|----------------|
-| **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list), all recommendation tools, action-plan reads (get_action_plan, get_quick_wins), Validation Engine reads, job status, free audit — **32 tools** |
-| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, batch solutions, export audit, cancel job, action-plan writes (mark_action_done, dismiss_action, get_action_progress) — **63 tools** |
-| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **74 tools** |
+| **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list), all recommendation tools, action-plan reads (get_action_plan, get_quick_wins), Validation Engine reads, job status, free audit, docs search — **34 tools** |
+| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, batch solutions, export audit, cancel job, action-plan writes (mark_action_done, dismiss_action, get_action_progress) — **65 tools** |
+| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **76 tools** |
 
 When a user calls a tool above their plan, the server returns a structured error with an upgrade link:
 

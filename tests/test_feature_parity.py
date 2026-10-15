@@ -23,6 +23,7 @@ CLI_ONLY = {
     "mcp serve",  # Starts the MCP server itself — meta, not a tool
     "job watch",  # Live Rich progress bar — interactive terminal only
     "version",  # CLI version display — not meaningful for MCP
+    "agent setup",  # Writes MCP config for local AI clients on this machine — not a remote tool
 }
 
 MCP_ONLY = {
@@ -157,6 +158,9 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "hq intent create": "create_buyer_intent",
     "hq intent update": "update_buyer_intent",
     "hq intent delete": "delete_buyer_intent",
+    # Docs (public, no login)
+    "docs search": "search_docs",
+    "docs get": "get_doc",
     # Status (top-level)
     "status": "check_auth_status",
 }

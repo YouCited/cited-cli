@@ -25,7 +25,9 @@ versions:
     released: "2026-10-14"
     # Adds free_audit: the no-login GEO audit behind the youcited.com homepage
     # prompt, so agents can audit a site before the user has an account.
-    fingerprint: "8e42f3842abe"
+    # Also adds search_docs / get_doc so agents can answer "how do I..." from
+    # the public docs (youcited.com/docs/*.md) without a login.
+    fingerprint: "e1b691304b7a"
     tools_added:
       - name: free_audit
         description: |
@@ -34,6 +36,13 @@ versions:
           and the full report (questions, whether the site was cited, which
           domains AI cited instead). Requires the cited backend with
           GET /free-audit (YouCited/cited#132).
+      - name: search_docs
+        description: |
+          Keyword search over the public Cited docs (youcited.com/docs). No
+          login. Returns doc paths, titles, and descriptions, best first.
+      - name: get_doc
+        description: |
+          Read one Cited doc as markdown by its category/slug path. No login.
     tools_changed: []
     tools_removed: []
 
