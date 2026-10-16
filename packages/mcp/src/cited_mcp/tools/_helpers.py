@@ -294,11 +294,25 @@ def _resolve_agent_key(ctx: Context[Any, CitedContext, Any]) -> str | None:
     return None
 
 
-def _rate_limit_key(token: str | None) -> str:
-    """Derive a tamper-proof rate-limit key from the raw token."""
-    if not token:
+def _agent_key_in_use(ctx: Context[Any, CitedContext, Any]) -> bool:
+    """True when this call authenticates with an agent key (never returns the key)."""
+    return _resolve_agent_key(ctx) is not None
+
+
+_RATE_LIMIT_SALT = b"cited-mcp-rate-limit"
+
+
+def _rate_limit_key(credential: str | None) -> str:
+    """Derive a tamper-proof rate-limit key from the raw token or agent key.
+
+    Agent keys are long-lived secrets, so the key is derived with PBKDF2
+    rather than a bare SHA-256; the result is only used as an in-memory
+    bucket name and is never logged.
+    """
+    if not credential:
         return "anonymous"
-    return hashlib.sha256(token.encode()).hexdigest()[:16]
+    digest = hashlib.pbkdf2_hmac("sha256", credential.encode(), _RATE_LIMIT_SALT, 1000)
+    return digest.hex()[:16]
 
 
 def _extract_user(token: str | None) -> str:
@@ -364,7 +378,7 @@ def _extract_auth_kind(
     JWT at all versus because the JWT had no email/sub claim. Without
     this, the ``<unknown>`` bucket in usage reports is unactionable.
     """
-    if not token and _resolve_agent_key(ctx):
+    if not token and _agent_key_in_use(ctx):
         return "agent_key"
 
     method = "stdio"

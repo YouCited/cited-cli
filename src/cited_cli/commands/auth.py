@@ -10,7 +10,7 @@ from cited_cli.output.tables import render_kv
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
 from cited_cli.utils.interactive import is_interactive
 from cited_core.api import endpoints
-from cited_core.api.client import CitedClient
+from cited_core.api.client import CitedClient, get_notice
 from cited_core.auth.credentials import resolve_agent_api_key
 from cited_core.auth.store import TokenStore
 from cited_core.config.constants import DEFAULT_ENV, FRONTEND_URLS
@@ -304,6 +304,17 @@ def register(
     do_register(ctx, email, name, password, provider)
 
 
+# Fields copied from GET /agent/key-status into `cited auth status` output.
+_KEY_STATUS_FIELDS = (
+    "key_prefix",
+    "account_expires_at",
+    "key_expires_at",
+    "days_left",
+    "notice",
+    "oauth",
+)
+
+
 @auth_app.command()
 def status(ctx: typer.Context) -> None:
     """Show current authentication status and user info."""
@@ -335,12 +346,9 @@ def status(ctx: typer.Context) -> None:
         }
         if agent_key:
             key_status = client.get(endpoints.AGENT_KEY_STATUS)
-            data["key_prefix"] = key_status.get("key_prefix")
-            data["account_expires_at"] = key_status.get("account_expires_at")
-            data["key_expires_at"] = key_status.get("key_expires_at")
-            data["days_left"] = key_status.get("days_left")
-            data["notice"] = key_status.get("notice") or client.last_notice
-            data["oauth"] = key_status.get("oauth")
+            for field in _KEY_STATUS_FIELDS:
+                data[field] = key_status.get(field)
+            data["notice"] = data["notice"] or get_notice()
         print_result(
             data,
             out,
