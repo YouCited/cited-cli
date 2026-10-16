@@ -112,6 +112,18 @@ AGENT_COMPARISON = "/agent/v1/business/{business_id}/comparison"
 AGENT_SEMANTIC_HEALTH = "/agent/v1/business/{business_id}/semantic-health"
 AGENT_BUYER_FIT = "/agent/v1/query/buyer-fit"
 
-# Billing (agentic payments)
-BILLING_PRICING = "/billing/pricing"
-BILLING_AGENT_UPGRADE = "/billing/agent-upgrade"
+# Billing (pay-as-you-go credits; 1 credit = $1)
+BILLING_PRICES = "/billing/prices"
+BILLING_CREDITS = "/billing/credits"
+BILLING_CREDIT_TRANSACTIONS = "/billing/credits/transactions"
+BILLING_CREDITS_CHECKOUT = "/billing/credits/checkout"
+BILLING_AUDIT_CHECKOUT = "/billing/audit-checkout"
+BILLING_AUTO_REFILL = "/billing/credits/auto-refill"
+BILLING_CREDITS_REFUND = "/billing/credits/refund"
+BILLING_AUDIT_QUOTE = "/billing/audit-quote"
+
+# Agent identity (per-user agent keys, sent as X-Agent-API-Key)
+AGENT_SIGNUP = "/agent/signup"
+AGENT_KEY_STATUS = "/agent/key-status"
+AGENT_KEYS = "/agent-keys"
+AGENT_KEY = "/agent-keys/{key_id}"
