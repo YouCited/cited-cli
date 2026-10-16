@@ -7,7 +7,7 @@ description: Ad-hoc tool exploration beyond the standard audit flow — diagnost
 
 The standard pipeline is `cited:business-setup` → `cited:geo-audit` → `cited:geo-recommend`. This skill covers the fourteen tools that DON'T fit that pipeline — diagnostics, deltas, intel surfaces, ad-hoc probes, and Validation Engine fix-verification — so you can answer "what changed since last week," "what does Cited know about this business," "would AI recommend us for X," and "did my fix actually land" without burning a fresh audit.
 
-If a tool returns `payment_required: true` with an `upgrade_tier` field, surface the upgrade message verbatim. Don't pretend the result was empty.
+If a tool returns `payment_required: true` (HTTP 402: `insufficient_credits` or `purchase_required`), tell the user, show them the `buy_url` (or a checkout link from `buy_audit` / `buy_credits`), and retry after they pay. Don't pretend the result was empty.
 
 ## Per-tool reference
 
@@ -23,14 +23,14 @@ What to do with the response: `questions_comparison` is a per-question delta map
 
 ### cancel_job — recovery for hung or wrong-target jobs
 
-When to use it: A `get_*_status` call shows a job has been "running" far longer than expected (audits typically 2-4 min, recommendations 1-2 min, solutions 30-60s) OR the user realizes the job was started against the wrong template/business. Cancelling stops further plan-budget consumption.
+When to use it: A `get_*_status` call shows a job has been "running" far longer than expected (audits typically 2-4 min, recommendations 1-2 min, solutions 30-60s) OR the user realizes the job was started against the wrong template/business. Cancelling a failed or unwanted audit returns its credits.
 
 Recipe:
 1. `cancel_job(job_id=<id>)` — `job_type` auto-probes if omitted.
 
 What to do with the response: `{success, job_type, message}` on success, or a not-found error. Confirm the cancellation by job_type ("audit cancelled," not just "cancelled") and tell the user they can start a fresh job.
 
-### get_analytics_dashboard — combined analytics page (Pro)
+### get_analytics_dashboard — combined analytics page
 
 When to use it: The user asks for an overview of AI search performance — KPIs, trends, top/declining questions, citation patterns, benchmarks. One call covers what the web Analytics page shows.
 
@@ -39,7 +39,7 @@ Recipe:
 
 What to do with the response: Top-level fields are `kpi_trends` (time-series per KPI), `question_performance` (top + declining), `citation_trends` (match rates, domain diversity), `benchmarks` (vs. historical average), `domain_benchmarks` (per-domain severity). Lead the summary with `benchmarks` deltas; then the worst-trending KPI from `kpi_trends`; then the top declining questions.
 
-### get_analytics_trends — KPI time series only (Pro)
+### get_analytics_trends — KPI time series only
 
 When to use it: You only need the KPI time-series — e.g., for a chart, or to compute a custom trend. Cheaper than the dashboard if you don't need the rest.
 
@@ -48,16 +48,16 @@ Recipe:
 
 What to do with the response: `periods` is the x-axis (ordered date labels). `kpi_trends` maps KPI name → list of values aligned with `periods`. `summary` has aggregate stats. Plot or summarize the largest delta first.
 
-### get_business_facts — structured intel from the fact graph (Pro)
+### get_business_facts — structured intel from the fact graph
 
-When to use it: The user asks "what does Cited know about [business]" or you need structured intel (locations, products, summary) without running an audit. Cheap, no plan-budget impact. Pair with crawl_business if the data looks stale.
+When to use it: The user asks "what does Cited know about [business]" or you need structured intel (locations, products, summary) without running an audit. Cheap, uses no credits. Pair with crawl_business if the data looks stale.
 
 Recipe:
 1. `get_business_facts(business_id=<biz_id>)`.
 
 What to do with the response: `name`, `summary`, `locations`, `products`, `facts`. Surface `summary` as the headline. If `summary` is null AND `facts` is empty, the fact graph is thin — recommend running `crawl_business` to populate (see "Cold-start business intel" below).
 
-### get_business_claims — verifiable claims with evidence (Pro)
+### get_business_claims — verifiable claims with evidence
 
 When to use it: Auditing brand truth-in-advertising, or surfacing claims that need stronger evidence before they appear in AI summaries. Useful when prepping a product page or a press kit.
 
@@ -66,7 +66,7 @@ Recipe:
 
 What to do with the response: `claims` is a list of statements with evidence references. Highlight claims with weak/absent evidence first — those are the ones to either substantiate or remove.
 
-### get_business_hq — comprehensive dashboard (Pro)
+### get_business_hq — comprehensive dashboard
 
 When to use it: The user wants a one-shot snapshot of an account — health scores, recent audits, recommendations, competitive position, top action items. Reach for this when summarizing an account holistically rather than answering a narrow question.
 
@@ -76,7 +76,7 @@ Recipe:
 
 What to do with the response: Lead with `health_scores` (5 core scores: brand_confidence, crawl_coverage, ai_readiness, buyer_clarity, trust_score) and `priority_actions` — those tell the user what's wrong and what to fix. `recent_audits` and `recommendations` for activity context. `top_competitors` and `displacement` for competitive context. `agentic_readiness` if the user is asking specifically about AI-agent visibility.
 
-### get_competitive_comparison — strengths/weaknesses vs competitors (Pro)
+### get_competitive_comparison — strengths/weaknesses vs competitors
 
 When to use it: Mid-conversation, the user asks "how do we stack up against X." Pulls existing competitive analysis without running new prompts.
 
@@ -85,7 +85,7 @@ Recipe:
 
 What to do with the response: `competitors` (named competitor entities), `strengths` (top 5-10 wins), `weaknesses` (top 5-10 gaps), `market_intelligence` (supporting observations). Lead with weaknesses if the user is looking for what to fix; lead with strengths if they're pitching/positioning.
 
-### get_semantic_health — AI-readability diagnostics (Pro)
+### get_semantic_health — AI-readability diagnostics
 
 When to use it: The user wants to know what to fix to be more discoverable to AI engines. Returns structured diagnostics rather than free-text recommendations.
 
@@ -94,7 +94,7 @@ Recipe:
 
 What to do with the response: `entity_grounding`, `schema_coverage`, `faq_coverage`, `claim_evidence_coverage` are coverage diagnostics — surface the lowest-coverage area first as the priority fix. `trust_signals` is a list of finding+confidence entries.
 
-### buyer_fit_query — ad-hoc fit simulation (Pro)
+### buyer_fit_query — ad-hoc fit simulation
 
 When to use it: "Would AI recommend us for X" probes — testing positioning before committing to a full audit, or evaluating a new buyer profile. Faster and cheaper than a full audit; doesn't update the business record.
 
@@ -116,7 +116,7 @@ What to do with the response:
 - `get_recommendation_validation_latest`: `status` is the headline — `valid` (fix landed), `invalid` (still missing), `inconclusive` (couldn't verify, often crawler-blocked). `evidence.message` has detail.
 - `get_recommendation_check_status`: lead with `counts` (X valid / Y invalid / Z inconclusive), then surface the invalid checks first — those are the unfixed gaps. Inconclusive results often mean the site blocked the crawler; mention that as a possibility before assuming the fix is broken.
 
-### export_audit — share the report outside MCP (Scale)
+### export_audit — share the report outside MCP
 
 When to use it: The user wants to forward, attach, or archive the audit as a PDF.
 

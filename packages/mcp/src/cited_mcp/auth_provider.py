@@ -79,9 +79,18 @@ class CitedAuthCode(AuthorizationCode):
 
 
 class CitedAccessToken(AccessToken):
-    """Extended access token that carries the user's backend JWT."""
+    """Extended access token that carries the user's backend JWT.
+
+    For a per-user agent key presented as the Bearer token (``cak_...``),
+    ``user_jwt`` is empty and ``agent_api_key`` holds the key, which tools
+    forward to the API as ``X-Agent-API-Key``.
+    """
 
     user_jwt: str
+    agent_api_key: str | None = None
+
+
+AGENT_KEY_PREFIX = "cak_"
 
 
 class CitedRefreshToken(RefreshToken):
@@ -347,6 +356,18 @@ class CitedOAuthProvider(
     # -- Access token verification (stateless JWT) --
 
     async def load_access_token(self, token: str) -> CitedAccessToken | None:
+        if token.startswith(AGENT_KEY_PREFIX):
+            # Per-user agent key used directly as the Bearer token. The Cited
+            # API validates it on every call (an invalid key gets a 401 there).
+            return CitedAccessToken(
+                token=token,
+                client_id="agent-key",
+                scopes=["cited"],
+                expires_at=None,
+                user_jwt="",
+                agent_api_key=token,
+            )
+
         payload = self._decode_token(token)
         if not payload or payload.get("typ") != "access":
             return None

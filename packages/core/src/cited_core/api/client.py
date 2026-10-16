@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 from typing import Any
 
 import httpx
@@ -8,6 +9,28 @@ from cited_core.errors import CitedAPIError
 
 DEFAULT_TIMEOUT = 30.0
 LONG_TIMEOUT = 120.0
+
+AGENT_KEY_HEADER = "X-Agent-API-Key"
+NOTICE_HEADER = "X-Cited-Notice"
+
+# The most recent X-Cited-Notice the API sent in the current context (task or
+# thread). The MCP tool wrapper clears it before each tool call and copies it
+# into the tool result afterwards, so every tool surfaces it without per-tool
+# code. A ContextVar (not only an attribute) because the remote MCP server
+# builds a fresh client per request.
+_last_notice: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "cited_last_notice", default=None
+)
+
+
+def get_notice() -> str | None:
+    """Return the last X-Cited-Notice seen in this context, if any."""
+    return _last_notice.get()
+
+
+def clear_notice() -> None:
+    """Forget any X-Cited-Notice seen in this context."""
+    _last_notice.set(None)
 
 
 class CitedClient:
@@ -21,14 +44,18 @@ class CitedClient:
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.agent_api_key = agent_api_key
+        self.last_notice: str | None = None
         headers: dict[str, str] = {
             "Accept": "application/json",
         }
         cookies: dict[str, str] = {}
         if token:
             cookies["advgeo_session"] = token
-        if agent_api_key:
-            headers["X-Agent-API-Key"] = agent_api_key
+        # A per-user agent key authenticates every request (not only the
+        # /agent/v1 routes). A signed-in session cookie takes precedence: the
+        # key is only sent when there is no token.
+        if agent_api_key and not token:
+            headers[AGENT_KEY_HEADER] = agent_api_key
         self._client = httpx.Client(
             base_url=self.base_url,
             headers=headers,
@@ -39,6 +66,34 @@ class CitedClient:
 
     def close(self) -> None:
         self._client.close()
+
+    @property
+    def auth_method(self) -> str | None:
+        """``"token"`` (session cookie), ``"agent_key"``, or None."""
+        if self.token:
+            return "token"
+        if self.agent_api_key:
+            return "agent_key"
+        return None
+
+    def set_token(self, token: str | None) -> None:
+        """Use (or clear) a session token; a token overrides any agent key."""
+        self.token = token
+        if token:
+            self._client.cookies.set("advgeo_session", token)
+            self._client.headers.pop(AGENT_KEY_HEADER, None)
+        else:
+            self._client.cookies.delete("advgeo_session")
+            if self.agent_api_key:
+                self._client.headers[AGENT_KEY_HEADER] = self.agent_api_key
+
+    def set_agent_api_key(self, agent_api_key: str | None) -> None:
+        """Use (or clear) a per-user agent key. Ignored on the wire while a token is set."""
+        self.agent_api_key = agent_api_key
+        if agent_api_key and not self.token:
+            self._client.headers[AGENT_KEY_HEADER] = agent_api_key
+        else:
+            self._client.headers.pop(AGENT_KEY_HEADER, None)
 
     def set_request_id(self, request_id: str | None) -> None:
         """Stamp X-Request-ID on subsequent outgoing requests so the cited
@@ -55,7 +110,14 @@ class CitedClient:
     def __exit__(self, *args: Any) -> None:
         self.close()
 
+    def _record_notice(self, response: httpx.Response) -> None:
+        notice = response.headers.get(NOTICE_HEADER)
+        if notice:
+            self.last_notice = notice
+            _last_notice.set(notice)
+
     def _handle_response(self, response: httpx.Response) -> Any:
+        self._record_notice(response)
         if response.is_success:
             if response.headers.get("content-type", "").startswith("application/json"):
                 return response.json()
@@ -63,14 +125,23 @@ class CitedClient:
         # Try to extract error message from JSON body
         message = f"HTTP {response.status_code}"
         error_code = None
+        detail_obj: dict[str, Any] | None = None
         try:
             body = response.json()
             if isinstance(body, dict):
-                message = str(body.get("detail", body.get("message", message)))
-                error_code = body.get("error_code")
+                detail = body.get("detail", body.get("message", message))
+                if isinstance(detail, dict):
+                    # Structured error, e.g. {"error": "insufficient_credits",
+                    # "message": ..., "credits_needed": ..., "buy_url": ...}
+                    detail_obj = detail
+                    message = str(detail.get("message") or detail.get("error") or message)
+                    error_code = detail.get("error") or body.get("error_code")
+                else:
+                    message = str(detail)
+                    error_code = body.get("error_code")
         except Exception:
             message = response.text or message
-        raise CitedAPIError(response.status_code, str(message), error_code)
+        raise CitedAPIError(response.status_code, str(message), error_code, detail_obj)
 
     def get(
         self,

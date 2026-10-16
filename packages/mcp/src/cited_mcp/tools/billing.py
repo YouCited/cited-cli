@@ -1,7 +1,12 @@
+"""Pay-as-you-go credits: prices, balance, purchases, refunds, auto-refill, quotes.
+
+1 credit = $1. A standard audit costs 10 credits. Purchases happen in Stripe
+Checkout: these tools only create checkout links for the human to open, and
+never complete a payment themselves.
+"""
+
 from __future__ import annotations
 
-import json
-import logging
 from typing import Any
 
 from mcp.server.fastmcp import Context
@@ -10,201 +15,303 @@ from mcp.types import ToolAnnotations
 from cited_core.api import endpoints
 from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
-from cited_mcp.plan_gating import tools_unlocked_between
 from cited_mcp.server import mcp
 from cited_mcp.tools._helpers import (
     _api_error_response,
-    _extract_user,
+    _auth_check,
     _get_ctx,
-    _resolve_token,
+    _truncate_response,
     log_tool_call,
 )
 
-logger = logging.getLogger("cited_mcp.usage")
+_CHECKOUT_INSTRUCTIONS = (
+    "Show checkout_url to the human as a clickable link and ask them to pay there. "
+    "Nothing has been charged yet, so do not say the purchase is done. After they "
+    "pay, call get_credits to confirm the new balance."
+)
 
 
 @mcp.tool(
-    title="Get Pricing",
+    title="Get Prices",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
-async def get_pricing(ctx: Context[Any, CitedContext, Any]) -> Any:
-    """Get available subscription plans and pricing.
+async def get_prices(ctx: Context[Any, CitedContext, Any]) -> Any:
+    """Get Cited's pay-as-you-go prices. No login needed.
 
-    Returns plan tiers (Growth, Scale, Pro) with monthly prices,
-    capabilities, and limits. Use this to show the user their
-    upgrade options before calling upgrade_plan.
+    Prices are in credits; 1 credit = $1. A standard audit is 10 credits and
+    covers up to 5 questions with each engine's included models; each further
+    5 questions is another 10, each extra model 2. A one-off audit costs $15
+    (10 credits) and works for any account, including an unclaimed agent
+    account. Credit packs (pack_20, pack_50, pack_100; bigger packs add bonus
+    credits) need a claimed account. Credits expire 12 months after purchase
+    and unused credits bought in the last 30 days can be refunded.
+
+    Returns ``audit``, ``single_audit``, ``packs`` [{id, price_usd, credits,
+    bonus_percent}], ``credits_expire_after_months``, ``refund_window_days``
+    and ``auto_refill``.
     """
     cited_ctx = _get_ctx(ctx)
     try:
-        return cited_ctx.client.get(endpoints.BILLING_PRICING)
+        return cited_ctx.client.get(endpoints.BILLING_PRICES)
     except CitedAPIError as e:
         return _api_error_response(e)
-
-
-_RECONNECT_HINT = (
-    "Disconnect and reconnect the Cited connector in your Claude Desktop or "
-    "Claude.ai connector settings to access the new tools."
-)
-
-
-def _build_tools_unlocked(
-    old_tier: str | None, new_tier: str | None
-) -> list[dict[str, str]]:
-    """Build [{name, description}] entries for tools unlocked by the tier change.
-
-    Looks up live descriptions from the registered MCP tool surface so each
-    entry stays accurate as docstrings evolve.
-    """
-    unlocked_names = tools_unlocked_between(old_tier, new_tier)
-    if not unlocked_names:
-        return []
-    descriptions: dict[str, str] = {
-        tool.name: tool.description or ""
-        for tool in mcp._tool_manager.list_tools()
-    }
-    return [
-        {"name": name, "description": descriptions.get(name, "")}
-        for name in sorted(unlocked_names)
-    ]
-
-
-def _pending_action_for(action: str | None, checkout_url: str | None) -> str | None:
-    """Map the backend's `action` field to a pending_action string.
-
-    Always returns a value or None — never branches the *presence* of the field
-    in the response. Per direction: agent code is easier to write against an
-    always-present nullable field than against a conditional branch.
-    """
-    if action == "checkout_required":
-        if checkout_url:
-            return (
-                f"Open {checkout_url} to complete checkout, then disconnect "
-                f"and reconnect the Cited connector to access the new tools."
-            )
-        return (
-            "Complete checkout (no checkout_url returned — see message field), "
-            "then disconnect and reconnect the Cited connector."
-        )
-    if action == "upgraded":
-        return _RECONNECT_HINT
-    # already_on_plan or unknown action: no pending action
-    return None
-
-
-async def _safe_send_list_changed(
-    ctx: Context[Any, CitedContext, Any],
-    *,
-    tool_name: str,
-    user: str,
-) -> None:
-    """Send tools/list_changed; swallow + log on failure.
-
-    Compatible clients refresh their tool list immediately and the user sees
-    the new tools without reconnecting. Incompatible clients ignore it and
-    fall back to the `pending_action` field's reconnect hint.
-    """
-    try:
-        await ctx.session.send_tool_list_changed()
-    except Exception as e:  # noqa: BLE001 — we explicitly want to swallow
-        request_id = getattr(
-            getattr(ctx, "request_context", None), "request_id", None
-        )
-        logger.info(
-            json.dumps(
-                {
-                    "event": "tools_list_changed_send_failed",
-                    "tool": tool_name,
-                    "user": user,
-                    "session_id": str(request_id) if request_id else None,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e)[:200],
-                }
-            )
-        )
 
 
 @mcp.tool(
-    title="Upgrade Plan",
-    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+    title="Get Credits",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
 )
 @log_tool_call
-async def upgrade_plan(
-    ctx: Context[Any, CitedContext, Any],
-    target_tier: str,
-) -> Any:
-    """Upgrade the user's subscription plan to unlock more tools.
+async def get_credits(ctx: Context[Any, CitedContext, Any]) -> Any:
+    """Get the account's credit balance (1 credit = $1).
 
-    Returns the backend response augmented with two always-present fields:
+    Returns ``balance``, ``has_purchased`` (recommendations, solutions, crawls
+    and question regeneration need at least one purchase), ``unclaimed`` (an
+    agent account a person has not claimed yet), ``lots`` (each purchase with
+    credits_remaining, expires_at and refundable_usd), ``saved_card`` and
+    ``auto_refill``.
 
-      * ``tools_unlocked`` — list of ``{name, description}`` for tools that
-        become available at the new tier. Empty when no tier change took
-        effect (already_on_plan or checkout_required).
-      * ``pending_action`` — nullable string describing what the user needs
-        to do next. ``null`` when nothing is pending; for ``upgraded`` it
-        instructs disconnect/reconnect to pick up the new tools; for
-        ``checkout_required`` it points at the checkout URL.
+    When to call: before starting an audit (a standard audit is 10 credits),
+    after the human says they paid, or when an error says
+    ``insufficient_credits``.
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        return cited_ctx.client.get(endpoints.BILLING_CREDITS)
+    except CitedAPIError as e:
+        return _api_error_response(e)
 
-    For users with a payment method on file the upgrade takes effect
-    immediately. For first-time subscribers the response includes a
-    ``checkout_url`` that must be opened once.
 
-    On a successful immediate upgrade the server also emits a
-    ``notifications/tools/list_changed`` MCP notification on the per-request
-    SSE stream — clients that honor it refresh their tool list automatically
-    and the user sees the new tools without needing to reconnect. Clients
-    that don't honor it fall back to ``pending_action``.
+@mcp.tool(
+    title="Credit History",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+)
+@log_tool_call
+async def credit_history(ctx: Context[Any, CitedContext, Any], limit: int = 50) -> Any:
+    """List credit transactions, newest first.
+
+    Each entry has ``delta`` (credits added or removed), ``kind`` (purchase,
+    grant, spend, return, refund, expire), ``reference_type`` /
+    ``reference_id`` (e.g. the audit a spend paid for), ``note`` and
+    ``created_at``. Failed or cancelled audits show up as a ``return``.
 
     Args:
         ctx: MCP context
-        target_tier: Target plan: growth ($39/mo), scale ($99/mo), or pro
-            ($299/mo)
+        limit: Number of transactions to return (default 50)
     """
     cited_ctx = _get_ctx(ctx)
-    token = _resolve_token(ctx)
-    user = _extract_user(token) if token else "anonymous"
-
-    # Read current tier directly. We bypass the tier cache here because we
-    # want a fresh value for THIS request so the tools_unlocked diff is
-    # accurate to what the user actually had a moment ago, not whatever was
-    # cached up to 5 minutes earlier.
-    old_tier: str | None
+    if err := _auth_check(cited_ctx):
+        return err
     try:
-        me_before = cited_ctx.client.get(endpoints.ME)
-        old_tier = str(me_before.get("subscription_tier") or "free")
-    except CitedAPIError:
-        old_tier = None
-
-    try:
-        backend = cited_ctx.client.post(
-            endpoints.BILLING_AGENT_UPGRADE,
-            json={"target_tier": target_tier},
+        return _truncate_response(
+            cited_ctx.client.get(endpoints.BILLING_CREDIT_TRANSACTIONS, params={"limit": limit})
         )
     except CitedAPIError as e:
         return _api_error_response(e)
 
-    if not isinstance(backend, dict):
-        # Unexpected shape — pass through unchanged so callers can debug.
-        return backend
 
-    action = backend.get("action")
-    # For checkout_required the upgrade hasn't taken effect yet, so the
-    # effective new_tier is the old_tier (no tools unlocked yet).
-    new_tier = backend.get("tier") if action != "checkout_required" else old_tier
+@mcp.tool(
+    title="Buy Credits",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True),  # noqa: E501
+)
+@log_tool_call
+async def buy_credits(
+    ctx: Context[Any, CitedContext, Any],
+    pack_id: str,
+    save_card: bool = True,
+) -> Any:
+    """Create a Stripe checkout link for a credit pack, for the human to pay.
 
-    tools_unlocked = (
-        _build_tools_unlocked(old_tier, new_tier) if action == "upgraded" else []
-    )
-    pending_action = _pending_action_for(action, backend.get("checkout_url"))
+    Packs: pack_20 ($20, 20 credits), pack_50 ($50, 55 credits), pack_100
+    ($100, 120 credits); see get_prices for current values. 1 credit = $1 and
+    a standard audit is 10 credits. Packs need a claimed account: an
+    unclaimed agent account gets a ``claim_required`` error and should use
+    buy_audit ($15 for one audit) instead.
 
-    response = dict(backend)
-    response["tools_unlocked"] = tools_unlocked
-    response["pending_action"] = pending_action
+    Returns ``checkout_url``. Show it to the human as a link; nothing is
+    charged until they pay there. Never tell them the purchase is complete
+    until get_credits shows the new balance.
 
-    # Belt-and-suspenders: send the protocol notification too. Failures are
-    # swallowed and structured-logged so we can see in production whether
-    # any clients ever surface a deliverable session.
-    if action == "upgraded" and tools_unlocked:
-        await _safe_send_list_changed(ctx, tool_name="upgrade_plan", user=user)
+    Args:
+        ctx: MCP context
+        pack_id: Pack to buy: pack_20, pack_50 or pack_100
+        save_card: Save the card for auto-refill and later purchases (default true)
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        result = cited_ctx.client.post(
+            endpoints.BILLING_CREDITS_CHECKOUT,
+            json={"pack_id": pack_id, "save_card": save_card},
+        )
+    except CitedAPIError as e:
+        return _api_error_response(e)
+    if isinstance(result, dict):
+        result["instructions"] = _CHECKOUT_INSTRUCTIONS
+    return result
 
-    return response
+
+@mcp.tool(
+    title="Buy One Audit",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True),  # noqa: E501
+)
+@log_tool_call
+async def buy_audit(ctx: Context[Any, CitedContext, Any]) -> Any:
+    """Create a $15 Stripe checkout link that pays for one audit (10 credits).
+
+    Works for every account, including an unclaimed agent account from
+    agent_signup. Returns ``checkout_url``, ``price_usd``, ``credits`` and
+    ``expires_at``. Show checkout_url to the human; once they pay, the 10
+    credits appear in get_credits and you can call start_audit.
+
+    Nothing is charged by this call. Never say the payment happened until
+    get_credits confirms it.
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        result = cited_ctx.client.post(endpoints.BILLING_AUDIT_CHECKOUT, json={})
+    except CitedAPIError as e:
+        return _api_error_response(e)
+    if isinstance(result, dict):
+        result["instructions"] = _CHECKOUT_INSTRUCTIONS
+    return result
+
+
+@mcp.tool(
+    title="Request Refund",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True),  # noqa: E501
+)
+@log_tool_call
+async def request_refund(
+    ctx: Context[Any, CitedContext, Any],
+    confirm: bool = False,
+) -> Any:
+    """Refund unused credits bought in the last 30 days, pro rata to price paid.
+
+    Call first with ``confirm=False`` (the default): nothing is refunded and
+    you get the refundable amount per purchase. Tell the human the amount and
+    only call again with ``confirm=True`` after they explicitly agree. The
+    refunded credits are removed from the balance. Credits from older
+    purchases are not refundable (``nothing_to_refund`` when there are none).
+
+    Args:
+        ctx: MCP context
+        confirm: True to actually request the refund, after the human agreed
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        if not confirm:
+            credits = cited_ctx.client.get(endpoints.BILLING_CREDITS)
+            lots = [
+                {
+                    "id": lot.get("id"),
+                    "source": lot.get("source"),
+                    "purchased_at": lot.get("purchased_at"),
+                    "credits_remaining": lot.get("credits_remaining"),
+                    "refundable_usd": lot.get("refundable_usd"),
+                }
+                for lot in credits.get("lots") or []
+                if lot.get("refundable_usd")
+            ]
+            total = round(sum(float(lot["refundable_usd"]) for lot in lots), 2)
+            return {
+                "confirmation_required": True,
+                "refundable_usd": total,
+                "lots": lots,
+                "message": (
+                    f"${total:.2f} can be refunded. Ask the human to confirm, then call "
+                    "request_refund(confirm=True)."
+                    if total
+                    else "Nothing to refund: no unused credits bought in the last 30 days."
+                ),
+            }
+        return cited_ctx.client.post(endpoints.BILLING_CREDITS_REFUND, json={})
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
+    title="Set Auto-Refill",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True),  # noqa: E501
+)
+@log_tool_call
+async def set_auto_refill(
+    ctx: Context[Any, CitedContext, Any],
+    enabled: bool,
+    pack_id: str | None = None,
+    monthly_cap_usd: float | None = None,
+) -> Any:
+    """Turn auto-refill on or off.
+
+    When on, Cited buys the chosen pack (with a 20% bonus) on the saved card
+    whenever the balance drops below 10 credits, up to a monthly ceiling
+    (default $200). It pauses at the ceiling or if the card fails; saving the
+    settings again clears a pause. Needs a claimed account and a saved card
+    (``no_saved_card`` otherwise: have the human buy a pack with save_card
+    first). Only change this when the human asked for it.
+
+    Returns the same body as get_credits.
+
+    Args:
+        ctx: MCP context
+        enabled: True to turn auto-refill on, False to turn it off
+        pack_id: Pack to buy on each refill (pack_20, pack_50, pack_100)
+        monthly_cap_usd: Monthly spending ceiling in USD
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    payload: dict[str, Any] = {"enabled": enabled}
+    if pack_id is not None:
+        payload["pack_id"] = pack_id
+    if monthly_cap_usd is not None:
+        payload["monthly_cap_usd"] = monthly_cap_usd
+    try:
+        return cited_ctx.client.put(endpoints.BILLING_AUTO_REFILL, json=payload)
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
+    title="Quote Audit",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+)
+@log_tool_call
+async def quote_audit(
+    ctx: Context[Any, CitedContext, Any],
+    named_audit_id: str,
+    models: list[str] | None = None,
+) -> Any:
+    """Price an audit in credits before starting it (1 credit = $1).
+
+    A standard audit is 10 credits for up to 5 questions with each engine's
+    included models; each further 5 questions adds 10 and each extra model 2.
+    Returns ``credits`` (the cost), ``balance``, ``enough``,
+    ``question_count`` and ``extra_models``. When ``enough`` is false, offer
+    buy_audit ($15, one audit) or buy_credits (claimed accounts) and show the
+    human the checkout link.
+
+    Args:
+        ctx: MCP context
+        named_audit_id: Audit template ID (from list_audit_templates)
+        models: Optional "provider:model" ids you plan to pass to start_audit
+            (see get_audit_models; models not marked included cost extra)
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    payload: dict[str, Any] = {"named_audit_id": named_audit_id}
+    if models:
+        payload["models"] = models
+    try:
+        return cited_ctx.client.post(endpoints.BILLING_AUDIT_QUOTE, json=payload)
+    except CitedAPIError as e:
+        return _api_error_response(e)

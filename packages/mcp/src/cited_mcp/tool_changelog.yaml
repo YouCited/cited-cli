@@ -21,6 +21,83 @@
 #      this file.
 
 versions:
+  - version: "0.6.0"
+    released: "unreleased"
+    # Monthly plans (Growth/Scale/Pro), tiers and plan gating are removed:
+    # every tool is available to every account and paid work is charged in
+    # pay-as-you-go credits (1 credit = $1; a standard audit is 10 credits).
+    # Adds agent self-signup with per-user agent keys. 402 errors now carry
+    # error_type (insufficient_credits / purchase_required), credits_needed,
+    # balance and buy_url; 403 claim_required carries claim_url. Any
+    # X-Cited-Notice response header appears as a top-level "notice" field.
+    # Also records get_audit_models, added after 0.5.2.
+    fingerprint: "edbb5a0d5286"
+    tools_added:
+      - name: get_prices
+        description: |
+          Pay-as-you-go prices, no login: audit cost in credits, the $15
+          one-off audit, and credit packs.
+      - name: get_credits
+        description: |
+          Credit balance, purchases (lots with expiry and refundable amount),
+          saved card and auto-refill settings.
+      - name: credit_history
+        description: |
+          Credit transactions: purchases, spends, returns, refunds, expiries.
+      - name: buy_credits
+        description: |
+          Stripe checkout link for a credit pack (claimed accounts). Show the
+          link to the human; nothing is charged until they pay.
+      - name: buy_audit
+        description: |
+          $15 Stripe checkout link for one audit (10 credits). Works for
+          unclaimed agent accounts.
+      - name: request_refund
+        description: |
+          Refund unused credits bought in the last 30 days. Previews the
+          amount unless confirm=True.
+      - name: set_auto_refill
+        description: |
+          Turn auto-refill on or off, with the pack and a monthly cap.
+      - name: quote_audit
+        description: |
+          Credits an audit will cost (and whether the balance covers it)
+          before calling start_audit.
+      - name: agent_signup
+        description: |
+          No login: creates an unclaimed account and API key for this agent,
+          saves the key, and returns a claim link and 6-digit code for the
+          human.
+      - name: key_status
+        description: |
+          Agent key state: unclaimed, account and key expiry, notice, and how
+          to switch to OAuth.
+      - name: list_api_keys
+        description: |
+          List the account's agent API keys.
+      - name: revoke_api_key
+        description: |
+          Revoke an agent API key.
+      - name: get_audit_models
+        description: |
+          Compare how each AI model cites the business in an audit, or list
+          the models start_audit(models=[...]) accepts.
+    tools_changed:
+      - name: start_audit
+        change_summary: |
+          Charges credits up front (response adds credits_charged and
+          balance); returns insufficient_credits (402) when short.
+      - name: check_auth_status
+        change_summary: |
+          Returns credits_balance, unclaimed and auth_method; with an agent
+          key also agent_key (key status) and auth_note about expiry/OAuth.
+      - name: get_usage_stats
+        change_summary: |
+          Returns credits_balance and unclaimed instead of plan.
+    tools_removed:
+      - name: get_pricing
+      - name: upgrade_plan
+
   - version: "0.5.2"
     released: "2026-10-14"
     # Adds free_audit: the no-login GEO audit behind the youcited.com homepage

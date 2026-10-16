@@ -3,7 +3,7 @@
 <!-- MCP Registry ownership verification for PyPI (must match "name" in server.json) -->
 <!-- mcp-name: com.youcited/cited -->
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 77 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 87 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
 
@@ -146,6 +146,26 @@ Cited adds new tools regularly. To access new tools after a release, **disconnec
 | `logout` | Clear stored authentication token |
 | `whats_new` | Diff the current tool surface against a prior fingerprint or version |
 
+### Credits (1 credit = $1)
+| Tool | Description |
+|------|-------------|
+| `get_prices` | Credit prices, audit cost and packs (no login) |
+| `get_credits` | Balance, purchases (lots), saved card and auto-refill settings |
+| `credit_history` | Credit transactions: purchases, spends, returns, refunds, expiries |
+| `buy_credits` | Checkout link for a credit pack (claimed accounts) |
+| `buy_audit` | $15 checkout link for one audit (any account) |
+| `request_refund` | Refund unused credits bought in the last 30 days (asks for confirmation) |
+| `set_auto_refill` | Turn auto-refill on or off, with pack and monthly cap |
+| `quote_audit` | Credits an audit will cost before starting it |
+
+### Agent signup & keys
+| Tool | Description |
+|------|-------------|
+| `agent_signup` | Create an account and API key for this agent (no login); returns a claim link and code for the human |
+| `key_status` | Agent key state: unclaimed, expiry, notice, OAuth instructions |
+| `list_api_keys` | List the account's agent API keys |
+| `revoke_api_key` | Revoke an agent API key |
+
 ### Businesses
 | Tool | Description |
 |------|-------------|
@@ -156,7 +176,7 @@ Cited adds new tools regularly. To access new tools after a release, **disconnec
 | `delete_business` | Delete a business |
 | `crawl_business` | Start a website crawl for a business |
 | `get_health_scores` | Get GEO health scores for a business |
-| `get_usage_stats` | Get account usage statistics and plan info |
+| `get_usage_stats` | Get credit balance, business count and audit count |
 
 ### Audit Templates
 | Tool | Description |
@@ -256,34 +276,53 @@ Claude will chain the tools automatically:
 6. `get_recommendation_insights` → display actionable results
 7. `start_solution` → generate implementation steps for top issues
 
-## Plan-Based Tool Access
+## Pricing: pay-as-you-go credits
 
-Tools are gated by subscription tier. All tiers can read data; write operations require higher plans.
+There are no plans or tiers: every tool is available to every account, and work is paid for
+with credits (1 credit = $1). A standard audit costs 10 credits (up to 5 questions with each
+engine's included models; each further 5 questions adds 10, each extra model 2). Call
+`quote_audit` before `start_audit` to see the cost. Recommendations, solutions, crawls and
+question regeneration need the account to have bought credits at least once. A one-off audit
+costs $15 (`buy_audit`, works for unclaimed agent accounts); packs (`buy_credits`) need a
+claimed account. Purchases return a Stripe `checkout_url` for the human to open — no tool
+charges a card on its own.
 
-| Tier | Tools Available |
-|------|----------------|
-| **Growth** (entry) | Auth, list/get businesses, crawl, health scores, audits (start/status/result/list, per-model comparison), all recommendation tools, action-plan reads (get_action_plan, get_quick_wins), Validation Engine reads, job status, free audit, docs search — **35 tools** |
-| **Scale** | Everything in Growth + create/update/delete businesses, create/update/delete audit templates, all solution tools, batch solutions, export audit, cancel job, action-plan writes (mark_action_done, dismiss_action, get_action_progress) — **66 tools** |
-| **Pro** | Everything in Scale + usage stats, HQ dashboard, analytics, agent API — **77 tools** |
-
-When a user calls a tool above their plan, the server returns a structured error with an upgrade link:
+When an account is short of credits, tools return HTTP 402 details the agent can act on:
 
 ```json
 {
   "error": true,
-  "message": "The 'create_business' tool requires the Scale plan or higher.",
-  "upgrade_url": "https://app.youcited.com/settings/billing",
-  "required_tier": "scale",
-  "current_tier": "growth"
+  "status_code": 402,
+  "payment_required": true,
+  "error_type": "insufficient_credits",
+  "message": "This audit needs 10 credits; you have 2.",
+  "credits_needed": 10,
+  "balance": 2,
+  "buy_url": "https://youcited.com/app/billing",
+  "hint": "Not enough credits. Show the human buy_url, or call 'buy_credits' ..."
 }
 ```
+
+`error_type` is `insufficient_credits`, `purchase_required` (402) or `claim_required` (403, an
+unclaimed agent account tried something that needs a person to claim it; includes `claim_url`).
+
+## Agent signup and keys
+
+An agent with no Cited account can call `agent_signup` (no login needed). It gets its own API
+key, saved locally and sent as `X-Agent-API-Key` on every call, on an unclaimed account (1
+business, 1 audit, deleted after 7 days unless claimed). The agent shows its human the claim
+link and 6-digit code; claiming moves everything into the human's account, and the key then
+expires 90 days later. While a key has an expiry, API responses carry an `X-Cited-Notice`
+header, which every tool result surfaces as a top-level `notice` field. Connecting the hosted
+server (`https://mcp.youcited.com/mcp`) with OAuth does not expire. The hosted server also
+accepts an agent key as its Bearer token.
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
 | `CITED_TOKEN` | JWT auth token (stdio mode) |
-| `CITED_AGENT_API_KEY` | Agent API key (alternative to JWT) |
+| `CITED_AGENT_API_KEY` | Per-user agent API key (alternative to JWT; `agent_signup` saves one for you) |
 | `CITED_API_URL` | API base URL (default: `https://api.youcited.com`) |
 | `CITED_ENV` | Environment: `prod`, `dev`, or `local` |
 | `MCP_URL` | Public URL of this MCP server (remote mode) |

@@ -4,7 +4,6 @@ These tests don't exercise tool logic. They lock down structural properties
 that should change deliberately, not accidentally:
 
   - The set of registered tool names (snapshot)
-  - The mapping of each tool to its plan tier (snapshot)
   - The latest changelog entry's fingerprint matches the live registry's
     compute_tools_fingerprint() result
   - whats_new() returns the expected diff when called with an older
@@ -23,7 +22,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cited_mcp.plan_gating import required_tier_for_tool
 from cited_mcp.server import compute_tools_fingerprint, create_stdio_server
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -60,8 +58,6 @@ EXPECTED_TOOLS_V0_5_0: set[str] = {
     "check_auth_status",
     "login",
     "logout",
-    "get_pricing",
-    "upgrade_plan",
     "whats_new",
     "free_audit",
     "get_usage_stats",
@@ -84,8 +80,23 @@ EXPECTED_TOOLS_V0_5_0: set[str] = {
     "create_audit_template",
     "update_audit_template",
     "delete_audit_template",
+    # Billing (pay-as-you-go credits)
+    "get_prices",
+    "get_credits",
+    "credit_history",
+    "buy_credits",
+    "buy_audit",
+    "request_refund",
+    "set_auto_refill",
+    "quote_audit",
+    # Agent identity (signup + per-user keys)
+    "agent_signup",
+    "key_status",
+    "list_api_keys",
+    "revoke_api_key",
     # Audits
     "start_audit",
+    "get_audit_models",
     "get_audit_status",
     "get_audit_result",
     "list_audits",
@@ -162,48 +173,6 @@ def test_registered_tool_names_match_snapshot(registered_tool_names):
     assert extra == set(), (
         f"Tools registered without being in the snapshot: {extra}. "
         f"Add them to EXPECTED_TOOLS_V0_5_0 and the changelog top entry."
-    )
-
-
-# Per-tool tier snapshot — catches subtle tier reclassifications that the
-# bulk counts wouldn't notice. Update this when intentionally changing a
-# tool's tier.
-EXPECTED_TIER_FOR_TOOL: dict[str, str | None] = {
-    # Scale-tier write tools (the v0.4.0 / v0.5.0 surface)
-    "create_business": "scale",
-    "delete_business": "scale",
-    "set_profile_competitors": "scale",
-    "create_persona": "scale",
-    "update_persona": "scale",
-    "delete_persona": "scale",
-    "create_product": "scale",
-    "update_product": "scale",
-    "delete_product": "scale",
-    "create_buyer_intent": "scale",
-    "update_buyer_intent": "scale",
-    "delete_buyer_intent": "scale",
-    "recompute_health_scores": "scale",
-    "refresh_business_overview": "scale",
-    # Pro-tier — billing-sensitive analytics
-    "get_usage_stats": "pro",
-    "compare_audits": "pro",
-    "get_analytics_trends": "pro",
-    "get_analytics_dashboard": "pro",
-}
-
-
-def test_per_tool_tier_assignments_stable():
-    """Lock down the tier each gated tool is mapped to. Catches accidental
-    re-classifications (e.g., a Pro tool slipping to Scale would silently
-    give it away for less revenue)."""
-    drift: dict[str, tuple[str | None, str | None]] = {}
-    for tool, expected in EXPECTED_TIER_FOR_TOOL.items():
-        actual = required_tier_for_tool(tool)
-        if actual != expected:
-            drift[tool] = (expected, actual)
-    assert drift == {}, (
-        f"Tier drift detected (expected → actual): {drift}. "
-        f"If intentional, update EXPECTED_TIER_FOR_TOOL."
     )
 
 

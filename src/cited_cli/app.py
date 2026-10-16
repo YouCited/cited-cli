@@ -12,6 +12,7 @@ from cited_cli.commands.audit import audit_app
 from cited_cli.commands.auth import auth_app, do_login, do_logout, do_register
 from cited_cli.commands.business import business_app
 from cited_cli.commands.config_cmd import config_app
+from cited_cli.commands.credits import credits_app
 from cited_cli.commands.docs import docs_app
 from cited_cli.commands.hq import hq_app
 from cited_cli.commands.job import job_app
@@ -46,6 +47,7 @@ app.add_typer(solution_app, name="solution")
 app.add_typer(hq_app, name="hq")
 app.add_typer(analytics_app, name="analytics")
 app.add_typer(agent_app, name="agent")
+app.add_typer(credits_app, name="credits")
 app.add_typer(job_app, name="job")
 app.add_typer(docs_app, name="docs")
 app.add_typer(mcp_app, name="mcp")

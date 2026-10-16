@@ -51,6 +51,43 @@ class TokenStore:
     def has_token(self, env: str) -> bool:
         return self.get_token(env) is not None
 
+    # --- per-user agent keys (from POST /agent/signup) ---
+    #
+    # Stored per environment next to the session token, under the keyring
+    # entry "agent_key:<env>" (file fallback: the "agent_key:<env>" key in
+    # credentials.json).
+
+    @staticmethod
+    def _agent_key_name(env: str) -> str:
+        return f"agent_key:{env}"
+
+    def save_agent_key(self, env: str, api_key: str) -> None:
+        name = self._agent_key_name(env)
+        if self._has_keyring():
+            import keyring
+
+            keyring.set_password(KEYRING_SERVICE, name, api_key)
+        else:
+            self._save_file(name, api_key)
+
+    def get_agent_key(self, env: str) -> str | None:
+        name = self._agent_key_name(env)
+        if self._has_keyring():
+            import keyring
+
+            return keyring.get_password(KEYRING_SERVICE, name)
+        return self._load_file(name)
+
+    def delete_agent_key(self, env: str) -> None:
+        name = self._agent_key_name(env)
+        if self._has_keyring():
+            import keyring
+
+            with contextlib.suppress(keyring.errors.PasswordDeleteError):
+                keyring.delete_password(KEYRING_SERVICE, name)
+        else:
+            self._delete_file(name)
+
     # --- file fallback ---
 
     @staticmethod

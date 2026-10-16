@@ -17,7 +17,7 @@ import httpx
 import jwt as pyjwt
 from mcp.server.fastmcp import Context
 
-from cited_core.api.client import CitedClient
+from cited_core.api.client import CitedClient, clear_notice, get_notice
 from cited_core.errors import CitedAPIError
 from cited_mcp.context import CitedContext
 
@@ -145,7 +145,7 @@ def _get_ctx(ctx: Context[Any, CitedContext, Any]) -> CitedContext:
     if lc.client.token:
         return lc
 
-    # Remote transport: try to get user JWT from OAuth access token
+    # Remote transport: try to get user JWT (or agent key) from the OAuth access token
     try:
         from mcp.server.auth.middleware.auth_context import get_access_token
 
@@ -153,10 +153,16 @@ def _get_ctx(ctx: Context[Any, CitedContext, Any]) -> CitedContext:
 
         access_token = get_access_token()
         if access_token and isinstance(access_token, CitedAccessToken):
-            user_client = CitedClient(
-                base_url=lc.api_url,
-                token=access_token.user_jwt,
-            )
+            if access_token.agent_api_key:
+                user_client = CitedClient(
+                    base_url=lc.api_url,
+                    agent_api_key=access_token.agent_api_key,
+                )
+            else:
+                user_client = CitedClient(
+                    base_url=lc.api_url,
+                    token=access_token.user_jwt,
+                )
             return CitedContext(
                 client=user_client,
                 env=lc.env,
@@ -169,12 +175,23 @@ def _get_ctx(ctx: Context[Any, CitedContext, Any]) -> CitedContext:
     return lc
 
 
+def _has_agent_key(cited_ctx: CitedContext) -> bool:
+    """True when the client authenticates with an agent key (and no session token)."""
+    client = cited_ctx.client
+    key = getattr(client, "agent_api_key", None)
+    return not client.token and isinstance(key, str) and bool(key)
+
+
 def _auth_check(cited_ctx: CitedContext) -> dict[str, Any] | None:
-    """Return error dict if not authenticated, else None."""
-    if cited_ctx.client.token is None:
+    """Return error dict if not authenticated (no session token or agent key), else None."""
+    if cited_ctx.client.token is None and not _has_agent_key(cited_ctx):
         return {
             "error": True,
-            "message": "Not authenticated. Use the 'login' tool or set CITED_TOKEN env var.",
+            "message": (
+                "Not authenticated. A person can use the 'login' tool (or set "
+                "CITED_TOKEN). An AI agent without an account can call "
+                "'agent_signup' to get its own key (or set CITED_AGENT_API_KEY)."
+            ),
         }
     return None
 
@@ -187,17 +204,9 @@ def _resolve_business_id(cited_ctx: CitedContext, business_id: str | None) -> st
 _ERROR_HINTS: list[tuple[int, str | None, str]] = [
     (
         403,
-        "plan",
-        "This account's plan may not allow this operation. "
-        "Check plan limits with 'check_auth_status'. "
-        "Consider upgrading at https://app.youcited.com/settings/billing, "
-        "or use 'logout' then 'login' to switch to a different account.",
-    ),
-    (
-        403,
         None,
-        "This action is not allowed. Check your plan limits with 'check_auth_status', "
-        "or use 'logout' then 'login' to switch accounts.",
+        "This action is not allowed for this account. Use 'check_auth_status' to see "
+        "which account you are using, or 'logout' then 'login' to switch accounts.",
     ),
     (
         422,
@@ -220,6 +229,29 @@ _ERROR_HINTS: list[tuple[int, str | None, str]] = [
     ),
 ]
 
+# Hints for the structured billing / claim errors (keyed by detail["error"]).
+_ERROR_CODE_HINTS: dict[str, str] = {
+    "insufficient_credits": (
+        "Not enough credits. Show the human buy_url, or call 'buy_credits' (claimed "
+        "accounts) or 'buy_audit' ($15 for one audit, any account) and show them the "
+        "checkout_url. Credits appear in 'get_credits' after they pay; then retry. "
+        "Use 'quote_audit' to check a cost first."
+    ),
+    "purchase_required": (
+        "This needs an account that has paid at least once. Show the human buy_url, or "
+        "call 'buy_audit' or 'buy_credits' and show them the checkout_url, then retry "
+        "after they pay."
+    ),
+    "claim_required": (
+        "This agent account is unclaimed. Show the human the claim url and 6-digit code "
+        "from 'agent_signup' so they can claim it; until then you can still pay for one "
+        "audit with 'buy_audit'."
+    ),
+}
+
+# Structured detail fields passed through to the agent unchanged.
+_DETAIL_FIELDS = ("credits_needed", "balance", "buy_url", "claim_url")
+
 
 def _resolve_token(
     ctx: Context[Any, CitedContext, Any],
@@ -241,11 +273,46 @@ def _resolve_token(
     return None
 
 
-def _rate_limit_key(token: str | None) -> str:
-    """Derive a tamper-proof rate-limit key from the raw token."""
-    if not token:
+def _resolve_agent_key(ctx: Context[Any, CitedContext, Any]) -> str | None:
+    """Return the agent key this call authenticates with, if any (stdio or remote)."""
+    try:
+        lc: CitedContext = ctx.request_context.lifespan_context
+        if _has_agent_key(lc):
+            return str(lc.client.agent_api_key)
+    except Exception:
+        pass
+    try:
+        from mcp.server.auth.middleware.auth_context import get_access_token
+
+        from cited_mcp.auth_provider import CitedAccessToken
+
+        access_token = get_access_token()
+        if isinstance(access_token, CitedAccessToken) and access_token.agent_api_key:
+            return access_token.agent_api_key
+    except Exception:
+        pass
+    return None
+
+
+def _agent_key_in_use(ctx: Context[Any, CitedContext, Any]) -> bool:
+    """True when this call authenticates with an agent key (never returns the key)."""
+    return _resolve_agent_key(ctx) is not None
+
+
+_RATE_LIMIT_SALT = b"cited-mcp-rate-limit"
+
+
+def _rate_limit_key(credential: str | None) -> str:
+    """Derive a tamper-proof rate-limit key from the raw token or agent key.
+
+    Agent keys are long-lived secrets, so the key is derived with PBKDF2
+    rather than a bare SHA-256; the result is only used as an in-memory
+    bucket name and is never logged.
+    """
+    if not credential:
         return "anonymous"
-    return hashlib.sha256(token.encode()).hexdigest()[:16]
+    digest = hashlib.pbkdf2_hmac("sha256", credential.encode(), _RATE_LIMIT_SALT, 1000)
+    return digest.hex()[:16]
 
 
 def _extract_user(token: str | None) -> str:
@@ -297,7 +364,8 @@ def _extract_auth_kind(
 
     Returns one of:
       - ``anonymous`` — no token, no agent key
-      - ``agent_key`` — CitedClient has agent_api_key set (stdio mode)
+      - ``agent_key`` — authenticated by a per-user agent key (stdio config or
+        a ``cak_`` Bearer token on the remote server), with no session token
       - ``oauth_email`` — OAuth flow, user_jwt has email claim
       - ``oauth_no_email`` — OAuth flow, user_jwt decoded but no email
       - ``oauth_malformed`` — OAuth flow, user_jwt couldn't be decoded
@@ -310,12 +378,8 @@ def _extract_auth_kind(
     JWT at all versus because the JWT had no email/sub claim. Without
     this, the ``<unknown>`` bucket in usage reports is unactionable.
     """
-    try:
-        lc = ctx.request_context.lifespan_context
-        if getattr(lc.client, "agent_api_key", None):
-            return "agent_key"
-    except Exception:
-        pass
+    if not token and _agent_key_in_use(ctx):
+        return "agent_key"
 
     method = "stdio"
     try:
@@ -420,36 +484,6 @@ def _extract_resource_ids(kwargs: dict[str, Any]) -> dict[str, str]:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Per-user tier cache (avoids /auth/me call on every tool invocation)
-# ---------------------------------------------------------------------------
-
-_TIER_CACHE_TTL = 300  # 5 minutes
-_tier_cache: dict[str, tuple[str, float]] = {}  # rl_key -> (tier, expires_at)
-
-
-def _get_user_tier(cited_ctx: CitedContext, cache_key: str) -> str | None:
-    """Return the user's subscription tier, using a short-lived cache.
-
-    Falls back to None (treated as free) if the API call fails.
-    """
-    now = time.monotonic()
-    cached = _tier_cache.get(cache_key)
-    if cached and now < cached[1]:
-        return cached[0]
-
-    try:
-        user = cited_ctx.client.get("/auth/me")
-        tier = str(user.get("subscription_tier") or "free")
-        _tier_cache[cache_key] = (tier, now + _TIER_CACHE_TTL)
-        return tier
-    except Exception:
-        # If /auth/me fails, use cached value (even if stale) or default to None
-        if cached:
-            return cached[0]
-        return None
-
-
 def log_tool_call(
     func: Callable[..., Awaitable[Any]],
 ) -> Callable[..., Awaitable[Any]]:
@@ -463,7 +497,7 @@ def log_tool_call(
     ) -> Any:
         tool_name = func.__name__
         token = _resolve_token(ctx)
-        rl_key = _rate_limit_key(token)
+        rl_key = _rate_limit_key(token or _resolve_agent_key(ctx))
         user = _extract_user(token)
         auth_kind = _extract_auth_kind(ctx, token)
         client_id = _extract_client_id_from_oauth()
@@ -513,30 +547,9 @@ def log_tool_call(
             cited_ctx_for_header = _get_ctx(ctx)
             cited_ctx_for_header.client.set_request_id(request_id)
 
-            # Plan gating check (skip for auth tools — must always be accessible)
-            from cited_mcp.plan_gating import is_tool_allowed, upgrade_message
-
-            _AUTH_TOOLS = {
-                "ping",
-                "check_auth_status",
-                "login",
-                "logout",
-                "get_pricing",
-                "upgrade_plan",
-            }
-            if tool_name not in _AUTH_TOOLS and token:
-                cited_ctx = _get_ctx(ctx)
-                if cited_ctx.client.token:
-                    user_tier = _get_user_tier(cited_ctx, rl_key)
-                    if not is_tool_allowed(tool_name, user_tier):
-                        gate_err = upgrade_message(tool_name, user_tier)
-                        gate_err["_request_id"] = request_id
-                        _log(
-                            "plan_gated",
-                            current_tier=user_tier,
-                            required_tier=gate_err["required_tier"],
-                        )
-                        return gate_err
+            # Forget notices from earlier calls; the client records any
+            # X-Cited-Notice header the API sends during this one.
+            clear_notice()
 
             result = await func(ctx, *args, **kwargs)
             duration_ms = int((time.monotonic() - start) * 1000)
@@ -564,6 +577,11 @@ def log_tool_call(
                     "data": result,
                     "_request_id": request_id,
                 }
+            # Surface the API's X-Cited-Notice header (e.g. "this agent key
+            # expires in 12 days; switch to OAuth") on every tool result.
+            notice = get_notice()
+            if notice and isinstance(result, dict) and "notice" not in result:
+                result["notice"] = notice
             return result
 
         except httpx.TimeoutException:
@@ -622,12 +640,30 @@ def log_tool_call(
 
 
 def _api_error_response(e: CitedAPIError) -> dict[str, Any]:
-    """Convert CitedAPIError to a structured error dict with actionable hints."""
+    """Convert CitedAPIError to a structured error dict with actionable hints.
+
+    Structured API errors (``detail`` objects) are flattened so the agent sees
+    ``error_type`` plus ``credits_needed`` / ``balance`` / ``buy_url`` /
+    ``claim_url`` at the top level. HTTP 402 also sets ``payment_required``.
+    """
     response: dict[str, Any] = {
         "error": True,
         "status_code": e.status_code,
         "message": e.message,
     }
+    detail = getattr(e, "detail", None) or {}
+    error_code = e.error_code or detail.get("error")
+    if error_code:
+        response["error_type"] = error_code
+    for key in _DETAIL_FIELDS:
+        if detail.get(key) is not None:
+            response[key] = detail[key]
+    if e.status_code == 402:
+        response["payment_required"] = True
+
+    if error_code and error_code in _ERROR_CODE_HINTS:
+        response["hint"] = _ERROR_CODE_HINTS[error_code]
+        return response
 
     for code, substring, hint in _ERROR_HINTS:
         if e.status_code == code and (

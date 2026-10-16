@@ -48,9 +48,9 @@ async def get_business_hq(
     a few sections. Tip: for a tighter "what should I focus on right now?"
     answer, prefer ``get_agent_brief`` — it's smaller and pre-prioritised.
 
-    On a ``payment_required: true`` response, surface ``upgrade_url`` and
-    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
-    fallback — they may want to upgrade.
+    On a ``payment_required: true`` response (HTTP 402), show the user
+    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
+    after they pay.
 
     Args:
         ctx: MCP context
@@ -133,9 +133,9 @@ async def get_agent_brief(
     ``get_recommendation_check_status`` — the brief is composed server-side,
     cheaper, and pre-prioritised.
 
-    On a ``payment_required: true`` response, surface ``upgrade_url`` and
-    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
-    fallback — they may want to upgrade.
+    On a ``payment_required: true`` response (HTTP 402), show the user
+    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
+    after they pay.
 
     Args:
         ctx: MCP context

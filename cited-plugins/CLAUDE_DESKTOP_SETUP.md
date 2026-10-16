@@ -87,6 +87,6 @@ Once connected, Claude can:
 - **Generate recommendations** — get actionable insights to improve your AI search visibility
 - **Create solutions** — detailed implementation steps for each recommendation
 - **Check health scores** — see your overall GEO health at a glance
-- **Monitor usage** — check plan limits and account statistics
+- **Monitor usage** — check your credit balance and account statistics
 
 Just ask Claude in plain English — no commands to memorize.

@@ -7,13 +7,13 @@ from typing import Annotated, Any
 import typer
 from rich.console import Console
 
-from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
+from cited_cli.output.formatter import OutputContext, print_result, print_success
 from cited_cli.output.tables import render_kv, render_table
-from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
+from cited_cli.utils.client import get_authed_client
+from cited_cli.utils.errors import CitedAPIError, handle_api_error
 from cited_cli.utils.interactive import prompt_if_missing
 from cited_core.api import endpoints
 from cited_core.api.client import LONG_TIMEOUT, CitedClient
-from cited_core.auth.store import TokenStore
 from cited_core.config.manager import ConfigManager
 from cited_core.free_audit import check_free_audit, is_finished
 
@@ -21,20 +21,7 @@ audit_app = typer.Typer(name="audit", help="Run and manage audits.")
 
 
 def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient, str]:
-    obj = ctx.obj or {}
-    out: OutputContext = obj.get("output", OutputContext())
-    cfg: ConfigManager = obj.get("config", ConfigManager())
-    profile = obj.get("profile", "default")
-    env = cfg.get_environment(profile, obj.get("env_override"))
-    api_url = cfg.get_api_url(profile, obj.get("env_override"))
-
-    store = TokenStore()
-    token = store.get_token(env)
-    if not token:
-        print_error(f"Not logged in to {env}. Run: cited login", out)
-        raise typer.Exit(ExitCode.AUTH_ERROR)
-
-    return out, CitedClient(base_url=api_url, token=token), env
+    return get_authed_client(ctx)
 
 
 FREE_AUDIT_POLL_SECONDS = 15
@@ -180,6 +167,35 @@ def audit_start(
         client.close()
 
 
+@audit_app.command("quote")
+def audit_quote(
+    ctx: typer.Context,
+    named_audit_id: Annotated[str, typer.Argument(help="Audit template (named audit) ID")],
+    models: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--model",
+            "-m",
+            help="Model to include, as provider:model (repeatable; see `cited audit models`)",
+        ),
+    ] = None,
+) -> None:
+    """Show how many credits an audit will cost before starting it."""
+    from cited_cli.commands.credits import render_quote
+
+    out, client, _ = _get_client(ctx)
+    try:
+        payload: dict[str, object] = {"named_audit_id": named_audit_id}
+        if models:
+            payload["models"] = models
+        data = client.post(endpoints.BILLING_AUDIT_QUOTE, json=payload)
+        print_result(data, out, human_formatter=render_quote)
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
 @audit_app.command("models")
 def audit_models(
     ctx: typer.Context,
@@ -195,8 +211,15 @@ def audit_models(
             data = client.get(endpoints.AUDIT_MODELS)
 
             def _human_catalog(d: dict[str, Any], console: Console) -> None:
-                rows = [[m.get("id", "")] for m in d.get("models", [])]
-                render_table("Models you can compare", ["Model"], rows, console)
+                extra = d.get("extra_model_credits")
+                rows = [
+                    [
+                        m.get("id", ""),
+                        "included" if m.get("included") else f"+{extra or '?'} credits",
+                    ]
+                    for m in d.get("models", [])
+                ]
+                render_table("Models you can compare", ["Model", "Cost"], rows, console)
                 limit = d.get("max_models_per_audit")
                 if limit:
                     console.print(

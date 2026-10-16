@@ -83,9 +83,20 @@ EXPECTED_TOOLS = [
     "get_analytics_trends",
     "get_analytics_dashboard",
     "compare_audits",
-    # Billing
-    "get_pricing",
-    "upgrade_plan",
+    # Billing (pay-as-you-go credits)
+    "get_prices",
+    "get_credits",
+    "credit_history",
+    "buy_credits",
+    "buy_audit",
+    "request_refund",
+    "set_auto_refill",
+    "quote_audit",
+    # Agent identity (signup + per-user keys)
+    "agent_signup",
+    "key_status",
+    "list_api_keys",
+    "revoke_api_key",
     # Changelog
     "whats_new",
     "free_audit",

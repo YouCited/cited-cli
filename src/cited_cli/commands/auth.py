@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -10,7 +10,8 @@ from cited_cli.output.tables import render_kv
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
 from cited_cli.utils.interactive import is_interactive
 from cited_core.api import endpoints
-from cited_core.api.client import CitedClient
+from cited_core.api.client import CitedClient, get_notice
+from cited_core.auth.credentials import resolve_agent_api_key
 from cited_core.auth.store import TokenStore
 from cited_core.config.constants import DEFAULT_ENV, FRONTEND_URLS
 from cited_core.config.manager import ConfigManager
@@ -210,12 +211,19 @@ def do_logout(ctx: typer.Context) -> None:
     out, cfg, env = _get_ctx(ctx)
     store = TokenStore()
 
-    if not store.has_token(env):
-        print_error(f"Not logged in to {env}", out)
-        raise typer.Exit(ExitCode.ERROR)
+    if store.has_token(env):
+        store.delete_token(env)
+        print_success(f"Logged out of {env}", out)
+        return
 
-    store.delete_token(env)
-    print_success(f"Logged out of {env}", out)
+    # An agent signed up with `cited agent signup` "logs out" by forgetting its key.
+    if store.get_agent_key(env):
+        store.delete_agent_key(env)
+        print_success(f"Removed the saved agent key for {env}", out)
+        return
+
+    print_error(f"Not logged in to {env}", out)
+    raise typer.Exit(ExitCode.ERROR)
 
 
 def do_register(
@@ -296,48 +304,96 @@ def register(
     do_register(ctx, email, name, password, provider)
 
 
+# Fields copied from GET /agent/key-status into `cited auth status` output.
+_KEY_STATUS_FIELDS = (
+    "key_prefix",
+    "account_expires_at",
+    "key_expires_at",
+    "days_left",
+    "notice",
+    "oauth",
+)
+
+
 @auth_app.command()
 def status(ctx: typer.Context) -> None:
     """Show current authentication status and user info."""
     out, cfg, env = _get_ctx(ctx)
     store = TokenStore()
     token = store.get_token(env)
-
+    agent_key = None
     if not token:
+        profile = (ctx.obj or {}).get("profile", "default")
+        agent_key = resolve_agent_api_key(cfg, env, profile, store)
+
+    if not token and not agent_key:
         print_error(f"Not logged in to {env}. Run: cited login", out)
         raise typer.Exit(ExitCode.AUTH_ERROR)
 
     api_url = _get_api_url(ctx, cfg)
-    client = CitedClient(base_url=api_url, token=token)
+    client = CitedClient(base_url=api_url, token=token, agent_api_key=agent_key)
     try:
         user = client.get(endpoints.ME)
         onboarding_completed = user.get("onboarding_completed", False)
-        data = {
+        data: dict[str, Any] = {
             "environment": env,
+            "auth_method": "agent_key" if agent_key else "session",
             "email": user.get("email", ""),
             "name": user.get("name", user.get("full_name", "")),
-            "plan": user.get("plan", user.get("subscription_tier", "")),
+            "credits_balance": user.get("credits_balance"),
+            "unclaimed": bool(user.get("unclaimed", False)),
             "onboarding_completed": onboarding_completed,
         }
+        if agent_key:
+            key_status = client.get(endpoints.AGENT_KEY_STATUS)
+            for field in _KEY_STATUS_FIELDS:
+                data[field] = key_status.get(field)
+            data["notice"] = data["notice"] or get_notice()
         print_result(
             data,
             out,
-            human_formatter=lambda d, c: render_kv("Auth Status", d, c),
+            human_formatter=lambda d, c: render_kv(
+                "Auth Status", {k: v for k, v in d.items() if v is not None and k != "oauth"}, c
+            ),
         )
-        if not onboarding_completed and not out.json_mode:
+        if not out.json_mode and agent_key:
+            _print_agent_key_nudge(data, out)
+        if not onboarding_completed and not agent_key and not out.json_mode:
             frontend_url = FRONTEND_URLS.get(env, FRONTEND_URLS[DEFAULT_ENV])
             out.console.print(
                 f"[yellow]→ Account setup incomplete. "
                 f"Visit {frontend_url}/onboarding to finish.[/yellow]"
             )
     except CitedAPIError as e:
-        if e.status_code in (401, 403):
+        if e.status_code in (401, 403) and token:
             store.delete_token(env)
             print_error("Session expired. Run: cited login", out)
             raise typer.Exit(ExitCode.AUTH_ERROR) from e
         handle_api_error(e, out.json_mode)
     finally:
         client.close()
+
+
+def _print_agent_key_nudge(data: dict[str, Any], out: OutputContext) -> None:
+    """Explain agent-key expiry and point at OAuth, which does not expire."""
+    if data.get("unclaimed"):
+        out.console.print(
+            f"[yellow]→ Unclaimed agent account; deleted on {data.get('account_expires_at')} "
+            "unless a person claims it with the link and code from signup.[/yellow]"
+        )
+    elif data.get("key_expires_at"):
+        out.console.print(
+            f"[yellow]→ This agent key expires on {data.get('key_expires_at')} "
+            f"({data.get('days_left')} days left).[/yellow]"
+        )
+    if data.get("notice"):
+        out.console.print(f"[yellow]→ {data['notice']}[/yellow]")
+    oauth = data.get("oauth") or {}
+    if oauth.get("mcp_url"):
+        out.console.print(
+            f"→ For access that does not expire, sign in with OAuth: connect "
+            f"{oauth['mcp_url']} as an MCP server, or run: cited login"
+        )
 
 
 @auth_app.command()
