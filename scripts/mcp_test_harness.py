@@ -17,7 +17,7 @@ Test categories (counted independently in the summary):
 
   [PR1] tools_fingerprint on `ping` (PR #4 / db91191)
   [PR2] whats_new + tool_changelog.yaml convention (PR #7 / 766af8f)
-  [PR3] upgrade_plan response wrap (PR #8 / 1bc2305)
+  [PR3] read-only credits tools (get_prices, get_credits)
   [PR4] structured tool_unavailable on unknown tool calls (PR #10 / 5c3b257)
   [+]   additions beyond the original PR test plans
 
@@ -45,8 +45,7 @@ Side effects:
   * The rate-limiter test fills the user's per-token request window for ~1
     minute, so any other tooling targeting the same env from the same user
     might see rate-limited responses for a minute after.
-  * The upgrade_plan test calls upgrade_plan with the user's CURRENT tier,
-    which is a no-op (already_on_plan branch) — no Stripe state change.
+  * The credits tests only read prices and the balance — no Stripe state change.
 """
 from __future__ import annotations
 
@@ -438,7 +437,7 @@ def run_tests(env: str) -> int:
         envelope = mcp.call("tools/list")
         tool_names = {t["name"] for t in envelope["result"]["tools"]}
         canonical = {
-            "ping", "whats_new", "upgrade_plan", "check_auth_status",
+            "ping", "whats_new", "get_prices", "check_auth_status",
             "list_businesses", "start_audit",
         }
         missing = canonical - tool_names
@@ -527,32 +526,25 @@ def run_tests(env: str) -> int:
         f"_note: {((wn_bogus or {}).get('_note') or '')[:60]!r}",
     )
 
-    # --------------------------------------------- [PR3] upgrade_plan (no-op safe path only)
-    auth = MCP.structured(mcp.call_tool("check_auth_status"))
-    current_tier = (auth or {}).get("subscription_tier")
-    if not current_tier:
-        results.skip(
-            "[PR3]",
-            "upgrade_plan with current tier -> already_on_plan",
-            "could not read current tier from check_auth_status",
-        )
-    else:
-        upgrade = MCP.structured(
-            mcp.call_tool("upgrade_plan", {"target_tier": current_tier})
-        )
-        results.record(
-            "[PR3]",
-            f"upgrade_plan(target_tier={current_tier!r}) -> already_on_plan, "
-            "tools_unlocked=[], pending_action=null",
-            bool(
-                isinstance(upgrade, dict)
-                and upgrade.get("action") == "already_on_plan"
-                and upgrade.get("tools_unlocked") == []
-                and upgrade.get("pending_action") is None
-            ),
-            f"action={upgrade.get('action')!r}, "
-            f"pending_action={upgrade.get('pending_action')!r}",
-        )
+    # --------------------------------------------- [PR3] credits (read-only)
+    prices = MCP.structured(mcp.call_tool("get_prices"))
+    results.record(
+        "[PR3]",
+        "get_prices returns audit credits and packs",
+        bool(
+            isinstance(prices, dict)
+            and (prices.get("audit") or {}).get("credits")
+            and prices.get("packs")
+        ),
+        f"audit={(prices or {}).get('audit')!r}",
+    )
+    balance = MCP.structured(mcp.call_tool("get_credits"))
+    results.record(
+        "[PR3]",
+        "get_credits returns an integer balance",
+        bool(isinstance(balance, dict) and isinstance(balance.get("balance"), int)),
+        f"balance={(balance or {}).get('balance')!r}",
+    )
 
     # ------------------------------------------------------------- [PR4] tool_unavailable
     bogus = MCP.structured(mcp.call_tool("this_tool_does_not_exist_xyz"))

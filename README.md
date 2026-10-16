@@ -80,7 +80,7 @@ cited register --email you@example.com --name "Your Name" --password "Secret123!
 
 ## MCP Server
 
-This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 77 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
+This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 87 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
 
 ### Quick setup
 
@@ -210,7 +210,9 @@ Claude will chain the tools automatically — `list_businesses` → `start_audit
 | Category | Tools |
 |----------|-------|
 | **Auth** | `check_auth_status`, `login`, `logout` |
-| **No login needed** | `free_audit`, `search_docs`, `get_doc` |
+| **Credits** | `get_prices`, `get_credits`, `credit_history`, `buy_credits`, `buy_audit`, `request_refund`, `set_auto_refill`, `quote_audit` |
+| **Agent signup & keys** | `agent_signup`, `key_status`, `list_api_keys`, `revoke_api_key` |
+| **No login needed** | `free_audit`, `search_docs`, `get_doc`, `get_prices`, `agent_signup` |
 | **Businesses** | `list_businesses`, `get_business`, `create_business`, `update_business`, `delete_business`, `crawl_business`, `get_health_scores`, `get_usage_stats` |
 | **Audit Templates** | `list_audit_templates`, `get_audit_template`, `create_audit_template`, `update_audit_template`, `delete_audit_template` |
 | **Audits** | `start_audit`, `get_audit_status`, `get_audit_result`, `list_audits`, `export_audit` |
@@ -223,6 +225,16 @@ Claude will chain the tools automatically — `list_businesses` → `start_audit
 | **Action Plan** | `get_action_plan`, `get_quick_wins`, `mark_action_done`, `dismiss_action`, `get_action_progress` |
 
 See [`packages/mcp/README.md`](packages/mcp/README.md) for full details, environment variables, and development instructions.
+
+### Pricing: pay-as-you-go credits
+
+No plans or tiers: every command and tool works on every account, and work is paid with
+credits (1 credit = $1). A standard audit is 10 credits (`cited audit quote` shows the exact
+cost); a one-off audit is $15 (`cited credits buy-audit`); packs (`cited credits buy pack_20`)
+need a claimed account. Purchases print a Stripe checkout link for a person to open.
+
+An AI agent with no account can run `cited agent signup` (or call the `agent_signup` tool) to
+get its own API key on an unclaimed account, then give its human the claim link and code.
 
 ---
 
@@ -546,6 +558,7 @@ cited config set|get|show|environments
 cited business list|get|create|update|delete|health|crawl
 
 cited audit template list|get|create|update|delete   ← Manage audit templates
+cited audit quote TEMPLATE_ID [--model ...]   ← Credits an audit will cost
 cited audit start|status|result|list|export   ← Run and inspect audits
 cited audit models [JOB_ID]                   ← Compare AI models (or list choices)
 
@@ -559,7 +572,16 @@ cited hq <business_id> [--full] [--personas] [--products] [--intents] [--actions
 cited analytics compare|trends|summary
 
 cited agent setup                             ← Connect Claude Code / Cursor / Codex / Claude Desktop
+cited agent signup [--name] [--email]         ← Account + API key for an AI agent (no login)
+cited agent key-status|keys|revoke KEY_ID     ← Inspect and revoke agent keys
 cited agent facts|claims|comparison|semantic-health|buyer-fit
+
+cited credits prices                          ← Prices and packs (no login; 1 credit = $1)
+cited credits balance|history [--limit N]
+cited credits buy PACK_ID [--no-save-card]    ← Checkout link for a pack
+cited credits buy-audit                       ← $15 checkout link for one audit
+cited credits refund [--yes]                  ← Refund unused credits (last 30 days)
+cited credits auto-refill --on|--off [--pack PACK_ID] [--cap USD]
 
 cited docs search|get                         ← Search and read the public docs (no login)
 
@@ -582,7 +604,8 @@ cited config set output json    # or "text" (default)
 # Set a default business (used by commands that accept --business)
 cited config set default_business_id <uuid>
 
-# Set Agent API key (for cited agent commands)
+# Use an agent API key instead of `cited login` (sent as X-Agent-API-Key on every
+# request; `cited agent signup` saves one for you). A login session takes precedence.
 cited config set agent_api_key <key>
 
 # Inspect current config
@@ -626,6 +649,7 @@ Errors always go to **stderr** as `{"error": true, "message": "..."}` so they ne
 | 3 | Not found |
 | 4 | Validation error |
 | 5 | Rate limited |
+| 6 | Payment required (not enough credits, or no purchase yet) |
 
 ---
 
@@ -641,7 +665,7 @@ mypy src/cited_cli/ --ignore-missing-imports
 
 ### MCP test harness
 
-`scripts/mcp_test_harness.py` runs an end-to-end test suite against the deployed MCP server (dev or prod). Exercises the four-PR-plan test cases — `tools_fingerprint` on `ping`, `whats_new` lookups, `upgrade_plan` no-op response, `tool_unavailable` error shape — plus auth/host-header/rate-limit/cross-env/`robots.txt` regression checks.
+`scripts/mcp_test_harness.py` runs an end-to-end test suite against the deployed MCP server (dev or prod). Exercises the four-PR-plan test cases — `tools_fingerprint` on `ping`, `whats_new` lookups, read-only credits tools (`get_prices`, `get_credits`), `tool_unavailable` error shape — plus auth/host-header/rate-limit/cross-env/`robots.txt` regression checks.
 
 ```bash
 ./scripts/mcp_test_harness.py --env dev    # mcpdev.youcited.com

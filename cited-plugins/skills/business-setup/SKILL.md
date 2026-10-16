@@ -9,7 +9,7 @@ Use the Cited MCP tools to create a new business and prepare it for GEO auditing
 
 ## Steps
 
-1. **Verify auth**: Call `check_auth_status` to confirm the user is logged in.
+1. **Verify auth**: Call `check_auth_status` to confirm the user is logged in. If there are no credentials and the user has no account, `agent_signup` creates one for the agent (1 business until a person claims it); show the user the claim link and code it returns.
 
 2. **Create business**: Call `create_business` with:
    - `name`: Business name

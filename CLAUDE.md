@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Monorepo for the [Cited](https://youcited.com) GEO platform tooling. Contains three Python packages:
 
 - **`cited-core`** (`packages/core/`) — Shared library: API client, auth, config, endpoints, errors. No CLI or MCP dependencies.
-- **`cited-mcp`** (`packages/mcp/`) — Standalone MCP server with 77 tools. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
+- **`cited-mcp`** (`packages/mcp/`) — Standalone MCP server with 87 tools. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
 - **`cited-cli`** (root `src/cited_cli/`) — Typer + Rich CLI. Depends on `cited-core` + `typer` + `rich`. Optional dep on `cited-mcp` for `cited mcp serve`.
 
 Also contains `cited-plugins/` — a Claude Code plugin (skills, commands, agents) that references the MCP server via `uvx cited-mcp`.
@@ -48,18 +48,21 @@ cited mcp serve              # Via CLI (requires cited-cli[mcp])
 **`cited-core`** (`packages/core/src/cited_core/`) — Zero CLI/MCP dependencies:
 - `api/client.py` — `CitedClient` (httpx sync)
 - `api/endpoints.py` — API endpoint path constants
-- `auth/store.py` — `TokenStore` (keyring + file fallback)
+- `auth/store.py` — `TokenStore` (keyring + file fallback); also stores per-env agent keys (`agent_key:<env>`)
+- `auth/credentials.py` — `resolve_agent_api_key()` (env var → config → saved key)
 - `auth/oauth_server.py` — Temporary localhost OAuth callback server
 - `config/manager.py` — `ConfigManager` (TOML config)
 - `config/constants.py` — `ENVIRONMENTS`, `CONFIG_DIR`, `VALID_INDUSTRIES`, etc.
 - `errors.py` — `CitedAPIError`, `ExitCode`, `exit_code_for_status()`
 
-**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 77 tools:
+**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 87 tools:
 - `server.py` — `FastMCP` instance, lifespan, `run_server()`
-- `tools/` — auth, business, audit, recommend, solution, job, docs (public docs search) tool modules
-- `plan_gating.py` — Per-plan tool access control (growth/scale/pro tiers)
+- `tools/` — auth, business, audit, recommend, solution, job, docs (public docs search), billing (credits), agent_keys (agent signup + per-user keys) tool modules
+- No plans or tiers: every tool is available to every account. Paid work is charged in credits by the backend, which returns HTTP 402 (`insufficient_credits` / `purchase_required`) or 403 `claim_required`; `tools/_helpers.py::_api_error_response` flattens the `detail` object (`error_type`, `credits_needed`, `balance`, `buy_url`, `claim_url`, `payment_required`) and adds a hint
+- `log_tool_call` copies the API's `X-Cited-Notice` response header into every tool result as a top-level `notice` (via a ContextVar in `cited_core.api.client`)
 - `auth_provider.py` — OAuth provider with stateless JWT tokens and user JWT expiry detection
-- Supports `CITED_TOKEN` and `CITED_AGENT_API_KEY` env vars
+- Supports `CITED_TOKEN` and `CITED_AGENT_API_KEY` env vars; the agent key can also come from the `agent_api_key` config value or the key `agent_signup` saved (`TokenStore.get_agent_key(env)`), resolved by `cited_core.auth.credentials.resolve_agent_api_key`
+- The remote server also accepts an agent key (`cak_...`) as the Bearer token and forwards it as `X-Agent-API-Key`
 - Includes browser OAuth `login` tool for Claude Desktop users
 - Remote server (`remote.py`) runs stateless HTTP with Fargate Spot auto-scaling
 
@@ -98,11 +101,11 @@ print_result(data, out, human_formatter=lambda d, c: render_kv("Title", d, c))
 - **Token storage:** Per-environment via OS keychain (`keyring`) with a file fallback (`~/.cited/credentials.json`). The token is sent back to the API as a cookie, not a Bearer header.
 - **TTY detection:** `commands/auth.py` uses `_is_interactive()` (wrapping `sys.stdin.isatty()`) for all TTY checks — tests monkeypatch this helper.
 
-**Agent API auth** uses a separate path: `X-Agent-API-Key` header, configured via `cited config set agent_api_key` or `CITED_AGENT_API_KEY` env var.
+**Agent keys:** per-user agent keys (`cak_...`) authenticate every request via the `X-Agent-API-Key` header. Sources, in order: `CITED_AGENT_API_KEY`, `cited config set agent_api_key`, then the key saved by `cited agent signup` / the `agent_signup` tool. A login session token takes precedence: `CitedClient` only sends the key when it has no token. CLI commands build their client with `utils/client.py::get_authed_client()`, which uses the token or falls back to the agent key.
 
 **Adding a new command group:**
 1. Create `src/cited_cli/commands/<name>.py` with a `typer.Typer()` instance
-2. Add endpoint paths to `src/cited_cli/api/endpoints.py`
+2. Add endpoint paths to `packages/core/src/cited_core/api/endpoints.py`
 3. Register in `app.py` with `app.add_typer(..., name="<name>")`
 
 **Adding a nested command group (sub-subcommands):**
@@ -123,13 +126,13 @@ This gives `cited audit template list|get|create|update|delete` while `cited aud
 When adding a new feature:
 1. Add the CLI command in `src/cited_cli/commands/`
 2. Add the MCP tool in `packages/mcp/src/cited_mcp/tools/`
-3. Add the tool to `plan_gating.py` (in the appropriate tier set)
-4. Update the `_CLI_TO_MCP` mapping in `tests/test_feature_parity.py`
-5. If the feature is intentionally one-interface-only, add it to `CLI_ONLY` or `MCP_ONLY` with a comment explaining why
+3. Update the `_CLI_TO_MCP` mapping in `tests/test_feature_parity.py`
+4. If the feature is intentionally one-interface-only, add it to `CLI_ONLY` or `MCP_ONLY` with a comment explaining why
+5. Add the tool to `EXPECTED_TOOLS` in `tests/test_mcp_server.py` and `packages/mcp/tests/test_surface_invariants.py`, and to the top entry of `tool_changelog.yaml`
 
 ## Key Conventions
 
-- **Exit codes:** 0=success, 1=error, 2=auth, 3=not found, 4=validation, 5=rate limited (defined in `utils/errors.py`)
+- **Exit codes:** 0=success, 1=error, 2=auth, 3=not found, 4=validation, 5=rate limited, 6=payment required (HTTP 402) (defined in `cited_core/errors.py`, re-exported by `utils/errors.py`)
 - **Line length:** 100 chars (ruff enforced)
 - **All files** start with `from __future__ import annotations`
 - **Type hints** use `X | None` syntax, not `Optional[X]`
@@ -159,6 +162,32 @@ Release, deploy, and infrastructure scripts live in the **private** repo `~/repo
 | prod | `https://api.youcited.com` | yes |
 | dev  | `https://dev.youcited.com` | |
 | local | `http://localhost:8000` | |
+
+## Credits Billing and Agent Identity
+
+Monthly plans (Growth/Scale/Pro), tiers and plan gating were removed entirely. Billing is
+pay-as-you-go credits (1 credit = $1; a standard audit is 10 credits; a one-off audit is $15).
+
+| CLI | MCP tool | Endpoint |
+|-----|----------|----------|
+| `cited credits prices` (no login) | `get_prices` | `GET /billing/prices` |
+| `cited credits balance` | `get_credits` | `GET /billing/credits` |
+| `cited credits history [--limit]` | `credit_history` | `GET /billing/credits/transactions` |
+| `cited credits buy PACK_ID [--no-save-card]` | `buy_credits` | `POST /billing/credits/checkout` |
+| `cited credits buy-audit` | `buy_audit` | `POST /billing/audit-checkout` |
+| `cited credits refund [--yes]` | `request_refund(confirm)` | `POST /billing/credits/refund` |
+| `cited credits auto-refill --on/--off [--pack] [--cap]` | `set_auto_refill` | `PUT /billing/credits/auto-refill` |
+| `cited audit quote TEMPLATE_ID [--model]` | `quote_audit` | `POST /billing/audit-quote` |
+| `cited agent signup [--name] [--email]` (no login) | `agent_signup` | `POST /agent/signup` |
+| `cited agent key-status` | `key_status` | `GET /agent/key-status` |
+| `cited agent keys` | `list_api_keys` | `GET /agent-keys` |
+| `cited agent revoke KEY_ID` | `revoke_api_key` | `DELETE /agent-keys/{id}` |
+
+Purchase commands/tools only return a Stripe `checkout_url` for a person to open; they never
+claim a payment happened. Refunds need confirmation (`--yes` in the CLI, `confirm=True` in MCP).
+Signup stores the returned `api_key` with `TokenStore.save_agent_key(env, key)` and never prints
+it; the claim URL and 6-digit code are shown for the human. `cited logout` / the `logout` tool
+forget a saved agent key when there is no session token.
 
 ## Real API Response Field Names (Critical)
 
