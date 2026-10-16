@@ -179,6 +179,7 @@ _BASE_TOOLS: set[str] = {
     "list_audit_templates",
     "get_audit_template",
     "start_audit",
+    "get_audit_models",
     "get_audit_status",
     "get_audit_result",
     "list_audits",

@@ -186,6 +186,7 @@ async def start_audit(
     named_audit_id: str,
     business_id: str | None = None,
     providers: list[str] | None = None,
+    models: list[str] | None = None,
 ) -> Any:
     """Start an audit using a template. Returns a job_id to poll for status.
 
@@ -196,8 +197,13 @@ async def start_audit(
         named_audit_id: The audit template ID to run
         business_id: Optional business ID override
         providers: Optional list of providers (case-insensitive):
-            chatgpt, perplexity, gemini, claude, copilot.
+            chatgpt, perplexity, gemini, claude.
             Omit to use all available on the user's plan.
+        models: Optional models to compare, as provider:model
+            (e.g. anthropic:claude-opus-5-5, openai:gpt-5.2). Every question runs
+            against each model; read the ranking with get_audit_models(job_id).
+            Call get_audit_models() with no job_id for the supported list.
+            Overrides providers.
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
@@ -207,8 +213,40 @@ async def start_audit(
         payload["business_id"] = business_id
     if providers is not None:
         payload["providers"] = providers
+    if models is not None:
+        payload["models"] = models
     try:
         return cited_ctx.client.post(endpoints.AUDIT_START, json=payload)
+    except CitedAPIError as e:
+        return _api_error_response(e)
+
+
+@mcp.tool(
+    title="Compare Audit Models",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+)
+@log_tool_call
+async def get_audit_models(
+    ctx: Context[Any, CitedContext, Any], job_id: str | None = None
+) -> Any:
+    """Compare how each AI model cites the business in an audit.
+
+    With job_id: models ranked by citation rate, plus a question-by-model matrix
+    (cited_by_model) showing which models cite the business for each question.
+    Without job_id: the models start_audit(models=[...]) accepts.
+
+    Args:
+        ctx: MCP context
+        job_id: Optional audit job ID. Omit to list supported models.
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        if job_id is None:
+            return cited_ctx.client.get(endpoints.AUDIT_MODELS)
+        result = cited_ctx.client.get(endpoints.AUDIT_MODEL_RESULTS.format(job_id=job_id))
+        return _truncate_response(result)
     except CitedAPIError as e:
         return _api_error_response(e)
 

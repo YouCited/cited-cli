@@ -34,6 +34,7 @@ EXPECTED_TOOLS = [
     "delete_audit_template",
     # Audits
     "start_audit",
+    "get_audit_models",
     "get_audit_status",
     "get_audit_result",
     "list_audits",

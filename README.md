@@ -80,7 +80,7 @@ cited register --email you@example.com --name "Your Name" --password "Secret123!
 
 ## MCP Server
 
-This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 76 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
+This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 77 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
 
 ### Quick setup
 
@@ -400,6 +400,13 @@ TEMPLATE_ID=$(cited --json audit template create \
 AUDIT_JOB=$(cited --json audit start $TEMPLATE_ID | jq -r '.job_id')
 cited job watch $AUDIT_JOB
 
+# Optional: compare specific models side by side (see `cited audit models`)
+CMP_JOB=$(cited --json audit start $TEMPLATE_ID \
+  --model anthropic:claude-sonnet-5-5 --model anthropic:claude-opus-5-5 \
+  --model openai:gpt-5.2 | jq -r '.job_id')
+cited job watch $CMP_JOB
+cited audit models $CMP_JOB
+
 RECO_JOB=$(cited --json recommend start $AUDIT_JOB | jq -r '.job_id')
 cited job watch $RECO_JOB
 
@@ -540,6 +547,7 @@ cited business list|get|create|update|delete|health|crawl
 
 cited audit template list|get|create|update|delete   ← Manage audit templates
 cited audit start|status|result|list|export   ← Run and inspect audits
+cited audit models [JOB_ID]                   ← Compare AI models (or list choices)
 
 cited recommend start|status|result|list      ← Generate recommendations
 cited recommend insights                      ← View actionable source table

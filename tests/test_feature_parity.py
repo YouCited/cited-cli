@@ -105,6 +105,7 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "audit template delete": "delete_audit_template",
     # Audits
     "audit start": "start_audit",
+    "audit models": "get_audit_models",
     "audit status": "get_audit_status",
     "audit result": "get_audit_result",
     "audit list": "list_audits",
