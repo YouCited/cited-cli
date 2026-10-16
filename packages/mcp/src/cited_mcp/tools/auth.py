@@ -8,6 +8,7 @@ from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 from cited_core.api import endpoints
+from cited_core.api.client import AGENT_KEY_HEADER
 from cited_core.auth.oauth_server import OAuthCallbackServer
 from cited_core.auth.store import TokenStore
 from cited_core.errors import CitedAPIError
@@ -17,6 +18,7 @@ from cited_mcp.tools._helpers import (
     _api_error_response,
     _auth_check,
     _get_ctx,
+    _has_agent_key,
     log_tool_call,
 )
 
@@ -49,9 +51,15 @@ def _check_pending_login(cited_ctx: CitedContext) -> bool:
     _pending_login_env = None
 
     TokenStore().save_token(env, token)
+    _apply_token(cited_ctx, token)
+    return True
+
+
+def _apply_token(cited_ctx: CitedContext, token: str) -> None:
+    """Use a session token from now on; it takes precedence over any agent key."""
     cited_ctx.client.token = token
     cited_ctx.client._client.cookies.set("advgeo_session", token)
-    return True
+    cited_ctx.client._client.headers.pop(AGENT_KEY_HEADER, None)
 
 
 # ---------------------------------------------------------------------------
@@ -93,8 +101,17 @@ async def ping(ctx: Context[Any, CitedContext, Any]) -> Any:
 async def check_auth_status(ctx: Context[Any, CitedContext, Any]) -> Any:
     """Check if the user is authenticated and return their account info.
 
-    Returns the user's profile including current business count,
-    so you can proactively warn about plan limits before attempting operations.
+    Returns the user's profile, including ``credits_balance`` (1 credit = $1;
+    a standard audit is 10), ``unclaimed`` (an agent account a person has not
+    claimed yet) and ``business_count``, plus ``auth_method`` (``session`` or
+    ``agent_key``).
+
+    When authenticated by an agent key, also returns ``agent_key`` (from
+    key_status: expiry dates, days left, notice, and how to connect with
+    OAuth). If the key has an expiry or the account is unclaimed, tell the
+    human: an unclaimed account is deleted unless claimed, and a claimed
+    account's key expires 90 days after the claim, while OAuth through the
+    hosted MCP does not expire.
     """
     cited_ctx = _get_ctx(ctx)
 
@@ -108,12 +125,35 @@ async def check_auth_status(ctx: Context[Any, CitedContext, Any]) -> Any:
     except CitedAPIError as e:
         return _api_error_response(e)
 
-    # Enrich with business count for plan limit awareness
+    # Enrich with business count (unclaimed agent accounts are limited to 1)
     try:
         businesses = cited_ctx.client.get(endpoints.BUSINESSES)
         user["business_count"] = len(businesses) if isinstance(businesses, list) else 0
     except CitedAPIError:
         user["business_count"] = None
+
+    if _has_agent_key(cited_ctx):
+        user["auth_method"] = "agent_key"
+        try:
+            status = cited_ctx.client.get(endpoints.AGENT_KEY_STATUS)
+        except CitedAPIError as e:
+            status = _api_error_response(e)
+        user["agent_key"] = status
+        oauth = status.get("oauth") if isinstance(status, dict) else None
+        mcp_url = (oauth or {}).get("mcp_url") or "the hosted Cited MCP server"
+        if isinstance(status, dict) and status.get("unclaimed"):
+            user["auth_note"] = (
+                f"Unclaimed agent account, deleted on {status.get('account_expires_at')} "
+                "unless the human claims it with the link and code from agent_signup."
+            )
+        elif isinstance(status, dict) and status.get("key_expires_at"):
+            user["auth_note"] = (
+                f"This agent key expires on {status.get('key_expires_at')} "
+                f"({status.get('days_left')} days left). For access that does not "
+                f"expire, have the human connect {mcp_url} with OAuth."
+            )
+    else:
+        user["auth_method"] = "session"
 
     return user
 
@@ -123,6 +163,9 @@ def _clear_session(cited_ctx: CitedContext, env: str) -> None:
     TokenStore().delete_token(env)
     cited_ctx.client.token = None
     cited_ctx.client._client.cookies.delete("advgeo_session")
+    # Fall back to a configured agent key, if any.
+    if _has_agent_key(cited_ctx):
+        cited_ctx.client._client.headers[AGENT_KEY_HEADER] = str(cited_ctx.client.agent_api_key)
 
 
 @mcp.tool(
@@ -168,8 +211,7 @@ async def login(
             _pending_login_env = None
 
             TokenStore().save_token(target_env, token)
-            cited_ctx.client.token = token
-            cited_ctx.client._client.cookies.set("advgeo_session", token)
+            _apply_token(cited_ctx, token)
 
             # Verify the token works
             try:
@@ -282,6 +324,18 @@ async def logout(ctx: Context[Any, CitedContext, Any]) -> Any:
     global _pending_login, _pending_login_env
 
     lc: CitedContext = ctx.request_context.lifespan_context
+
+    # Agent signed up with agent_signup: logging out forgets its saved key.
+    if not lc.client.token and _has_agent_key(lc):
+        TokenStore().delete_agent_key(lc.env)
+        lc.client.set_agent_api_key(None)
+        return {
+            "success": True,
+            "message": (
+                f"Removed the saved agent key (env: {lc.env}). It still works until "
+                "revoked; use revoke_api_key first if it should stop working."
+            ),
+        }
 
     # Remote mode: lifespan client has no token; auth is via OAuth connector
     if not lc.client.token:

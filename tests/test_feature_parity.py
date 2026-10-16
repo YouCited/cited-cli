@@ -28,8 +28,6 @@ CLI_ONLY = {
 
 MCP_ONLY = {
     "ping",  # Lightweight readiness check — CLI users run `cited status` instead
-    "get_pricing",  # Agent payment discovery — CLI users visit billing page
-    "upgrade_plan",  # Agent plan upgrade — CLI users visit billing page
     "whats_new",  # Tool-surface diff for stale MCP-client caches — CLI doesn't have a tool cache
     "get_usage_stats",  # Aggregated stats — CLI uses auth status + business list
     "get_job_status",  # MCP probes types; CLI uses job watch (live polling)
@@ -139,6 +137,20 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "agent comparison": "get_competitive_comparison",
     "agent semantic-health": "get_semantic_health",
     "agent buyer-fit": "buyer_fit_query",
+    # Agent signup and per-user agent keys
+    "agent signup": "agent_signup",
+    "agent key-status": "key_status",
+    "agent keys": "list_api_keys",
+    "agent revoke": "revoke_api_key",
+    # Credits (pay-as-you-go billing)
+    "credits prices": "get_prices",
+    "credits balance": "get_credits",
+    "credits history": "credit_history",
+    "credits buy": "buy_credits",
+    "credits buy-audit": "buy_audit",
+    "credits refund": "request_refund",
+    "credits auto-refill": "set_auto_refill",
+    "audit quote": "quote_audit",
     # Profile-declared competitors
     "business profile-competitors list": "list_profile_competitors",
     "business profile-competitors set": "set_profile_competitors",

@@ -90,9 +90,9 @@ async def create_business(
 ) -> Any:
     """Create a new business with the full onboarding profile.
 
-    IMPORTANT: Business creation is subject to plan limits. Use 'check_auth_status'
-    first to see the current plan and how many businesses already exist. If at the
-    limit, consider upgrading or updating an existing business instead.
+    An unclaimed agent account (from agent_signup) can hold one business; a
+    second one fails with ``claim_required`` until the human claims the
+    account. Use 'check_auth_status' to see ``unclaimed`` and ``business_count``.
 
     Either provide ``description`` (10+ words) or supply the structured onboarding
     fields (``problem_solved``, ``primary_customer``, etc.) and the server will
@@ -259,9 +259,7 @@ async def update_business(
 async def delete_business(ctx: Context[Any, CitedContext, Any], business_id: str) -> Any:
     """Delete a business and all its associated data.
 
-    NOTE: Business deletion may not be available on all plans. If deletion fails
-    with a 403 error, the user may need to upgrade their plan. Use 'check_auth_status'
-    to verify plan capabilities.
+    This cannot be undone. Confirm with the user before calling it.
 
     Args:
         ctx: MCP context
@@ -436,13 +434,14 @@ async def set_profile_competitors(
 )
 @log_tool_call
 async def get_usage_stats(ctx: Context[Any, CitedContext, Any]) -> Any:
-    """Get account usage statistics: plan info, business count, and audit count.
+    """Get account usage statistics: credit balance, business count, and audit count.
 
-    Useful for checking plan utilization before starting new operations.
+    Useful before starting new operations: a standard audit costs 10 credits
+    (1 credit = $1). Use get_credits for purchases and expiry details.
 
-    On a ``payment_required: true`` response, surface ``upgrade_url`` and
-    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
-    fallback — they may want to upgrade.
+    On a ``payment_required: true`` response (HTTP 402), show the user
+    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
+    after they pay.
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
@@ -451,10 +450,11 @@ async def get_usage_stats(ctx: Context[Any, CitedContext, Any]) -> Any:
     stats: dict[str, Any] = {}
     try:
         user = cited_ctx.client.get(endpoints.ME)
-        stats["plan"] = user.get("plan", "unknown")
+        stats["credits_balance"] = user.get("credits_balance")
+        stats["unclaimed"] = bool(user.get("unclaimed", False))
         stats["email"] = user.get("email")
     except CitedAPIError:
-        stats["plan"] = "unknown"
+        stats["credits_balance"] = None
 
     try:
         businesses = cited_ctx.client.get(endpoints.BUSINESSES)

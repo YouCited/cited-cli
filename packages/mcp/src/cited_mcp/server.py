@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from mcp.server.fastmcp import FastMCP
 
 from cited_core.api.client import CitedClient
+from cited_core.auth.credentials import resolve_agent_api_key
 from cited_core.auth.store import TokenStore
 from cited_core.config.manager import ConfigManager
 from cited_mcp.context import CitedContext
@@ -81,8 +82,11 @@ async def cited_lifespan(server: FastMCP) -> AsyncIterator[CitedContext]:
     env = config.get_environment(override=env_override)
     api_url = config.get_api_url(env_override=env_override)
 
-    token = os.environ.get("CITED_TOKEN") or TokenStore().get_token(env)
-    agent_api_key = os.environ.get("CITED_AGENT_API_KEY") or config.get("agent_api_key")
+    store = TokenStore()
+    token = os.environ.get("CITED_TOKEN") or store.get_token(env)
+    # CITED_AGENT_API_KEY, then the agent_api_key config value, then the key
+    # saved by agent_signup. The client only sends it when there is no token.
+    agent_api_key = resolve_agent_api_key(config, env, store=store)
 
     client = CitedClient(
         base_url=api_url,
@@ -102,6 +106,7 @@ def register_tools() -> None:
     """
     import cited_mcp.tools.action_plan  # noqa: I001, E402, F401
     import cited_mcp.tools.agent  # noqa: E402, F401
+    import cited_mcp.tools.agent_keys  # noqa: E402, F401
     import cited_mcp.tools.analytics  # noqa: E402, F401
     import cited_mcp.tools.auth  # noqa: E402, F401
     import cited_mcp.tools.billing  # noqa: E402, F401

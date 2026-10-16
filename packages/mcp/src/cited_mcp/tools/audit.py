@@ -190,6 +190,18 @@ async def start_audit(
 ) -> Any:
     """Start an audit using a template. Returns a job_id to poll for status.
 
+    Costs credits, charged up front (1 credit = $1): a standard audit is 10
+    credits for up to 5 questions with each engine's included models; each
+    further 5 questions adds 10 and each extra model 2. Call quote_audit
+    first to check the cost. The response includes ``credits_charged`` and
+    ``balance``. A failed or cancelled audit returns its credits.
+
+    If credits are short this returns ``error_type: "insufficient_credits"``
+    with ``credits_needed``, ``balance`` and ``buy_url``: offer buy_audit ($15
+    for one audit, works for unclaimed agent accounts) or buy_credits, show
+    the human the checkout link, and start the audit after get_credits shows
+    the credits.
+
     Typical audit time: 2-4 minutes. Poll get_audit_status every 30-60s.
 
     Args:
@@ -198,11 +210,12 @@ async def start_audit(
         business_id: Optional business ID override
         providers: Optional list of providers (case-insensitive):
             chatgpt, perplexity, gemini, claude.
-            Omit to use all available on the user's plan.
+            Omit to use all of them.
         models: Optional models to compare, as provider:model
             (e.g. anthropic:claude-opus-5-5, openai:gpt-5.2). Every question runs
             against each model; read the ranking with get_audit_models(job_id).
-            Call get_audit_models() with no job_id for the supported list.
+            Call get_audit_models() with no job_id for the supported list;
+            models not marked ``included`` cost extra credits.
             Overrides providers.
     """
     cited_ctx = _get_ctx(ctx)
@@ -233,7 +246,8 @@ async def get_audit_models(
 
     With job_id: models ranked by citation rate, plus a question-by-model matrix
     (cited_by_model) showing which models cite the business for each question.
-    Without job_id: the models start_audit(models=[...]) accepts.
+    Without job_id: the models start_audit(models=[...]) accepts, each with
+    ``included`` (no extra cost) and ``extra_model_credits`` for the others.
 
     Args:
         ctx: MCP context
@@ -415,7 +429,7 @@ async def list_audits(
 )
 @log_tool_call
 async def free_audit(ctx: Context[Any, CitedContext, Any], url: str) -> Any:
-    """Run a free GEO visibility audit for any website. No login or plan needed.
+    """Run a free GEO visibility audit for any website. No login or credits needed.
 
     Checks how often AI assistants cite the site for a handful of buyer
     questions and which sites they cite instead. The first call starts the

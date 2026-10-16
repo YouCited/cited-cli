@@ -36,13 +36,13 @@ async def get_business_facts(
     plus source metadata.
 
     When to call: the user asks "what does Cited know about [business]" or
-    you need structured intel without running a fresh audit. Cheap, no
-    plan-budget impact. If ``summary`` is null and ``facts`` is empty the
+    you need structured intel without running a fresh audit. Cheap, uses
+    no credits. If ``summary`` is null and ``facts`` is empty the
     fact graph is thin — recommend ``crawl_business`` to populate.
 
-    On a ``payment_required: true`` response, surface ``upgrade_url`` and
-    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
-    fallback — they may want to upgrade.
+    On a ``payment_required: true`` response (HTTP 402), show the user
+    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
+    after they pay.
 
     Args:
         ctx: MCP context
@@ -80,9 +80,9 @@ async def get_business_claims(
     typically when the user is prepping a product page, press kit, or
     landing page review.
 
-    On a ``payment_required: true`` response, surface ``upgrade_url`` and
-    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
-    fallback — they may want to upgrade.
+    On a ``payment_required: true`` response (HTTP 402), show the user
+    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
+    after they pay.
 
     Args:
         ctx: MCP context
@@ -135,9 +135,9 @@ async def get_competitive_comparison(
     against X" or wants positioning context. Doesn't run new prompts —
     pulls from data already collected.
 
-    On a ``payment_required: true`` response, surface ``upgrade_url`` and
-    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
-    fallback — they may want to upgrade.
+    On a ``payment_required: true`` response (HTTP 402), show the user
+    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
+    after they pay.
 
     Args:
         ctx: MCP context
@@ -177,9 +177,9 @@ async def get_semantic_health(
     engines. Returns structured diagnostics rather than free-text advice
     — surface the lowest-coverage area first as the priority fix.
 
-    On a ``payment_required: true`` response, surface ``upgrade_url`` and
-    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
-    fallback — they may want to upgrade.
+    On a ``payment_required: true`` response (HTTP 402), show the user
+    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
+    after they pay.
 
     Args:
         ctx: MCP context
@@ -224,9 +224,9 @@ async def buyer_fit_query(
     business record. If recommendations look weak, suggest a full audit
     with a template tuned for this buyer's queries.
 
-    On a ``payment_required: true`` response, surface ``upgrade_url`` and
-    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
-    fallback — they may want to upgrade.
+    On a ``payment_required: true`` response (HTTP 402), show the user
+    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
+    after they pay.
 
     Args:
         ctx: MCP context

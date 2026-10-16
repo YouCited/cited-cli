@@ -36,9 +36,9 @@ async def get_analytics_trends(
     trend computation, or a tight summary. Cheaper than get_analytics_dashboard
     if you don't need question performance, benchmarks, or citation trends.
 
-    On a ``payment_required: true`` response, surface ``upgrade_url`` and
-    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
-    fallback — they may want to upgrade.
+    On a ``payment_required: true`` response (HTTP 402), show the user
+    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
+    after they pay.
 
     Args:
         ctx: MCP context
@@ -80,9 +80,9 @@ async def get_analytics_dashboard(
     in one shot. Reach for get_analytics_trends instead if you only need
     the time-series.
 
-    On a ``payment_required: true`` response, surface ``upgrade_url`` and
-    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
-    fallback — they may want to upgrade.
+    On a ``payment_required: true`` response (HTTP 402), show the user
+    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
+    after they pay.
 
     Args:
         ctx: MCP context
@@ -139,9 +139,9 @@ async def compare_audits(
     - ``mismatched_named_audits`` (422) — the two audits use different
       named-audit templates and aren't comparable.
 
-    On a ``payment_required: true`` response, surface ``upgrade_url`` and
-    ``required_tier`` (with ``upgrade_price_usd``) to the user before any
-    fallback — they may want to upgrade.
+    On a ``payment_required: true`` response (HTTP 402), show the user
+    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
+    after they pay.
 
     Args:
         ctx: MCP context

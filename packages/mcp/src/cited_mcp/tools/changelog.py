@@ -146,14 +146,11 @@ async def whats_new(
     passed (fingerprints are more precise — they cover docstring and schema
     edits, not just additions/removals).
 
-    The changelog includes gated tools regardless of subscription tier so the
-    agent can recommend upgrades when relevant.
-
     Args:
         ctx: MCP context
         since_fingerprint: A fingerprint value previously read from `ping`.
-        since_version: A semver string previously read from `ping`,
-            `get_pricing`, or shown in the connector. Only used if
+        since_version: A semver string previously read from `ping`
+            or shown in the connector. Only used if
             `since_fingerprint` isn't passed or isn't recognized.
     """
     from cited_core import __version__

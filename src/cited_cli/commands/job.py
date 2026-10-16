@@ -7,30 +7,17 @@ import typer
 from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
 from cited_cli.output.progress import watch_job
 from cited_cli.output.tables import render_kv
+from cited_cli.utils.client import get_authed_client
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
 from cited_cli.utils.interactive import confirm_action
 from cited_core.api.client import CitedClient
-from cited_core.auth.store import TokenStore
-from cited_core.config.manager import ConfigManager
 
 job_app = typer.Typer(name="job", help="Monitor and manage background jobs.")
 
 
 def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient]:
-    obj = ctx.obj or {}
-    out: OutputContext = obj.get("output", OutputContext())
-    cfg: ConfigManager = obj.get("config", ConfigManager())
-    profile = obj.get("profile", "default")
-    env = cfg.get_environment(profile, obj.get("env_override"))
-    api_url = cfg.get_api_url(profile, obj.get("env_override"))
-
-    store = TokenStore()
-    token = store.get_token(env)
-    if not token:
-        print_error(f"Not logged in to {env}. Run: cited login", out)
-        raise typer.Exit(ExitCode.AUTH_ERROR)
-
-    return out, CitedClient(base_url=api_url, token=token)
+    out, client, _ = get_authed_client(ctx)
+    return out, client
 
 
 def _guess_job_type(job_id: str, client: CitedClient) -> str:

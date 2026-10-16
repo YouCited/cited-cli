@@ -25,16 +25,11 @@ def _mcp_available():
 
     if server_mod.mcp is None:
         server_mod.create_stdio_server()
-    # Pre-seed tier cache so plan gating doesn't make unexpected /auth/me calls
-    import hashlib
-    import time
+    from cited_mcp.tools._helpers import _rate_limits
 
-    from cited_mcp.tools._helpers import _tier_cache
-
-    cache_key = hashlib.sha256(b"test-token").hexdigest()[:16]
-    _tier_cache[cache_key] = ("pro", time.monotonic() + 3600)
+    _rate_limits.clear()
     yield
-    _tier_cache.clear()
+    _rate_limits.clear()
 
 
 def _make_cited_ctx(token: str | None = "test-token") -> CitedContext:
@@ -363,7 +358,7 @@ def test_api_error_403_includes_hint():
     from cited_mcp.tools.business import create_business
 
     respx.post(f"{DEV_API}/businesses").mock(
-        return_value=httpx.Response(403, json={"detail": "Plan limit exceeded"})
+        return_value=httpx.Response(403, json={"detail": "Not allowed"})
     )
     cited_ctx = _make_cited_ctx()
     ctx = _make_mcp_ctx(cited_ctx)
@@ -379,7 +374,8 @@ def test_api_error_403_includes_hint():
     assert result["error"] is True
     assert result["status_code"] == 403
     assert "hint" in result
-    assert "plan" in result["hint"].lower()
+    assert "check_auth_status" in result["hint"]
+    assert "plan" not in result["hint"].lower()
     cited_ctx.client.close()
 
 
