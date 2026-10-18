@@ -30,8 +30,9 @@ versions:
     # error_type (insufficient_credits / purchase_required), credits_needed,
     # balance and buy_url; 403 claim_required carries claim_url. Any
     # X-Cited-Notice response header appears as a top-level "notice" field.
-    # Also records get_audit_models, added after 0.5.2.
-    fingerprint: "edbb5a0d5286"
+    # Adds redeem_voucher for credit voucher codes. Also records
+    # get_audit_models, added after 0.5.2.
+    fingerprint: "69bbee4595d4"
     tools_added:
       - name: get_prices
         description: |
@@ -59,6 +60,10 @@ versions:
       - name: set_auto_refill
         description: |
           Turn auto-refill on or off, with the pack and a monthly cap.
+      - name: redeem_voucher
+        description: |
+          Redeem a voucher code for free credits (once per account, claimed
+          accounts only).
       - name: quote_audit
         description: |
           Credits an audit will cost (and whether the balance covers it)

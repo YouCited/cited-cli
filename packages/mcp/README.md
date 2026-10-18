@@ -3,7 +3,7 @@
 <!-- MCP Registry ownership verification for PyPI (must match "name" in server.json) -->
 <!-- mcp-name: com.youcited/cited -->
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 87 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 88 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
 
@@ -155,6 +155,7 @@ Cited adds new tools regularly. To access new tools after a release, **disconnec
 | `buy_credits` | Checkout link for a credit pack (claimed accounts) |
 | `buy_audit` | $15 checkout link for one audit (any account) |
 | `request_refund` | Refund unused credits bought in the last 30 days (asks for confirmation) |
+| `redeem_voucher` | Redeem a voucher code for free credits (once per account) |
 | `set_auto_refill` | Turn auto-refill on or off, with pack and monthly cap |
 | `quote_audit` | Credits an audit will cost before starting it |
 

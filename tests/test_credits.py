@@ -246,6 +246,45 @@ def test_refund_with_yes_skips_confirmation(runner, cli_app, logged_in):
 
 
 @respx.mock
+def test_redeem_voucher(runner, cli_app, logged_in):
+    route = respx.post(f"{DEV_API}/billing/credits/redeem").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "code": "LAUNCH20",
+                "name": "Launch",
+                "credits_added": 20,
+                "expires_at": "2027-10-18T21:00:00+00:00",
+                "balance": 45,
+            },
+        )
+    )
+    result = _invoke(runner, cli_app, "credits", "redeem", "launch20")
+    assert result.exit_code == 0, result.output
+    assert json.loads(route.calls.last.request.content) == {"code": "launch20"}
+    assert "LAUNCH20" in result.output
+    assert "45 credits" in result.output
+
+
+@respx.mock
+def test_redeem_unknown_voucher_is_not_found(runner, cli_app, logged_in):
+    respx.post(f"{DEV_API}/billing/credits/redeem").mock(
+        return_value=httpx.Response(
+            404,
+            json={
+                "detail": {
+                    "error": "voucher_not_found",
+                    "message": "That voucher code isn't valid.",
+                }
+            },
+        )
+    )
+    result = _invoke(runner, cli_app, "--json", "credits", "redeem", "NOPE")
+    assert result.exit_code == 3
+    assert "voucher" in result.output.lower()
+
+
+@respx.mock
 def test_refund_non_interactive_without_yes_refuses(runner, cli_app, logged_in, monkeypatch):
     monkeypatch.setattr("cited_cli.utils.interactive.is_interactive", lambda: False)
     route = respx.post(f"{DEV_API}/billing/credits/refund").mock(

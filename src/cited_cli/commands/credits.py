@@ -14,7 +14,7 @@ from cited_core.api import endpoints
 
 credits_app = typer.Typer(
     name="credits",
-    help="Pay-as-you-go credits: prices, balance, purchases, refunds, auto-refill.",
+    help="Pay-as-you-go credits: prices, balance, purchases, vouchers, refunds, auto-refill.",
 )
 
 
@@ -198,6 +198,35 @@ def credits_buy_audit(ctx: typer.Context) -> None:
     try:
         data = client.post(endpoints.BILLING_AUDIT_CHECKOUT, json={})
         print_result(data, out, human_formatter=lambda d, c: _print_checkout(d, c, "one audit"))
+    except CitedAPIError as e:
+        handle_api_error(e, out.json_mode)
+    finally:
+        client.close()
+
+
+@credits_app.command("redeem")
+def credits_redeem(
+    ctx: typer.Context,
+    code: Annotated[str, typer.Argument(help="Voucher code, e.g. LAUNCH20")],
+) -> None:
+    """Redeem a voucher code for free credits (needs a claimed account)."""
+    out, client, _ = get_authed_client(ctx)
+    try:
+        data = client.post(endpoints.BILLING_CREDITS_REDEEM, json={"code": code})
+        print_result(
+            data,
+            out,
+            human_formatter=lambda d, c: render_kv(
+                "Voucher redeemed",
+                {
+                    "Code": d.get("code", ""),
+                    "Credits added": d.get("credits_added", 0),
+                    "Expire": str(d.get("expires_at", ""))[:10],
+                    "Balance": f"{d.get('balance', 0)} credits",
+                },
+                c,
+            ),
+        )
     except CitedAPIError as e:
         handle_api_error(e, out.json_mode)
     finally:

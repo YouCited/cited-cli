@@ -57,7 +57,7 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 
 ## Credits (pay-as-you-go)
 
-There are no plans or tiers; all 87 tools are available to every account. Work is paid for
+There are no plans or tiers; all 88 tools are available to every account. Work is paid for
 with credits, 1 credit = $1:
 
 - A standard audit is 10 credits (up to 5 questions with each engine's included models; each further 5 questions adds 10, each extra model 2). Failed or cancelled audits return their credits.
@@ -66,6 +66,7 @@ with credits, 1 credit = $1:
 - `buy_audit` — $15 for one audit; works for unclaimed agent accounts
 - `buy_credits` — packs (pack_20, pack_50, pack_100; bigger packs add bonus credits); needs a claimed account
 - `request_refund` (unused credits bought in the last 30 days; confirm with the human first), `set_auto_refill`
+- `redeem_voucher` (a voucher code the human gives you adds free credits; once per account)
 
 Purchases return a `checkout_url`. Show it to the human and wait: nothing is charged until they pay. Confirm with `get_credits` before saying the purchase is done.
 

@@ -306,6 +306,44 @@ def test_request_refund_with_confirm():
 
 
 @respx.mock
+def test_redeem_voucher():
+    from cited_mcp.tools.billing import redeem_voucher
+
+    route = respx.post(f"{DEV_API}/billing/credits/redeem").mock(
+        return_value=httpx.Response(
+            200, json={"code": "LAUNCH20", "credits_added": 20, "balance": 20}
+        )
+    )
+    ctx, cited = _ctx()
+    result = _run(redeem_voucher(ctx, code="launch20"))
+    assert _body(route) == {"code": "launch20"}
+    assert result["credits_added"] == 20
+    cited.client.close()
+
+
+@respx.mock
+def test_redeem_voucher_surfaces_error_type():
+    from cited_mcp.tools.billing import redeem_voucher
+
+    respx.post(f"{DEV_API}/billing/credits/redeem").mock(
+        return_value=httpx.Response(
+            409,
+            json={
+                "detail": {
+                    "error": "voucher_already_redeemed",
+                    "message": "This account has already redeemed that voucher.",
+                }
+            },
+        )
+    )
+    ctx, cited = _ctx()
+    result = _run(redeem_voucher(ctx, code="LAUNCH20"))
+    assert result["error"] is True
+    assert result["error_type"] == "voucher_already_redeemed"
+    cited.client.close()
+
+
+@respx.mock
 def test_set_auto_refill():
     from cited_mcp.tools.billing import set_auto_refill
 

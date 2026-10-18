@@ -120,6 +120,7 @@ BILLING_CREDITS_CHECKOUT = "/billing/credits/checkout"
 BILLING_AUDIT_CHECKOUT = "/billing/audit-checkout"
 BILLING_AUTO_REFILL = "/billing/credits/auto-refill"
 BILLING_CREDITS_REFUND = "/billing/credits/refund"
+BILLING_CREDITS_REDEEM = "/billing/credits/redeem"
 BILLING_AUDIT_QUOTE = "/billing/audit-quote"
 
 # Agent identity (per-user agent keys, sent as X-Agent-API-Key)

@@ -149,6 +149,7 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "credits buy": "buy_credits",
     "credits buy-audit": "buy_audit",
     "credits refund": "request_refund",
+    "credits redeem": "redeem_voucher",
     "credits auto-refill": "set_auto_refill",
     "audit quote": "quote_audit",
     # Profile-declared competitors
