@@ -90,6 +90,7 @@ EXPECTED_TOOLS = [
     "buy_credits",
     "buy_audit",
     "request_refund",
+    "redeem_voucher",
     "set_auto_refill",
     "quote_audit",
     # Agent identity (signup + per-user keys)

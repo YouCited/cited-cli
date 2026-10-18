@@ -1,4 +1,5 @@
-"""Pay-as-you-go credits: prices, balance, purchases, refunds, auto-refill, quotes.
+"""Pay-as-you-go credits: prices, balance, purchases, vouchers, refunds, auto-refill,
+quotes.
 
 1 credit = $1. A standard audit costs 10 credits. Purchases happen in Stripe
 Checkout: these tools only create checkout links for the human to open, and
@@ -181,6 +182,36 @@ async def buy_audit(ctx: Context[Any, CitedContext, Any]) -> Any:
     if isinstance(result, dict):
         result["instructions"] = _CHECKOUT_INSTRUCTIONS
     return result
+
+
+@mcp.tool(
+    title="Redeem Voucher",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),  # noqa: E501
+)
+@log_tool_call
+async def redeem_voucher(ctx: Context[Any, CitedContext, Any], code: str) -> Any:
+    """Redeem a voucher code the human gave you, adding its free credits.
+
+    Each account can redeem a code once. Voucher credits expire 12 months
+    after redemption like a pack, can't be refunded, and unlock the extras
+    that need a purchase. Needs a claimed account: an unclaimed agent account
+    gets ``claim_required`` with a ``claim_url`` to show the human first.
+
+    Returns ``code``, ``name``, ``credits_added``, ``expires_at`` and the new
+    ``balance``. Errors: ``voucher_not_found``, ``voucher_expired``,
+    ``voucher_used_up``, ``voucher_already_redeemed``.
+
+    Args:
+        ctx: MCP context
+        code: The voucher code (case doesn't matter)
+    """
+    cited_ctx = _get_ctx(ctx)
+    if err := _auth_check(cited_ctx):
+        return err
+    try:
+        return cited_ctx.client.post(endpoints.BILLING_CREDITS_REDEEM, json={"code": code})
+    except CitedAPIError as e:
+        return _api_error_response(e)
 
 
 @mcp.tool(

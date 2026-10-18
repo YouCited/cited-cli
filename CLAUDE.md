@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Monorepo for the [Cited](https://youcited.com) GEO platform tooling. Contains three Python packages:
 
 - **`cited-core`** (`packages/core/`) — Shared library: API client, auth, config, endpoints, errors. No CLI or MCP dependencies.
-- **`cited-mcp`** (`packages/mcp/`) — Standalone MCP server with 87 tools. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
+- **`cited-mcp`** (`packages/mcp/`) — Standalone MCP server with 88 tools. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
 - **`cited-cli`** (root `src/cited_cli/`) — Typer + Rich CLI. Depends on `cited-core` + `typer` + `rich`. Optional dep on `cited-mcp` for `cited mcp serve`.
 
 Also contains `cited-plugins/` — a Claude Code plugin (skills, commands, agents) that references the MCP server via `uvx cited-mcp`.
@@ -55,7 +55,7 @@ cited mcp serve              # Via CLI (requires cited-cli[mcp])
 - `config/constants.py` — `ENVIRONMENTS`, `CONFIG_DIR`, `VALID_INDUSTRIES`, etc.
 - `errors.py` — `CitedAPIError`, `ExitCode`, `exit_code_for_status()`
 
-**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 87 tools:
+**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 88 tools:
 - `server.py` — `FastMCP` instance, lifespan, `run_server()`
 - `tools/` — auth, business, audit, recommend, solution, job, docs (public docs search), billing (credits), agent_keys (agent signup + per-user keys) tool modules
 - No plans or tiers: every tool is available to every account. Paid work is charged in credits by the backend, which returns HTTP 402 (`insufficient_credits` / `purchase_required`) or 403 `claim_required`; `tools/_helpers.py::_api_error_response` flattens the `detail` object (`error_type`, `credits_needed`, `balance`, `buy_url`, `claim_url`, `payment_required`) and adds a hint
@@ -176,6 +176,7 @@ pay-as-you-go credits (1 credit = $1; a standard audit is 10 credits; a one-off 
 | `cited credits buy PACK_ID [--no-save-card]` | `buy_credits` | `POST /billing/credits/checkout` |
 | `cited credits buy-audit` | `buy_audit` | `POST /billing/audit-checkout` |
 | `cited credits refund [--yes]` | `request_refund(confirm)` | `POST /billing/credits/refund` |
+| `cited credits redeem CODE` | `redeem_voucher` | `POST /billing/credits/redeem` |
 | `cited credits auto-refill --on/--off [--pack] [--cap]` | `set_auto_refill` | `PUT /billing/credits/auto-refill` |
 | `cited audit quote TEMPLATE_ID [--model]` | `quote_audit` | `POST /billing/audit-quote` |
 | `cited agent signup [--name] [--email]` (no login) | `agent_signup` | `POST /agent/signup` |
@@ -185,6 +186,8 @@ pay-as-you-go credits (1 credit = $1; a standard audit is 10 credits; a one-off 
 
 Purchase commands/tools only return a Stripe `checkout_url` for a person to open; they never
 claim a payment happened. Refunds need confirmation (`--yes` in the CLI, `confirm=True` in MCP).
+Vouchers add free credits (once per account per code, claimed accounts only; 404
+`voucher_not_found`, 400 `voucher_expired` / `voucher_used_up`, 409 `voucher_already_redeemed`).
 Signup stores the returned `api_key` with `TokenStore.save_agent_key(env, key)` and never prints
 it; the claim URL and 6-digit code are shown for the human. `cited logout` / the `logout` tool
 forget a saved agent key when there is no session token.

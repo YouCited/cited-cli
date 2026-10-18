@@ -80,7 +80,7 @@ cited register --email you@example.com --name "Your Name" --password "Secret123!
 
 ## MCP Server
 
-This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 87 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
+This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 88 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
 
 ### Quick setup
 
@@ -210,7 +210,7 @@ Claude will chain the tools automatically — `list_businesses` → `start_audit
 | Category | Tools |
 |----------|-------|
 | **Auth** | `check_auth_status`, `login`, `logout` |
-| **Credits** | `get_prices`, `get_credits`, `credit_history`, `buy_credits`, `buy_audit`, `request_refund`, `set_auto_refill`, `quote_audit` |
+| **Credits** | `get_prices`, `get_credits`, `credit_history`, `buy_credits`, `buy_audit`, `request_refund`, `redeem_voucher`, `set_auto_refill`, `quote_audit` |
 | **Agent signup & keys** | `agent_signup`, `key_status`, `list_api_keys`, `revoke_api_key` |
 | **No login needed** | `free_audit`, `search_docs`, `get_doc`, `get_prices`, `agent_signup` |
 | **Businesses** | `list_businesses`, `get_business`, `create_business`, `update_business`, `delete_business`, `crawl_business`, `get_health_scores`, `get_usage_stats` |
@@ -581,6 +581,7 @@ cited credits balance|history [--limit N]
 cited credits buy PACK_ID [--no-save-card]    ← Checkout link for a pack
 cited credits buy-audit                       ← $15 checkout link for one audit
 cited credits refund [--yes]                  ← Refund unused credits (last 30 days)
+cited credits redeem CODE                     ← Redeem a voucher code for free credits
 cited credits auto-refill --on|--off [--pack PACK_ID] [--cap USD]
 
 cited docs search|get                         ← Search and read the public docs (no login)
