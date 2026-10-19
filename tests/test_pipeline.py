@@ -52,7 +52,7 @@ CRAWL_JOB_ID = "c1a2c3d4-e5f6-7890-abcd-ef1234567895"
 QI_SOURCE_ID = "qi-abc123def456"  # question_insight source
 HTH_COMPETITOR_DOMAIN = "competitorx.com"  # head_to_head competitor_domain
 
-# Dev API base URL (matches cited_cli/config/constants.py ENVIRONMENTS["dev"])
+# Dev API base URL (matches cited_core/config/constants.py ENVIRONMENTS["dev"])
 DEV_API = "https://dev.youcited.com"
 DEV_WEB = "https://dev.youcited.com"
 

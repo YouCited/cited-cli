@@ -181,17 +181,11 @@ _FAKE_USER = {
     "credits_balance": 0,
     "unclaimed": False,
     "role": "user",
-    "agency_owner_id": None,
-    "is_agency_owner": False,
-    "active_agency_context_id": None,
-    "active_agency_permission": None,
-    "available_agencies": None,
     "is_impersonating": False,
     "impersonating_user_id": None,
     "impersonating_user_email": None,
     "impersonating_user_name": None,
     "real_admin_id": None,
-    "pending_invitations_count": 0,
 }
 
 

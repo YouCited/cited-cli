@@ -5,7 +5,7 @@ description: Ad-hoc tool exploration beyond the standard audit flow — diagnost
 
 # Explore Cited Beyond the Audit Flow
 
-The standard pipeline is `cited:business-setup` → `cited:geo-audit` → `cited:geo-recommend`. This skill covers the fourteen tools that DON'T fit that pipeline — diagnostics, deltas, intel surfaces, ad-hoc probes, and Validation Engine fix-verification — so you can answer "what changed since last week," "what does Cited know about this business," "would AI recommend us for X," and "did my fix actually land" without burning a fresh audit.
+The standard pipeline is `cited:business-setup` → `cited:geo-audit` → `cited:geo-recommend`. This skill covers the nine tools that DON'T fit that pipeline — diagnostics, deltas, intel surfaces, ad-hoc probes, and Validation Engine fix-verification — so you can answer "what changed since last week," "what does Cited know about this business," and "did my fix actually land" without burning a fresh audit.
 
 If a tool returns `payment_required: true` (HTTP 402: `insufficient_credits` or `purchase_required`), tell the user, show them the `buy_url` (or a checkout link from `buy_audit` / `buy_credits`), and retry after they pay. Don't pretend the result was empty.
 
@@ -48,24 +48,6 @@ Recipe:
 
 What to do with the response: `periods` is the x-axis (ordered date labels). `kpi_trends` maps KPI name → list of values aligned with `periods`. `summary` has aggregate stats. Plot or summarize the largest delta first.
 
-### get_business_facts — structured intel from the fact graph
-
-When to use it: The user asks "what does Cited know about [business]" or you need structured intel (locations, products, summary) without running an audit. Cheap, uses no credits. Pair with crawl_business if the data looks stale.
-
-Recipe:
-1. `get_business_facts(business_id=<biz_id>)`.
-
-What to do with the response: `name`, `summary`, `locations`, `products`, `facts`. Surface `summary` as the headline. If `summary` is null AND `facts` is empty, the fact graph is thin — recommend running `crawl_business` to populate (see "Cold-start business intel" below).
-
-### get_business_claims — verifiable claims with evidence
-
-When to use it: Auditing brand truth-in-advertising, or surfacing claims that need stronger evidence before they appear in AI summaries. Useful when prepping a product page or a press kit.
-
-Recipe:
-1. `get_business_claims(business_id=<biz_id>)`.
-
-What to do with the response: `claims` is a list of statements with evidence references. Highlight claims with weak/absent evidence first — those are the ones to either substantiate or remove.
-
 ### get_business_hq — comprehensive dashboard
 
 When to use it: The user wants a one-shot snapshot of an account — health scores, recent audits, recommendations, competitive position, top action items. Reach for this when summarizing an account holistically rather than answering a narrow question.
@@ -75,33 +57,6 @@ Recipe:
 2. (Cheaper) `get_business_hq(business_id=<biz_id>)` for just the core dashboard, then add `include_personas` / `include_products` / `include_intents` / `include_actions` flags as needed.
 
 What to do with the response: Lead with `health_scores` (5 core scores: brand_confidence, crawl_coverage, ai_readiness, buyer_clarity, trust_score) and `priority_actions` — those tell the user what's wrong and what to fix. `recent_audits` and `recommendations` for activity context. `top_competitors` and `displacement` for competitive context. `agentic_readiness` if the user is asking specifically about AI-agent visibility.
-
-### get_competitive_comparison — strengths/weaknesses vs competitors
-
-When to use it: Mid-conversation, the user asks "how do we stack up against X." Pulls existing competitive analysis without running new prompts.
-
-Recipe:
-1. `get_competitive_comparison(business_id=<biz_id>)`.
-
-What to do with the response: `competitors` (named competitor entities), `strengths` (top 5-10 wins), `weaknesses` (top 5-10 gaps), `market_intelligence` (supporting observations). Lead with weaknesses if the user is looking for what to fix; lead with strengths if they're pitching/positioning.
-
-### get_semantic_health — AI-readability diagnostics
-
-When to use it: The user wants to know what to fix to be more discoverable to AI engines. Returns structured diagnostics rather than free-text recommendations.
-
-Recipe:
-1. `get_semantic_health(business_id=<biz_id>)`.
-
-What to do with the response: `entity_grounding`, `schema_coverage`, `faq_coverage`, `claim_evidence_coverage` are coverage diagnostics — surface the lowest-coverage area first as the priority fix. `trust_signals` is a list of finding+confidence entries.
-
-### buyer_fit_query — ad-hoc fit simulation
-
-When to use it: "Would AI recommend us for X" probes — testing positioning before committing to a full audit, or evaluating a new buyer profile. Faster and cheaper than a full audit; doesn't update the business record.
-
-Recipe:
-1. `buyer_fit_query(buyer="<profile or query>", business_id=<biz_id>, limit=5)`. Add `constraints=[{...}]` to narrow.
-
-What to do with the response: `recommendations` is the ordered fit list — top entries are the strongest matches. Echo the `buyer` field back to the user so they know what was scored. If recommendations look weak, suggest a full audit with a template tuned for this buyer's queries.
 
 ### Verify recommendation fixes — Validation Engine (Base)
 
@@ -150,22 +105,9 @@ When to use it: The user asks "what does Cited know about this business" — no 
 
 1. `get_business_hq(business_id=<biz_id>, full=True)` — comprehensive snapshot.
 2. **Decision point:** if `crawl_freshness.last_crawled_at` is missing or > 30 days old, OR `health_scores.crawl_coverage` is below ~30, the data is stale. Call `crawl_business(business_id=<biz_id>)`, save the `job_id`, then `get_job_status(job_id=<id>)` until status is `completed` (1-3 min).
-3. After the crawl finishes, `get_business_facts(business_id=<biz_id>)` for the populated fact graph.
+3. After the crawl finishes, call `get_business_hq(business_id=<biz_id>, full=True)` again for the refreshed snapshot.
 
-Surface: identity + the 5 health scores + populated facts (locations, products, summary). If you triggered a fresh crawl, mention that the data is now current.
-
-### Ad-hoc buyer-fit probe
-
-When to use it: The user asks "would AI recommend us if someone searched for X" or wants to test product positioning before running a full audit.
-
-1. `buyer_fit_query(buyer="<phrasing>", business_id=<biz_id>, limit=5)`.
-2. Inspect the top recommendation entry. If the response includes a numeric score field, use it; otherwise judge by the ordering and the recommendation metadata.
-3. **Decision:**
-   - **Strong fit** (top entry clearly dominant, high score if present): the business is well-positioned for this buyer; surface the matching strengths.
-   - **Mixed** (recommendations present but no clear winner): there's coverage but gaps; surface what's matching and what's missing.
-   - **Weak fit** (low scores, generic recommendations): suggest running `start_audit` with a template tuned for this buyer's queries to get a deeper diagnosis.
-
-Surface the top 2-3 recommendations and your verdict, not the raw recommendations list.
+Surface: identity + the 5 health scores + personas and products. If you triggered a fresh crawl, mention that the data is now current.
 
 ## Cross-references
 

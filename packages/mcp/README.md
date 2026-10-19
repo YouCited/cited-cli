@@ -3,7 +3,7 @@
 <!-- MCP Registry ownership verification for PyPI (must match "name" in server.json) -->
 <!-- mcp-name: com.youcited/cited -->
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 88 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 83 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Install
 
@@ -242,15 +242,6 @@ Cited adds new tools regularly. To access new tools after a release, **disconnec
 | `get_analytics_trends` | Get KPI trends over time |
 | `get_analytics_dashboard` | Combined analytics dashboard (KPI trends + question performance + benchmarks) |
 | `compare_audits` | Compare an audit against its baseline |
-
-### Agent API
-| Tool | Description |
-|------|-------------|
-| `get_business_facts` | Get structured business facts |
-| `get_business_claims` | Get verifiable claims about a business |
-| `get_competitive_comparison` | Get competitive analysis data |
-| `get_semantic_health` | Get semantic readiness signals |
-| `buyer_fit_query` | Run a buyer-fit simulation query |
 
 ### Action Plan
 | Tool | Description |

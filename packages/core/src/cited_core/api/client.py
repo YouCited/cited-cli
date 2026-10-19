@@ -51,9 +51,9 @@ class CitedClient:
         cookies: dict[str, str] = {}
         if token:
             cookies["advgeo_session"] = token
-        # A per-user agent key authenticates every request (not only the
-        # /agent/v1 routes). A signed-in session cookie takes precedence: the
-        # key is only sent when there is no token.
+        # A per-user agent key authenticates every request. A signed-in
+        # session cookie takes precedence: the key is only sent when there is
+        # no token.
         if agent_api_key and not token:
             headers[AGENT_KEY_HEADER] = agent_api_key
         self._client = httpx.Client(

@@ -103,15 +103,6 @@ ANALYTICS_DASHBOARD = "/analytics/businesses/{business_id}/dashboard"
 ANALYTICS_TRENDS = "/analytics/businesses/{business_id}/trends"
 ANALYTICS_ADVANCED = "/analytics/businesses/{business_id}/advanced-scoring"
 
-# Agent Query API (v1)
-AGENT_ROOT = "/agent/v1"
-AGENT_BUSINESS = "/agent/v1/business/{business_id}"
-AGENT_FACTS = "/agent/v1/business/{business_id}/facts"
-AGENT_CLAIMS = "/agent/v1/business/{business_id}/claims"
-AGENT_COMPARISON = "/agent/v1/business/{business_id}/comparison"
-AGENT_SEMANTIC_HEALTH = "/agent/v1/business/{business_id}/semantic-health"
-AGENT_BUYER_FIT = "/agent/v1/query/buyer-fit"
-
 # Billing (pay-as-you-go credits; 1 credit = $1)
 BILLING_PRICES = "/billing/prices"
 BILLING_CREDITS = "/billing/credits"

@@ -143,12 +143,6 @@ EXPECTED_TOOLS_V0_5_0: set[str] = {
     "get_analytics_trends",
     "get_analytics_dashboard",
     "compare_audits",
-    # Agent API (composite-data reads)
-    "get_business_facts",
-    "get_business_claims",
-    "get_competitive_comparison",
-    "get_semantic_health",
-    "buyer_fit_query",
     # Action plan
     "get_action_plan",
     "get_quick_wins",

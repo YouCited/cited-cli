@@ -49,7 +49,6 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 - `get_analytics_trends` — KPI trends over time
 - `get_analytics_dashboard` — Combined analytics dashboard (KPI trends + question performance + benchmarks)
 - `compare_audits` — Compare an audit against its baseline
-- Agent API: `get_business_facts`, `get_business_claims`, `get_competitive_comparison`, `get_semantic_health`, `buyer_fit_query`
 
 ### Help & Docs (no login)
 - `search_docs` — Search the public Cited docs (how-tos, GEO concepts, feature guides). Use it before guessing how a Cited feature works.
@@ -57,7 +56,7 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 
 ## Credits (pay-as-you-go)
 
-There are no plans or tiers; all 88 tools are available to every account. Work is paid for
+There are no plans or tiers; all 83 tools are available to every account. Work is paid for
 with credits, 1 credit = $1:
 
 - A standard audit is 10 credits (up to 5 questions with each engine's included models; each further 5 questions adds 10, each extra model 2). Failed or cancelled audits return their credits.

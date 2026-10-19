@@ -7,119 +7,21 @@ from rich.console import Console
 from rich.panel import Panel
 
 from cited_cli.commands.agent_setup import agent_setup
-from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
+from cited_cli.output.formatter import print_error, print_result, print_success
 from cited_cli.output.tables import render_kv, render_table
 from cited_cli.utils.client import get_authed_client, get_env_and_url, get_output
 from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
-from cited_cli.utils.interactive import confirm_action, prompt_if_missing
+from cited_cli.utils.interactive import confirm_action
 from cited_core.api import endpoints
 from cited_core.api.client import CitedClient
 from cited_core.auth.store import TokenStore
 
 agent_app = typer.Typer(
     name="agent",
-    help=(
-        "Connect AI agents to Cited: setup, agent signup and keys, and the Agent API (v1)."
-    ),
+    help="Connect AI agents to Cited: setup, agent signup and keys.",
 )
 
 agent_app.command("setup")(agent_setup)
-
-
-def _get_agent_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient]:
-    out, client, _ = get_authed_client(ctx)
-    return out, client
-
-
-@agent_app.command("facts")
-def agent_facts(
-    ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID")],
-) -> None:
-    """Get structured business facts."""
-    out, client = _get_agent_client(ctx)
-    try:
-        path = endpoints.AGENT_FACTS.format(business_id=business_id)
-        data = client.get(path)
-        print_result(data, out)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
-
-
-@agent_app.command("claims")
-def agent_claims(
-    ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID")],
-) -> None:
-    """Get verifiable claims about a business."""
-    out, client = _get_agent_client(ctx)
-    try:
-        path = endpoints.AGENT_CLAIMS.format(business_id=business_id)
-        data = client.get(path)
-        print_result(data, out)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
-
-
-@agent_app.command("comparison")
-def agent_comparison(
-    ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID")],
-) -> None:
-    """Get competitive comparison data."""
-    out, client = _get_agent_client(ctx)
-    try:
-        path = endpoints.AGENT_COMPARISON.format(business_id=business_id)
-        data = client.get(path)
-        print_result(data, out)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
-
-
-@agent_app.command("semantic-health")
-def agent_semantic_health(
-    ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID")],
-) -> None:
-    """Get semantic readiness signals."""
-    out, client = _get_agent_client(ctx)
-    try:
-        path = endpoints.AGENT_SEMANTIC_HEALTH.format(business_id=business_id)
-        data = client.get(path)
-        print_result(data, out)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
-
-
-@agent_app.command("buyer-fit")
-def agent_buyer_fit(
-    ctx: typer.Context,
-    query: Annotated[
-        str | None, typer.Option("--query", "-q", help="Buyer query to simulate")
-    ] = None,
-    business_id: Annotated[str | None, typer.Option("--business", "-b", help="Business ID")] = None,
-) -> None:
-    """Run a buyer-fit simulation query."""
-    out, client = _get_agent_client(ctx)
-    query = prompt_if_missing(query, "--query", "Buyer query", out)
-    try:
-        payload: dict[str, str] = {"query": query}
-        if business_id:
-            payload["business_id"] = business_id
-        data = client.post(endpoints.AGENT_BUYER_FIT, json=payload)
-        print_result(data, out)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
 
 
 # ---------------------------------------------------------------------------

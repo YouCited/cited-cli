@@ -80,7 +80,7 @@ cited register --email you@example.com --name "Your Name" --password "Secret123!
 
 ## MCP Server
 
-This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 88 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
+This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 83 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
 
 ### Quick setup
 
@@ -221,7 +221,6 @@ Claude will chain the tools automatically — `list_businesses` → `start_audit
 | **Jobs** | `get_job_status`, `cancel_job` |
 | **HQ** | `get_business_hq` |
 | **Analytics** | `get_analytics_trends`, `get_analytics_summary`, `compare_audits` |
-| **Agent API** | `get_business_facts`, `get_business_claims`, `get_competitive_comparison`, `get_semantic_health`, `buyer_fit_query` |
 | **Action Plan** | `get_action_plan`, `get_quick_wins`, `mark_action_done`, `dismiss_action`, `get_action_progress` |
 
 See [`packages/mcp/README.md`](packages/mcp/README.md) for full details, environment variables, and development instructions.
@@ -574,7 +573,6 @@ cited analytics compare|trends|summary
 cited agent setup                             ← Connect Claude Code / Cursor / Codex / Claude Desktop
 cited agent signup [--name] [--email]         ← Account + API key for an AI agent (no login)
 cited agent key-status|keys|revoke KEY_ID     ← Inspect and revoke agent keys
-cited agent facts|claims|comparison|semantic-health|buyer-fit
 
 cited credits prices                          ← Prices and packs (no login; 1 credit = $1)
 cited credits balance|history [--limit N]
