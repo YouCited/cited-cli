@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Monorepo for the [Cited](https://youcited.com) GEO platform tooling. Contains three Python packages:
 
 - **`cited-core`** (`packages/core/`) — Shared library: API client, auth, config, endpoints, errors. No CLI or MCP dependencies.
-- **`cited-mcp`** (`packages/mcp/`) — Standalone MCP server with 83 tools. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
+- **`cited-mcp`** (`packages/mcp/`) — Standalone MCP server with 75 tools. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
 - **`cited-cli`** (root `src/cited_cli/`) — Typer + Rich CLI. Depends on `cited-core` + `typer` + `rich`. Optional dep on `cited-mcp` for `cited mcp serve`.
 
 Also contains `cited-plugins/` — a Claude Code plugin (skills, commands, agents) that references the MCP server via `uvx cited-mcp`.
@@ -55,7 +55,7 @@ cited mcp serve              # Via CLI (requires cited-cli[mcp])
 - `config/constants.py` — `ENVIRONMENTS`, `CONFIG_DIR`, `VALID_INDUSTRIES`, etc.
 - `errors.py` — `CitedAPIError`, `ExitCode`, `exit_code_for_status()`
 
-**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 83 tools:
+**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 75 tools:
 - `server.py` — `FastMCP` instance, lifespan, `run_server()`
 - `tools/` — auth, business, audit, recommend, solution, job, docs (public docs search), billing (credits), agent_keys (agent signup + per-user keys) tool modules
 - No plans or tiers: every tool is available to every account. Paid work is charged in credits by the backend, which returns HTTP 402 (`insufficient_credits` / `purchase_required`) or 403 `claim_required`; `tools/_helpers.py::_api_error_response` flattens the `detail` object (`error_type`, `credits_needed`, `balance`, `buy_url`, `claim_url`, `payment_required`) and adds a hint

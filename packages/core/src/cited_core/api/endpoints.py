@@ -23,7 +23,6 @@ BUSINESS = "/businesses/{business_id}"
 BUSINESS_LOGO = "/businesses/{business_id}/logo"
 HEALTH_SCORES = "/businesses/{business_id}/health-scores"
 HEALTH_SCORES_BREAKDOWN = "/businesses/{business_id}/health-scores/breakdown"
-PROFILE_COMPETITORS = "/businesses/{business_id}/profile-competitors"
 
 # Business Crawl
 CRAWL_DATA = "/businesses/{business_id}/crawl-data"
@@ -82,7 +81,6 @@ HQ_HEAVY = "/businesses/{business_id}/hq/heavy"
 HQ_PRIORITY = "/businesses/{business_id}/hq/priority"
 HQ_PRIORITY_STATUS = "/businesses/{business_id}/hq/priority/{action_id}/status"
 HQ_PRIORITY_SUMMARY = "/businesses/{business_id}/hq/priority/summary"
-HQ_EXPORT_PDF = "/businesses/{business_id}/hq/export/pdf"
 HQ_RECOMPUTE = "/businesses/{business_id}/hq/recompute"
 HQ_OVERVIEW_REFRESH_AUDIT = "/businesses/{business_id}/overview/refresh-audit"
 HQ_OVERVIEW_REFRESH_RECS = "/businesses/{business_id}/overview/refresh-recommendations"
@@ -92,16 +90,11 @@ PERSONAS = "/businesses/{business_id}/personas"
 PERSONA = "/businesses/{business_id}/personas/{persona_id}"
 PRODUCTS = "/businesses/{business_id}/products"
 PRODUCT = "/businesses/{business_id}/products/{product_id}"
-BUYER_INTENTS = "/businesses/{business_id}/buyer-intents"
-BUYER_INTENT = "/businesses/{business_id}/buyer-intents/{intent_id}"
 AGENTIC_READINESS = "/businesses/{business_id}/agentic-readiness"
 TRUST_SIGNALS = "/businesses/{business_id}/trust-signals"
 
 # Analytics
 ANALYTICS_COMPARE = "/analytics/audits/{audit_id}/compare/{baseline_id}"
-ANALYTICS_DASHBOARD = "/analytics/businesses/{business_id}/dashboard"
-ANALYTICS_TRENDS = "/analytics/businesses/{business_id}/trends"
-ANALYTICS_ADVANCED = "/analytics/businesses/{business_id}/advanced-scoring"
 
 # Billing (pay-as-you-go credits; 1 credit = $1)
 BILLING_PRICES = "/billing/prices"

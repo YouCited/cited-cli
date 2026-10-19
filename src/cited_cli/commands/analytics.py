@@ -5,13 +5,12 @@ from typing import Annotated
 import typer
 
 from cited_cli.output.formatter import OutputContext, print_result
-from cited_cli.output.tables import render_kv
 from cited_cli.utils.client import get_authed_client
 from cited_cli.utils.errors import CitedAPIError, handle_api_error
 from cited_core.api import endpoints
 from cited_core.api.client import CitedClient
 
-analytics_app = typer.Typer(name="analytics", help="Analytics and trend data.")
+analytics_app = typer.Typer(name="analytics", help="Compare audits over time.")
 
 
 def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient]:
@@ -35,42 +34,6 @@ def analytics_compare(
         )
         data = client.get(path)
         print_result(data, out)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
-
-
-@analytics_app.command("trends")
-def analytics_trends(
-    ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID")],
-) -> None:
-    """Show KPI trends over time."""
-    out, client = _get_client(ctx)
-    try:
-        path = endpoints.ANALYTICS_TRENDS.format(business_id=business_id)
-        data = client.get(path)
-        print_result(data, out)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
-
-
-@analytics_app.command("dashboard")
-def analytics_dashboard(
-    ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID")],
-) -> None:
-    """Get the combined analytics dashboard for a business."""
-    out, client = _get_client(ctx)
-    try:
-        path = endpoints.ANALYTICS_DASHBOARD.format(business_id=business_id)
-        data = client.get(path)
-        print_result(
-            data, out, human_formatter=lambda d, c: render_kv("Analytics Dashboard", d, c)
-        )
     except CitedAPIError as e:
         handle_api_error(e, out.json_mode)
     finally:

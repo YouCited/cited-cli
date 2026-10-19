@@ -13,93 +13,9 @@ from cited_mcp.tools._helpers import (
     _api_error_response,
     _auth_check,
     _get_ctx,
-    _resolve_business_id,
     _truncate_response,
     log_tool_call,
 )
-
-
-@mcp.tool(
-    title="Get Analytics Trends",
-    annotations=ToolAnnotations(
-        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
-    ),  # noqa: E501
-)
-@log_tool_call
-async def get_analytics_trends(
-    ctx: Context[Any, CitedContext, Any],
-    business_id: str | None = None,
-) -> Any:
-    """Get KPI trends over time for a business — citation rates, visibility scores, and more.
-
-    When to call: you only need the KPI time-series — for a chart, a custom
-    trend computation, or a tight summary. Cheaper than get_analytics_dashboard
-    if you don't need question performance, benchmarks, or citation trends.
-
-    On a ``payment_required: true`` response (HTTP 402), show the user
-    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
-    after they pay.
-
-    Args:
-        ctx: MCP context
-        business_id: Business ID (uses default if omitted)
-    """
-    cited_ctx = _get_ctx(ctx)
-    if err := _auth_check(cited_ctx):
-        return err
-    business_id = _resolve_business_id(cited_ctx, business_id)
-    if not business_id:
-        return {"error": True, "message": "business_id is required. Call list_businesses first."}
-    try:
-        return _truncate_response(
-            cited_ctx.client.get(endpoints.ANALYTICS_TRENDS.format(business_id=business_id))
-        )
-    except CitedAPIError as e:
-        return _api_error_response(e)
-
-
-@mcp.tool(
-    title="Get Analytics Dashboard",
-    annotations=ToolAnnotations(
-        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
-    ),  # noqa: E501
-)
-@log_tool_call
-async def get_analytics_dashboard(
-    ctx: Context[Any, CitedContext, Any],
-    business_id: str | None = None,
-) -> Any:
-    """Get the combined analytics dashboard for a business.
-
-    Returns kpi_trends, question_performance, citation_trends, benchmarks,
-    and domain_benchmarks in a single payload — the same data backing the
-    web Analytics page.
-
-    When to call: the user asks for an overview of AI search performance —
-    KPIs, trends, top/declining questions, citation patterns, benchmarks —
-    in one shot. Reach for get_analytics_trends instead if you only need
-    the time-series.
-
-    On a ``payment_required: true`` response (HTTP 402), show the user
-    ``buy_url`` (or a checkout link from buy_audit / buy_credits) and retry
-    after they pay.
-
-    Args:
-        ctx: MCP context
-        business_id: Business ID (uses default if omitted)
-    """
-    cited_ctx = _get_ctx(ctx)
-    if err := _auth_check(cited_ctx):
-        return err
-    business_id = _resolve_business_id(cited_ctx, business_id)
-    if not business_id:
-        return {"error": True, "message": "business_id is required. Call list_businesses first."}
-    try:
-        return _truncate_response(
-            cited_ctx.client.get(endpoints.ANALYTICS_DASHBOARD.format(business_id=business_id))
-        )
-    except CitedAPIError as e:
-        return _api_error_response(e)
 
 
 @mcp.tool(

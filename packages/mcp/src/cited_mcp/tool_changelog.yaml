@@ -32,8 +32,9 @@ versions:
     # X-Cited-Notice response header appears as a top-level "notice" field.
     # Adds redeem_voucher for credit voucher codes. Also records
     # get_audit_models, added after 0.5.2. Removes the five Agent API (v1)
-    # tools; the backend dropped /agent/v1.
-    fingerprint: "09fe82886b9d"
+    # tools (the backend dropped /agent/v1), and the buyer intent, profile
+    # competitor and analytics trend/dashboard tools the trim pass removed.
+    fingerprint: "a6e0bb78e4a6"
     tools_added:
       - name: get_prices
         description: |
@@ -100,6 +101,10 @@ versions:
       - name: get_usage_stats
         change_summary: |
           Returns credits_balance and unclaimed instead of plan.
+      - name: get_business_hq
+        change_summary: |
+          include_intents is gone with buyer intents; the dashboard no longer
+          carries displacement or agentic_paths.
     tools_removed:
       - name: get_pricing
       - name: upgrade_plan
@@ -108,6 +113,14 @@ versions:
       - name: get_competitive_comparison
       - name: get_semantic_health
       - name: buyer_fit_query
+      - name: list_buyer_intents
+      - name: create_buyer_intent
+      - name: update_buyer_intent
+      - name: delete_buyer_intent
+      - name: list_profile_competitors
+      - name: set_profile_competitors
+      - name: get_analytics_trends
+      - name: get_analytics_dashboard
 
   - version: "0.5.2"
     released: "2026-10-14"

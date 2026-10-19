@@ -72,8 +72,6 @@ EXPECTED_TOOLS_V0_5_0: set[str] = {
     "delete_business",
     "crawl_business",
     "get_health_scores",
-    "list_profile_competitors",
-    "set_profile_competitors",
     # Audit templates
     "list_audit_templates",
     "get_audit_template",
@@ -135,13 +133,7 @@ EXPECTED_TOOLS_V0_5_0: set[str] = {
     "create_product",
     "update_product",
     "delete_product",
-    "list_buyer_intents",
-    "create_buyer_intent",
-    "update_buyer_intent",
-    "delete_buyer_intent",
     # Analytics
-    "get_analytics_trends",
-    "get_analytics_dashboard",
     "compare_audits",
     # Action plan
     "get_action_plan",

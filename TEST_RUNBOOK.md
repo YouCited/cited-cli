@@ -331,7 +331,7 @@ cited hq $BUSINESS_ID
 cited hq $BUSINESS_ID --personas
 cited hq $BUSINESS_ID --products
 cited hq $BUSINESS_ID --actions
-cited hq $BUSINESS_ID --personas --products --intents --actions
+cited hq $BUSINESS_ID --personas --products --actions
 
 # Full heavy load (all data in one request)
 cited hq $BUSINESS_ID --full
@@ -346,16 +346,8 @@ cited --json hq $BUSINESS_ID --full | jq '.health_scores'
 ## 10. Analytics
 
 ```bash
-# KPI trends over time
-cited analytics trends $BUSINESS_ID
-cited --json analytics trends $BUSINESS_ID
-
-# Business summary
-cited analytics summary $BUSINESS_ID
-cited --json analytics summary $BUSINESS_ID
-
-# Compare audit against baseline
-cited analytics compare $AUDIT_JOB
+# Compare an audit against an earlier one
+cited analytics compare $AUDIT_JOB $BASELINE_AUDIT_JOB
 ```
 
 ---
@@ -693,7 +685,6 @@ cited job watch $SOL_JOB --type solutions
 
 # ── Step 7: HQ dashboard ──────────────────────────────────────────────────────
 cited hq $BUSINESS_ID --full
-cited analytics trends $BUSINESS_ID
 
 # ── Step 8: Cleanup ────────────────────────────────────────────────────────────
 cited audit template delete $TEMPLATE_ID --yes

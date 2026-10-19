@@ -1820,7 +1820,7 @@ def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
 
 # ═════════════════════════════════════════════════════════════════════════════
 # v0.4.0 / v0.5.0 HQ CRUD CLI commands — list/create/update/delete for
-# personas, products, buyer intents; profile-competitors list/set.
+# personas and products.
 #
 # These commands close the parity gap with the MCP tool surface. Tests use
 # the same pattern as the business/audit/recommend pipeline above: respx-mock
@@ -1830,7 +1830,6 @@ def test_full_pipeline(runner, cli_app, tmp_path, monkeypatch):
 
 PERSONA_ID = "p1a2c3d4-e5f6-7890-abcd-ef1234567892"
 PRODUCT_ID = "pr1a2c3d4-e5f6-7890-abcd-ef1234567893"
-INTENT_ID = "i1a2c3d4-e5f6-7890-abcd-ef1234567894"
 
 MOCK_PERSONA = {
     "id": PERSONA_ID,
@@ -1844,18 +1843,6 @@ MOCK_PRODUCT = {
     "category": "hardware",
     "url": "https://acme.com/widget",
 }
-MOCK_INTENT = {
-    "id": INTENT_ID,
-    "question": "What's the cheapest acme widget?",
-    "intent_type": "informational",
-    "priority": "medium",
-    "is_answered": False,
-    "source": "manual",
-}
-MOCK_COMPETITORS = [
-    {"id": "c1", "name": "Rival One", "website": "https://rival1.com"},
-    {"id": "c2", "name": "Rival Two", "website": "https://rival2.com"},
-]
 
 
 # ─── Personas ────────────────────────────────────────────────────────────────
@@ -2090,182 +2077,3 @@ def test_hq_product_delete_with_yes(runner, cli_app, tmp_path, monkeypatch):
             ],
         )
     assert result.exit_code == 0
-
-
-# ─── Buyer intents (v0.5.0 added update + delete) ────────────────────────────
-
-
-@respx.mock
-def test_hq_intent_list(runner, cli_app, tmp_path, monkeypatch):
-    _setup_logged_in(tmp_path, monkeypatch)
-    respx.get(f"{DEV_API}/businesses/{BUSINESS_ID}/buyer-intents").mock(
-        return_value=httpx.Response(200, json=[MOCK_INTENT])
-    )
-
-    result = _invoke(
-        runner,
-        cli_app,
-        [
-            "--env",
-            "dev",
-            "--json",
-            "hq",
-            BUSINESS_ID,
-            "intent",
-            "list",
-            BUSINESS_ID,
-        ],
-    )
-    data = json.loads(result.output)
-    assert data[0]["id"] == INTENT_ID
-
-
-@respx.mock
-def test_hq_intent_create(runner, cli_app, tmp_path, monkeypatch):
-    _setup_logged_in(tmp_path, monkeypatch)
-    respx.post(f"{DEV_API}/businesses/{BUSINESS_ID}/buyer-intents").mock(
-        return_value=httpx.Response(201, json=MOCK_INTENT)
-    )
-
-    result = _invoke(
-        runner,
-        cli_app,
-        [
-            "--env",
-            "dev",
-            "--json",
-            "hq",
-            BUSINESS_ID,
-            "intent",
-            "create",
-            BUSINESS_ID,
-            "--intent",
-            "What's the cheapest acme widget?",
-            "--description",
-            "Pricing-sensitive shoppers",
-        ],
-    )
-    data = json.loads(result.output)
-    assert data["id"] == INTENT_ID
-
-
-@respx.mock
-def test_hq_intent_update_partial(runner, cli_app, tmp_path, monkeypatch):
-    """v0.5.0: update_buyer_intent — partial PATCH against /buyer-intents/{id}."""
-    _setup_logged_in(tmp_path, monkeypatch)
-    respx.patch(f"{DEV_API}/businesses/{BUSINESS_ID}/buyer-intents/{INTENT_ID}").mock(
-        return_value=httpx.Response(
-            200, json={**MOCK_INTENT, "priority": "high", "is_answered": True}
-        )
-    )
-
-    result = _invoke(
-        runner,
-        cli_app,
-        [
-            "--env",
-            "dev",
-            "--json",
-            "hq",
-            BUSINESS_ID,
-            "intent",
-            "update",
-            BUSINESS_ID,
-            INTENT_ID,
-            "--priority",
-            "high",
-            "--is-answered",
-        ],
-    )
-    data = json.loads(result.output)
-    assert data["priority"] == "high"
-    assert data["is_answered"] is True
-    sent = json.loads(respx.calls[0].request.content)
-    # Only the supplied fields land in the PATCH body
-    assert sent == {"priority": "high", "is_answered": True}
-    assert respx.calls[0].request.method == "PATCH"
-
-
-def test_hq_intent_delete_with_yes(runner, cli_app, tmp_path, monkeypatch):
-    """v0.5.0: delete_buyer_intent — DELETE against the singular endpoint."""
-    _setup_logged_in(tmp_path, monkeypatch)
-    with respx.mock:
-        respx.delete(f"{DEV_API}/businesses/{BUSINESS_ID}/buyer-intents/{INTENT_ID}").mock(
-            return_value=httpx.Response(204)
-        )
-
-        result = runner.invoke(
-            cli_app,
-            [
-                "--env",
-                "dev",
-                "hq",
-                BUSINESS_ID,
-                "intent",
-                "delete",
-                BUSINESS_ID,
-                INTENT_ID,
-                "--yes",
-            ],
-        )
-    assert result.exit_code == 0
-    assert "Deleted buyer intent" in result.output
-
-
-# ─── Profile competitors ─────────────────────────────────────────────────────
-
-
-@respx.mock
-def test_business_profile_competitors_list(runner, cli_app, tmp_path, monkeypatch):
-    _setup_logged_in(tmp_path, monkeypatch)
-    respx.get(f"{DEV_API}/businesses/{BUSINESS_ID}/profile-competitors").mock(
-        return_value=httpx.Response(200, json=MOCK_COMPETITORS)
-    )
-
-    result = _invoke(
-        runner,
-        cli_app,
-        [
-            "--env",
-            "dev",
-            "--json",
-            "business",
-            "profile-competitors",
-            "list",
-            BUSINESS_ID,
-        ],
-    )
-    data = json.loads(result.output)
-    assert len(data) == 2
-    assert data[0]["name"] == "Rival One"
-
-
-@respx.mock
-def test_business_profile_competitors_set_replaces(runner, cli_app, tmp_path, monkeypatch):
-    """set is REPLACE semantics — pass the whole desired list, backend returns
-    the new state."""
-    _setup_logged_in(tmp_path, monkeypatch)
-    new_state = [{"id": "c3", "name": "Acme", "website": "https://acme.com"}]
-    respx.put(f"{DEV_API}/businesses/{BUSINESS_ID}/profile-competitors").mock(
-        return_value=httpx.Response(200, json=new_state)
-    )
-
-    result = _invoke(
-        runner,
-        cli_app,
-        [
-            "--env",
-            "dev",
-            "--json",
-            "business",
-            "profile-competitors",
-            "set",
-            BUSINESS_ID,
-            "--competitor",
-            "Acme|https://acme.com",
-        ],
-    )
-    data = json.loads(result.output)
-    assert data[0]["name"] == "Acme"
-    sent = json.loads(respx.calls[0].request.content)
-    assert sent == {"competitors": [{"name": "Acme", "website": "https://acme.com"}]}

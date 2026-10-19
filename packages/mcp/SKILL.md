@@ -46,8 +46,6 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 
 ### 5. Monitor & Analyze
 - `get_business_hq` — Comprehensive dashboard with health scores, personas, products
-- `get_analytics_trends` — KPI trends over time
-- `get_analytics_dashboard` — Combined analytics dashboard (KPI trends + question performance + benchmarks)
 - `compare_audits` — Compare an audit against its baseline
 
 ### Help & Docs (no login)
@@ -56,7 +54,7 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 
 ## Credits (pay-as-you-go)
 
-There are no plans or tiers; all 83 tools are available to every account. Work is paid for
+There are no plans or tiers; all 75 tools are available to every account. Work is paid for
 with credits, 1 credit = $1:
 
 - A standard audit is 10 credits (up to 5 questions with each engine's included models; each further 5 questions adds 10, each extra model 2). Failed or cancelled audits return their credits.
