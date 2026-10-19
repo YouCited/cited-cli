@@ -88,10 +88,6 @@ from cited_mcp.tools.action_plan import (  # noqa: E402
     get_quick_wins,
     mark_action_done,
 )
-from cited_mcp.tools.agent import (  # noqa: E402
-    buyer_fit_query,
-    get_business_facts,
-)
 from cited_mcp.tools.analytics import (  # noqa: E402
     compare_audits,
     get_analytics_dashboard,
@@ -1435,38 +1431,6 @@ class TestNewToolModules:
         assert result["current_audit"]["job_id"] == "new"
         called_path = client.get.call_args[0][0]
         assert called_path == "/analytics/audits/new/compare/old"
-
-    def test_get_business_facts(self, ctx):
-        client = ctx.request_context.lifespan_context.client
-        client.get.return_value = {"facts": [{"key": "founded", "value": "2020"}]}
-
-        result = run(get_business_facts(ctx, business_id="b1"))
-        assert result["facts"][0]["key"] == "founded"
-
-    def test_buyer_fit_query(self, ctx):
-        client = ctx.request_context.lifespan_context.client
-        client.post.return_value = {
-            "business_id": "b1",
-            "buyer": "fintech CTO",
-            "constraints": [],
-            "recommendations": [{"product_id": "p1", "score": 0.85}],
-            "metadata": {"data_source": "simulation"},
-        }
-
-        result = run(buyer_fit_query(ctx, buyer="fintech CTO", business_id="b1"))
-        assert result["recommendations"][0]["score"] == 0.85
-        payload = client.post.call_args[1]["json"]
-        assert payload["buyer"] == "fintech CTO"
-        assert payload["business_id"] == "b1"
-        assert payload["constraints"] == []
-        assert payload["limit"] == 5
-
-    def test_agent_tool_requires_business_id(self, ctx):
-        """Agent tools should return error if no business_id and no default."""
-        # No default_business_id set on context
-        result = run(get_business_facts(ctx))
-        assert result["error"] is True
-        assert "business_id" in result["message"]
 
 
 # ---------------------------------------------------------------------------

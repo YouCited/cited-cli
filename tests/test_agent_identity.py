@@ -139,17 +139,6 @@ def test_env_var_agent_key(runner, cli_app, no_creds, monkeypatch):
 
 
 @respx.mock
-def test_agent_api_commands_accept_session_token(runner, cli_app, tmp_path, monkeypatch):
-    setup_config(tmp_path, monkeypatch, {"dev": "test-jwt-dev-token"})
-    respx.get(f"{DEV_API}/agent/v1/business/b1/facts").mock(
-        return_value=httpx.Response(200, json={"name": "Acme"})
-    )
-    result = _invoke(runner, cli_app, "--json", "agent", "facts", "b1")
-    assert result.exit_code == 0, result.output
-    assert json.loads(result.output)["name"] == "Acme"
-
-
-@respx.mock
 def test_key_status(runner, cli_app, with_agent_key):
     route = respx.get(f"{DEV_API}/agent/key-status").mock(
         return_value=httpx.Response(200, json=KEY_STATUS)

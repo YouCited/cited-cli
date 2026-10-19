@@ -131,12 +131,6 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "analytics compare": "compare_audits",
     "analytics trends": "get_analytics_trends",
     "analytics dashboard": "get_analytics_dashboard",
-    # Agent API
-    "agent facts": "get_business_facts",
-    "agent claims": "get_business_claims",
-    "agent comparison": "get_competitive_comparison",
-    "agent semantic-health": "get_semantic_health",
-    "agent buyer-fit": "buyer_fit_query",
     # Agent signup and per-user agent keys
     "agent signup": "agent_signup",
     "agent key-status": "key_status",

@@ -104,12 +104,6 @@ EXPECTED_TOOLS = [
     # Docs
     "search_docs",
     "get_doc",
-    # Agent API
-    "get_business_facts",
-    "get_business_claims",
-    "get_competitive_comparison",
-    "get_semantic_health",
-    "buyer_fit_query",
     # Action Plan
     "get_action_plan",
     "get_quick_wins",

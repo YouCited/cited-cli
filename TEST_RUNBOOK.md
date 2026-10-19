@@ -360,34 +360,7 @@ cited analytics compare $AUDIT_JOB
 
 ---
 
-## 11. Agent API (requires API key)
-
-```bash
-# Set agent API key
-cited config set agent_api_key <your-agent-api-key>
-
-# Business facts
-cited agent facts $BUSINESS_ID
-cited --json agent facts $BUSINESS_ID
-
-# Verifiable claims
-cited agent claims $BUSINESS_ID
-
-# Competitive comparison
-cited agent comparison $BUSINESS_ID
-
-# Semantic health
-cited agent semantic-health $BUSINESS_ID
-
-# Buyer-fit simulation
-cited agent buyer-fit --query "best GEO platform for e-commerce"
-cited agent buyer-fit --query "enterprise SEO tool" --business $BUSINESS_ID
-cited --json agent buyer-fit --query "best GEO platform" --business $BUSINESS_ID
-```
-
----
-
-## 12. Job Management
+## 11. Job Management
 
 ```bash
 # Watch any job by ID (auto-detects type)
@@ -408,7 +381,7 @@ cited job cancel $JOB_ID --type audit
 
 ---
 
-## 13. Global Flags & Edge Cases
+## 12. Global Flags & Edge Cases
 
 ```bash
 # JSON mode on everything
@@ -444,7 +417,7 @@ cited business update $BUSINESS_ID; echo "Exit: $?"          # 4 (validation —
 
 ---
 
-## 14. Cleanup
+## 13. Cleanup
 
 ```bash
 # Delete test business (removes all associated data)
@@ -474,7 +447,7 @@ The script detects test businesses by name patterns ("E2E Test", "CLI Test", etc
 
 ---
 
-## 15. Python Scripting
+## 14. Python Scripting
 
 Every command supports `--json` output, making the CLI a first-class building block for Python automation. The `subprocess.run` + `json.loads` pattern requires no extra dependencies — just the standard library.
 

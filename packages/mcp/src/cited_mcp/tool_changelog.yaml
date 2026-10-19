@@ -31,8 +31,9 @@ versions:
     # balance and buy_url; 403 claim_required carries claim_url. Any
     # X-Cited-Notice response header appears as a top-level "notice" field.
     # Adds redeem_voucher for credit voucher codes. Also records
-    # get_audit_models, added after 0.5.2.
-    fingerprint: "69bbee4595d4"
+    # get_audit_models, added after 0.5.2. Removes the five Agent API (v1)
+    # tools; the backend dropped /agent/v1.
+    fingerprint: "09fe82886b9d"
     tools_added:
       - name: get_prices
         description: |
@@ -102,6 +103,11 @@ versions:
     tools_removed:
       - name: get_pricing
       - name: upgrade_plan
+      - name: get_business_facts
+      - name: get_business_claims
+      - name: get_competitive_comparison
+      - name: get_semantic_health
+      - name: buyer_fit_query
 
   - version: "0.5.2"
     released: "2026-10-14"
