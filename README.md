@@ -80,7 +80,7 @@ cited register --email you@example.com --name "Your Name" --password "Secret123!
 
 ## MCP Server
 
-This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 83 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
+This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 75 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
 
 ### Quick setup
 
@@ -220,7 +220,7 @@ Claude will chain the tools automatically — `list_businesses` → `start_audit
 | **Solutions** | `start_solution`, `get_solution_status`, `get_solution_result`, `list_solutions` |
 | **Jobs** | `get_job_status`, `cancel_job` |
 | **HQ** | `get_business_hq` |
-| **Analytics** | `get_analytics_trends`, `get_analytics_summary`, `compare_audits` |
+| **Analytics** | `compare_audits` |
 | **Action Plan** | `get_action_plan`, `get_quick_wins`, `mark_action_done`, `dismiss_action`, `get_action_progress` |
 
 See [`packages/mcp/README.md`](packages/mcp/README.md) for full details, environment variables, and development instructions.
@@ -566,9 +566,9 @@ cited recommend insights                      ← View actionable source table
 
 cited solution start|status|result|list       ← Generate content solutions
 
-cited hq <business_id> [--full] [--personas] [--products] [--intents] [--actions]
+cited hq <business_id> [--full] [--personas] [--products] [--actions]
 
-cited analytics compare|trends|summary
+cited analytics compare AUDIT_ID BASELINE_ID
 
 cited agent setup                             ← Connect Claude Code / Cursor / Codex / Claude Desktop
 cited agent signup [--name] [--email]         ← Account + API key for an AI agent (no login)

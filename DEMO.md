@@ -118,8 +118,7 @@ cited --env dev hq $BUSINESS_ID --full
 ## Step 10: Analytics
 
 ```bash
-cited --env dev analytics trends $BUSINESS_ID
-cited --env dev analytics summary $BUSINESS_ID
+cited --env dev analytics compare $AUDIT_JOB $BASELINE_AUDIT_JOB
 ```
 
 ## Cleanup

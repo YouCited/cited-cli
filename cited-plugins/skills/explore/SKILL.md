@@ -5,7 +5,7 @@ description: Ad-hoc tool exploration beyond the standard audit flow — diagnost
 
 # Explore Cited Beyond the Audit Flow
 
-The standard pipeline is `cited:business-setup` → `cited:geo-audit` → `cited:geo-recommend`. This skill covers the nine tools that DON'T fit that pipeline — diagnostics, deltas, intel surfaces, ad-hoc probes, and Validation Engine fix-verification — so you can answer "what changed since last week," "what does Cited know about this business," and "did my fix actually land" without burning a fresh audit.
+The standard pipeline is `cited:business-setup` → `cited:geo-audit` → `cited:geo-recommend`. This skill covers the seven tools that DON'T fit that pipeline — diagnostics, deltas, intel surfaces, ad-hoc probes, and Validation Engine fix-verification — so you can answer "what changed since last week," "what does Cited know about this business," and "did my fix actually land" without burning a fresh audit.
 
 If a tool returns `payment_required: true` (HTTP 402: `insufficient_credits` or `purchase_required`), tell the user, show them the `buy_url` (or a checkout link from `buy_audit` / `buy_credits`), and retry after they pay. Don't pretend the result was empty.
 
@@ -30,33 +30,15 @@ Recipe:
 
 What to do with the response: `{success, job_type, message}` on success, or a not-found error. Confirm the cancellation by job_type ("audit cancelled," not just "cancelled") and tell the user they can start a fresh job.
 
-### get_analytics_dashboard — combined analytics page
-
-When to use it: The user asks for an overview of AI search performance — KPIs, trends, top/declining questions, citation patterns, benchmarks. One call covers what the web Analytics page shows.
-
-Recipe:
-1. `get_analytics_dashboard(business_id=<biz_id>)`.
-
-What to do with the response: Top-level fields are `kpi_trends` (time-series per KPI), `question_performance` (top + declining), `citation_trends` (match rates, domain diversity), `benchmarks` (vs. historical average), `domain_benchmarks` (per-domain severity). Lead the summary with `benchmarks` deltas; then the worst-trending KPI from `kpi_trends`; then the top declining questions.
-
-### get_analytics_trends — KPI time series only
-
-When to use it: You only need the KPI time-series — e.g., for a chart, or to compute a custom trend. Cheaper than the dashboard if you don't need the rest.
-
-Recipe:
-1. `get_analytics_trends(business_id=<biz_id>)`.
-
-What to do with the response: `periods` is the x-axis (ordered date labels). `kpi_trends` maps KPI name → list of values aligned with `periods`. `summary` has aggregate stats. Plot or summarize the largest delta first.
-
 ### get_business_hq — comprehensive dashboard
 
 When to use it: The user wants a one-shot snapshot of an account — health scores, recent audits, recommendations, competitive position, top action items. Reach for this when summarizing an account holistically rather than answering a narrow question.
 
 Recipe:
 1. `get_business_hq(business_id=<biz_id>, full=True)` — everything in one call.
-2. (Cheaper) `get_business_hq(business_id=<biz_id>)` for just the core dashboard, then add `include_personas` / `include_products` / `include_intents` / `include_actions` flags as needed.
+2. (Cheaper) `get_business_hq(business_id=<biz_id>)` for just the core dashboard, then add `include_personas` / `include_products` / `include_actions` flags as needed.
 
-What to do with the response: Lead with `health_scores` (5 core scores: brand_confidence, crawl_coverage, ai_readiness, buyer_clarity, trust_score) and `priority_actions` — those tell the user what's wrong and what to fix. `recent_audits` and `recommendations` for activity context. `top_competitors` and `displacement` for competitive context. `agentic_readiness` if the user is asking specifically about AI-agent visibility.
+What to do with the response: Lead with `health_scores` (5 core scores: brand_confidence, crawl_coverage, ai_readiness, buyer_clarity, trust_score) and `priority_actions` — those tell the user what's wrong and what to fix. `recent_audits` and `recommendations` for activity context. `top_competitors` for competitive context. `agentic_readiness` if the user is asking specifically about AI-agent visibility.
 
 ### Verify recommendation fixes — Validation Engine (Base)
 
@@ -86,16 +68,13 @@ What to do with the response: `url` is a presigned download link with a 1-hour T
 
 When to use it: The user asks for a status update on AI search performance, or sets up a weekly check-in.
 
-1. `get_analytics_dashboard(business_id=<biz_id>)` — KPI trends + benchmarks in one shot.
-2. `list_audits(business_id=<biz_id>, limit=5)` — find the two most recent completed audits on the same `named_audit_id`.
-3. `compare_audits(audit_id=<latest>, baseline_id=<prior>)` — week-over-week delta.
+1. `list_audits(business_id=<biz_id>, limit=5)` — find the two most recent completed audits on the same `named_audit_id`.
+2. `compare_audits(audit_id=<latest>, baseline_id=<prior>)` — week-over-week delta.
 
 Compose into a markdown report ready to forward:
 - **Headline:** top KPI movement from `compare_audits.changes`.
-- **Trend section:** 1-2 sentences from `kpi_trends` (direction + magnitude per KPI).
 - **Regressions:** top 3 from `compare_audits.questions_comparison` where score fell.
 - **Wins:** top 2 from `compare_audits.questions_comparison` where score rose.
-- **Benchmarks:** where the business sits vs. historical from `benchmarks`.
 
 Don't dump raw JSON — the report is for a human stakeholder.
 

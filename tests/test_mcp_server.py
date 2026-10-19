@@ -65,8 +65,6 @@ EXPECTED_TOOLS = [
     "recompute_health_scores",
     "refresh_business_overview",
     # HQ profile management
-    "list_profile_competitors",
-    "set_profile_competitors",
     "list_personas",
     "create_persona",
     "update_persona",
@@ -75,13 +73,7 @@ EXPECTED_TOOLS = [
     "create_product",
     "update_product",
     "delete_product",
-    "list_buyer_intents",
-    "create_buyer_intent",
-    "update_buyer_intent",
-    "delete_buyer_intent",
     # Analytics
-    "get_analytics_trends",
-    "get_analytics_dashboard",
     "compare_audits",
     # Billing (pay-as-you-go credits)
     "get_prices",

@@ -29,7 +29,6 @@ async def get_business_hq(
     business_id: str | None = None,
     include_personas: bool = False,
     include_products: bool = False,
-    include_intents: bool = False,
     include_actions: bool = False,
     include_agentic_readiness: bool = False,
     include_trust_signals: bool = False,
@@ -37,8 +36,8 @@ async def get_business_hq(
 ) -> Any:
     """Get the Business HQ dashboard — a comprehensive overview of a business's GEO health.
 
-    Returns health scores, and optionally personas, products, buyer intents,
-    priority actions, agentic-readiness, and trust signals. Use full=True
+    Returns health scores, and optionally personas, products, priority
+    actions, agentic-readiness, and trust signals. Use full=True
     to get everything (heavy payload) in one call.
 
     When to call: the user wants a one-shot snapshot of an account —
@@ -58,7 +57,6 @@ async def get_business_hq(
         include_personas: Include target personas (with linked offerings,
             performance summary, and improvement actions per persona)
         include_products: Include products/services
-        include_intents: Include buyer intent data
         include_actions: Include priority action items
         include_agentic_readiness: Include agentic-readiness summary
             (whether the site is structured for autonomous-agent navigation)
@@ -87,10 +85,6 @@ async def get_business_hq(
             if include_products:
                 data["products"] = cited_ctx.client.get(
                     endpoints.PRODUCTS.format(business_id=business_id)
-                )
-            if include_intents:
-                data["buyer_intents"] = cited_ctx.client.get(
-                    endpoints.BUYER_INTENTS.format(business_id=business_id)
                 )
             if include_actions:
                 data["priority_actions"] = cited_ctx.client.get(
@@ -245,7 +239,7 @@ async def refresh_business_overview(
 
 
 # ---------------------------------------------------------------------------
-# Persona / Product / Buyer-Intent CRUD
+# Persona / Product CRUD
 # ---------------------------------------------------------------------------
 
 
@@ -605,195 +599,3 @@ async def delete_product(
     except CitedAPIError as e:
         return _api_error_response(e)
 
-
-@mcp.tool(
-    title="List Buyer Intents",
-    annotations=ToolAnnotations(
-        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
-    ),  # noqa: E501
-)
-@log_tool_call
-async def list_buyer_intents(
-    ctx: Context[Any, CitedContext, Any],
-    business_id: str | None = None,
-) -> Any:
-    """List buyer-intent entries declared on the business profile.
-
-    Returns ``[{id, intent, description, persona_ids, product_ids, ...}]``.
-    Buyer intents tie a persona's search/decision goal to the products that
-    address it, which drives audit question generation.
-
-    When to call: when the user asks "what intents are we tracking?" or
-    before recommending a new ``create_buyer_intent`` (so you can show the
-    existing list and suggest non-overlapping additions).
-
-    Args:
-        ctx: MCP context
-        business_id: Business ID (uses default if omitted)
-    """
-    cited_ctx = _get_ctx(ctx)
-    if err := _auth_check(cited_ctx):
-        return err
-    business_id = _resolve_business_id(cited_ctx, business_id)
-    if not business_id:
-        return {"error": True, "message": "business_id is required. Call list_businesses first."}
-    try:
-        return cited_ctx.client.get(
-            endpoints.BUYER_INTENTS.format(business_id=business_id)
-        )
-    except CitedAPIError as e:
-        return _api_error_response(e)
-
-
-@mcp.tool(
-    title="Create Buyer Intent",
-    annotations=ToolAnnotations(
-        readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False
-    ),  # noqa: E501
-)
-@log_tool_call
-async def create_buyer_intent(
-    ctx: Context[Any, CitedContext, Any],
-    intent: str,
-    description: str | None = None,
-    persona_ids: list[str] | None = None,
-    product_ids: list[str] | None = None,
-    business_id: str | None = None,
-) -> Any:
-    """Create a buyer-intent entry — the search/decision goal a persona is acting on.
-
-    Buyer intents tie personas to products through specific decision
-    moments ("evaluating subscription billing platforms", "comparing CRM
-    pricing tiers"). They drive audit question generation and per-intent
-    coverage scoring on the HQ dashboard.
-
-    Args:
-        ctx: MCP context
-        intent: Short label for the intent (e.g. "evaluating CRM pricing")
-        description: Optional longer description
-        persona_ids: Persona IDs that exhibit this intent
-        product_ids: Product IDs relevant to satisfying this intent
-        business_id: Business ID (uses default if omitted)
-    """
-    cited_ctx = _get_ctx(ctx)
-    if err := _auth_check(cited_ctx):
-        return err
-    business_id = _resolve_business_id(cited_ctx, business_id)
-    if not business_id:
-        return {"error": True, "message": "business_id is required. Call list_businesses first."}
-    payload: dict[str, Any] = {"intent": intent}
-    if description is not None:
-        payload["description"] = description
-    if persona_ids is not None:
-        payload["persona_ids"] = persona_ids
-    if product_ids is not None:
-        payload["product_ids"] = product_ids
-    try:
-        return cited_ctx.client.post(
-            endpoints.BUYER_INTENTS.format(business_id=business_id), json=payload
-        )
-    except CitedAPIError as e:
-        return _api_error_response(e)
-
-
-@mcp.tool(
-    title="Update Buyer Intent",
-    annotations=ToolAnnotations(
-        readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
-    ),  # noqa: E501
-)
-@log_tool_call
-async def update_buyer_intent(
-    ctx: Context[Any, CitedContext, Any],
-    intent_id: str,
-    question: str | None = None,
-    intent_type: str | None = None,
-    priority: str | None = None,
-    is_answered: bool | None = None,
-    answering_page_url: str | None = None,
-    business_id: str | None = None,
-) -> Any:
-    """Update a buyer-intent entry. Only provided fields are changed.
-
-    Discover ``intent_id`` via ``list_buyer_intents``. Use to re-classify
-    an intent (intent_type), bump priority, mark as answered after a page
-    is published, or attach an ``answering_page_url``.
-
-    Args:
-        ctx: MCP context
-        intent_id: Buyer intent id (UUID)
-        question: Updated buyer question (5-500 chars)
-        intent_type: One of "comparison", "decision", "informational",
-            "navigational", "transactional"
-        priority: One of "high", "medium", "low"
-        is_answered: Whether the business has a page answering this question
-        answering_page_url: URL of the page that answers this intent
-        business_id: Business ID (uses default if omitted)
-    """
-    cited_ctx = _get_ctx(ctx)
-    if err := _auth_check(cited_ctx):
-        return err
-    business_id = _resolve_business_id(cited_ctx, business_id)
-    if not business_id:
-        return {"error": True, "message": "business_id is required. Call list_businesses first."}
-    payload: dict[str, Any] = {}
-    if question is not None:
-        payload["question"] = question
-    if intent_type is not None:
-        payload["intent_type"] = intent_type
-    if priority is not None:
-        payload["priority"] = priority
-    if is_answered is not None:
-        payload["is_answered"] = is_answered
-    if answering_page_url is not None:
-        payload["answering_page_url"] = answering_page_url
-    if not payload:
-        return {"error": True, "message": "At least one field must be provided."}
-    try:
-        return cited_ctx.client.patch(
-            endpoints.BUYER_INTENT.format(
-                business_id=business_id, intent_id=intent_id
-            ),
-            json=payload,
-        )
-    except CitedAPIError as e:
-        return _api_error_response(e)
-
-
-@mcp.tool(
-    title="Delete Buyer Intent",
-    annotations=ToolAnnotations(
-        readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False
-    ),  # noqa: E501
-)
-@log_tool_call
-async def delete_buyer_intent(
-    ctx: Context[Any, CitedContext, Any],
-    intent_id: str,
-    business_id: str | None = None,
-) -> Any:
-    """Delete a buyer intent.
-
-    Removes the intent and its persona/product mappings. Confirm with the
-    user before calling — there's no undo.
-
-    Args:
-        ctx: MCP context
-        intent_id: Buyer intent id (UUID)
-        business_id: Business ID (uses default if omitted)
-    """
-    cited_ctx = _get_ctx(ctx)
-    if err := _auth_check(cited_ctx):
-        return err
-    business_id = _resolve_business_id(cited_ctx, business_id)
-    if not business_id:
-        return {"error": True, "message": "business_id is required. Call list_businesses first."}
-    try:
-        cited_ctx.client.delete(
-            endpoints.BUYER_INTENT.format(
-                business_id=business_id, intent_id=intent_id
-            )
-        )
-        return {"success": True, "intent_id": intent_id, "deleted": True}
-    except CitedAPIError as e:
-        return _api_error_response(e)

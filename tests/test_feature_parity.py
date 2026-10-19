@@ -129,8 +129,6 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "hq": "get_business_hq",
     # Analytics
     "analytics compare": "compare_audits",
-    "analytics trends": "get_analytics_trends",
-    "analytics dashboard": "get_analytics_dashboard",
     # Agent signup and per-user agent keys
     "agent signup": "agent_signup",
     "agent key-status": "key_status",
@@ -147,8 +145,6 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "credits auto-refill": "set_auto_refill",
     "audit quote": "quote_audit",
     # Profile-declared competitors
-    "business profile-competitors list": "list_profile_competitors",
-    "business profile-competitors set": "set_profile_competitors",
     # HQ writes / composite reads
     "hq brief": "get_agent_brief",
     "hq recompute": "recompute_health_scores",
@@ -162,10 +158,6 @@ _CLI_TO_MCP: dict[str, str | list[str]] = {
     "hq product create": "create_product",
     "hq product update": "update_product",
     "hq product delete": "delete_product",
-    "hq intent list": "list_buyer_intents",
-    "hq intent create": "create_buyer_intent",
-    "hq intent update": "update_buyer_intent",
-    "hq intent delete": "delete_buyer_intent",
     # Docs (public, no login)
     "docs search": "search_docs",
     "docs get": "get_doc",
