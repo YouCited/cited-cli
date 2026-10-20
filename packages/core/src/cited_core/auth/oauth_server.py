@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hmac
 import html
+import secrets
 import socket
 import threading
 from functools import partial
@@ -74,8 +76,15 @@ class _CallbackHandler(BaseHTTPRequestHandler):
 
         params = parse_qs(parsed.query)
         token = params.get("token", [None])[0]
+        state = params.get("state", [""])[0]
 
-        if token:
+        # Only the login we started carries our state; a page that finds the
+        # port can't plant its own token. The first token wins.
+        if (
+            token
+            and self._server_ref.token is None
+            and hmac.compare_digest(state, self._server_ref.state)
+        ):
             self._server_ref.token = token
             success_html = _SUCCESS_HTML_TEMPLATE.format(token=html.escape(token))
             self._send_html(200, success_html)
@@ -100,23 +109,42 @@ class OAuthCallbackServer:
         self.token: str | None = None
         self.port: int = _find_free_port()
         self.redirect_uri = f"http://localhost:{self.port}/callback"
+        # Sent to /auth/authorize-app, which passes it back on the callback
+        self.state = secrets.token_urlsafe(24)
         self._timeout = timeout
         self._token_event = threading.Event()
         self._server: HTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._timer: threading.Timer | None = None
+        self.expired = False
 
     def start(self) -> None:
         handler = partial(_CallbackHandler, self._token_event, self)
         self._server = HTTPServer(("127.0.0.1", self.port), handler)
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
+        # The listener stops by itself, even when nobody waits for the token
+        self._timer = threading.Timer(self._timeout, self._expire)
+        self._timer.daemon = True
+        self._timer.start()
+
+    def _expire(self) -> None:
+        self.expired = True
+        self.shutdown()
+
+    def authorize_params(self) -> dict[str, str]:
+        """Query parameters for /auth/authorize-app that bring the token back here."""
+        return {"callback": self.redirect_uri, "state": self.state}
 
     def wait_for_token(self) -> str | None:
         self._token_event.wait(timeout=self._timeout)
         return self.token
 
     def shutdown(self) -> None:
+        if self._timer and self._timer is not threading.current_thread():
+            self._timer.cancel()
         if self._server:
             self._server.shutdown()
+            self._server.server_close()
         if self._thread:
             self._thread.join(timeout=5)

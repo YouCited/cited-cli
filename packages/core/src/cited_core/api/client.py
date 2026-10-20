@@ -33,6 +33,10 @@ def clear_notice() -> None:
     _last_notice.set(None)
 
 
+def _origin(url: httpx.URL) -> tuple[str, str, int | None]:
+    return (url.scheme, url.host, url.port)
+
+
 class CitedClient:
     def __init__(
         self,
@@ -56,13 +60,21 @@ class CitedClient:
         # no token.
         if agent_api_key and not token:
             headers[AGENT_KEY_HEADER] = agent_api_key
+        self._origin = _origin(httpx.URL(self.base_url))
         self._client = httpx.Client(
             base_url=self.base_url,
             headers=headers,
             cookies=cookies,
             timeout=timeout,
             follow_redirects=True,
+            event_hooks={"request": [self._strip_credentials_off_origin]},
         )
+
+    def _strip_credentials_off_origin(self, request: httpx.Request) -> None:
+        """A redirect to another host must not carry the session or agent key."""
+        if _origin(request.url) != self._origin:
+            request.headers.pop("Cookie", None)
+            request.headers.pop(AGENT_KEY_HEADER, None)
 
     def close(self) -> None:
         self._client.close()

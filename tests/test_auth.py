@@ -76,9 +76,10 @@ def test_login_browser_flow(runner, cli_app, tmp_path, monkeypatch):
         params = parse_qs(parsed.query)
         assert "google" in params.get("provider", [""])[0]
         callback_uri = params["callback"][0]
+        state = params["state"][0]
 
         def send_callback():
-            callback_url = f"{callback_uri}?token=browser-jwt-token"
+            callback_url = f"{callback_uri}?token=browser-jwt-token&state={state}"
             urllib.request.urlopen(callback_url, timeout=5)  # noqa: S310
 
         threading.Thread(target=send_callback, daemon=True).start()
@@ -287,9 +288,10 @@ def test_register_browser_flow(runner, cli_app, tmp_path, monkeypatch):
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
         callback_uri = params["callback"][0]
+        state = params["state"][0]
 
         def send_callback():
-            callback_url = f"{callback_uri}?token=register-browser-jwt"
+            callback_url = f"{callback_uri}?token=register-browser-jwt&state={state}"
             urllib.request.urlopen(callback_url, timeout=5)  # noqa: S310
 
         threading.Thread(target=send_callback, daemon=True).start()
