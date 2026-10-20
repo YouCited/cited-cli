@@ -32,3 +32,14 @@ def runner() -> CliRunner:
 @pytest.fixture
 def cli_app():
     return app
+
+
+@pytest.fixture(autouse=True)
+def _isolate_user_config(request, tmp_path, monkeypatch):
+    """Keep tests from writing ~/.cited/config.toml. ConfigManager reads the
+    paths it imported, so patching cited_core.config.constants alone misses it."""
+    if "live" in request.keywords:
+        return
+    config_dir = tmp_path / ".cited"
+    monkeypatch.setattr("cited_core.config.manager.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("cited_core.config.manager.CONFIG_FILE", config_dir / "config.toml")
