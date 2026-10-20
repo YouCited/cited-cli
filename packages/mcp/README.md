@@ -156,7 +156,7 @@ Cited adds new tools regularly. To access new tools after a release, **disconnec
 | `buy_audit` | $15 checkout link for one audit (any account) |
 | `request_refund` | Refund unused credits bought in the last 30 days (asks for confirmation) |
 | `redeem_voucher` | Redeem a voucher code for free credits (once per account) |
-| `set_auto_refill` | Turn auto-refill on or off, with pack and monthly cap |
+| `set_auto_refill` | Turn auto-refill on or off, with pack and monthly cap (turning on needs `confirm=True`) |
 | `quote_audit` | Credits an audit will cost before starting it |
 
 ### Agent signup & keys
@@ -198,7 +198,7 @@ Cited adds new tools regularly. To access new tools after a release, **disconnec
 | Tool | Description |
 |------|-------------|
 | `free_audit` | Free GEO audit of any website, no login needed. Call again with the same URL for progress and the full report |
-| `start_audit` | Run a GEO audit using a template |
+| `start_audit` | Run a GEO audit using a template (quotes the cost first; runs with `confirm=True`) |
 | `get_audit_status` | Check audit job status |
 | `get_audit_result` | Get completed audit results |
 | `list_audits` | List all audits |

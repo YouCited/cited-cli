@@ -394,7 +394,7 @@ class TestAuditTools:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"job_id": "j1", "status": "running"}
 
-        result = run(start_audit(ctx, named_audit_id="t1"))
+        result = run(start_audit(ctx, named_audit_id="t1", confirm=True))
         assert result["job_id"] == "j1"
         payload = client.post.call_args[1]["json"]
         assert payload["named_audit_id"] == "t1"
@@ -404,9 +404,19 @@ class TestAuditTools:
         client = ctx.request_context.lifespan_context.client
         client.post.return_value = {"job_id": "j2", "status": "running"}
 
-        run(start_audit(ctx, named_audit_id="t1", business_id="b1"))
+        run(start_audit(ctx, named_audit_id="t1", business_id="b1", confirm=True))
         payload = client.post.call_args[1]["json"]
         assert payload["business_id"] == "b1"
+
+    def test_start_audit_without_confirm_only_quotes(self, ctx):
+        client = ctx.request_context.lifespan_context.client
+        client.post.return_value = {"credits": 10, "balance": 4, "enough": False}
+
+        result = run(start_audit(ctx, named_audit_id="t1", business_id="b1"))
+        assert result["confirmation_required"] is True
+        assert result["enough"] is False
+        client.post.assert_called_once()
+        assert client.post.call_args[0][0] == "/billing/audit-quote"
 
     def test_get_audit_status(self, ctx):
         client = ctx.request_context.lifespan_context.client

@@ -279,6 +279,7 @@ async def set_auto_refill(
     enabled: bool,
     pack_id: str | None = None,
     monthly_cap_usd: float | None = None,
+    confirm: bool = False,
 ) -> Any:
     """Turn auto-refill on or off.
 
@@ -289,6 +290,11 @@ async def set_auto_refill(
     (``no_saved_card`` otherwise: have the human buy a pack with save_card
     first). Only change this when the human asked for it.
 
+    Turning it on charges the saved card later, so it needs ``confirm=True``:
+    without it nothing changes and you get ``confirmation_required``. Tell the
+    human the pack and ceiling and confirm only after they agree. Turning it
+    off needs no confirmation.
+
     Returns the same body as get_credits.
 
     Args:
@@ -296,10 +302,23 @@ async def set_auto_refill(
         enabled: True to turn auto-refill on, False to turn it off
         pack_id: Pack to buy on each refill (pack_20, pack_50, pack_100)
         monthly_cap_usd: Monthly spending ceiling in USD
+        confirm: True to turn auto-refill on, after the human agreed
     """
     cited_ctx = _get_ctx(ctx)
     if err := _auth_check(cited_ctx):
         return err
+    if enabled and not confirm:
+        return {
+            "confirmation_required": True,
+            "pack_id": pack_id,
+            "monthly_cap_usd": monthly_cap_usd,
+            "message": (
+                "Auto-refill buys this pack on the saved card whenever the balance "
+                "drops below 10 credits, up to the monthly ceiling (default $200). "
+                "Ask the human to confirm, then call set_auto_refill again with "
+                "confirm=True."
+            ),
+        }
     payload: dict[str, Any] = {"enabled": enabled}
     if pack_id is not None:
         payload["pack_id"] = pack_id
