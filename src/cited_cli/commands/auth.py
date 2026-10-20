@@ -70,7 +70,7 @@ def _browser_auth(
     try:
         # Build the authorize-app URL — the backend handles login/consent/redirect
         params: dict[str, str] = {
-            "callback": callback_server.redirect_uri,
+            **callback_server.authorize_params(),
             "app_name": "cited-cli",
         }
         if provider:

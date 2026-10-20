@@ -67,6 +67,8 @@ def no_real_oauth_callback_server() -> Iterator[MagicMock]:
         self.token = None  # type: ignore[attr-defined]
         self.port = port  # type: ignore[attr-defined]
         self.redirect_uri = f"http://localhost:{port}/callback"  # type: ignore[attr-defined]
+        self.state = f"test-state-{port}"  # type: ignore[attr-defined]
+        self.expired = False  # type: ignore[attr-defined]
 
     def fake_start(self: object) -> None:
         return None

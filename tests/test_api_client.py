@@ -218,3 +218,35 @@ def test_token_store_agent_key_file_fallback(tmp_path, monkeypatch):
     store.delete_agent_key("dev")
     assert store.get_agent_key("dev") is None
     assert store.get_token("dev") == "jwt"
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "header"),
+    [({"token": "jwt"}, "cookie"), ({"agent_api_key": "cak_test"}, "x-agent-api-key")],
+)
+@respx.mock
+def test_redirect_to_another_host_drops_credentials(kwargs, header):
+    respx.get("https://api.example.com/moved").mock(
+        return_value=httpx.Response(302, headers={"Location": "https://other.example.net/x"})
+    )
+    other = respx.get("https://other.example.net/x").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    client = CitedClient(base_url="https://api.example.com", **kwargs)
+    client.get("/moved")
+    assert header not in other.calls[0].request.headers
+    client.close()
+
+
+@respx.mock
+def test_redirect_on_the_same_host_keeps_credentials():
+    respx.get("https://api.example.com/items").mock(
+        return_value=httpx.Response(307, headers={"Location": "https://api.example.com/items/"})
+    )
+    target = respx.get("https://api.example.com/items/").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    client = CitedClient(base_url="https://api.example.com", token="jwt")
+    client.get("/items")
+    assert target.calls[0].request.headers["cookie"] == "advgeo_session=jwt"
+    client.close()

@@ -914,6 +914,25 @@ class TestAuthTools:
             auth_mod._pending_login = None
             auth_mod._pending_login_env = None
 
+    def test_login_after_listener_timed_out_starts_a_new_login(self, unauth_ctx):
+        """A pending login whose listener expired is replaced, not waited on."""
+        import cited_mcp.tools.auth as auth_mod
+        from cited_core.auth.oauth_server import OAuthCallbackServer
+
+        stale = OAuthCallbackServer(timeout=5)
+        stale.expired = True
+        auth_mod._pending_login = stale
+        auth_mod._pending_login_env = "dev"
+
+        try:
+            result = run(login(unauth_ctx))
+            assert result["action_required"] is True
+            assert auth_mod._pending_login is not stale
+            assert f"state={auth_mod._pending_login.state}" in result["login_url"]
+        finally:
+            auth_mod._pending_login = None
+            auth_mod._pending_login_env = None
+
     def test_login_already_authenticated(self, ctx):
         """If already authenticated, login should return success without starting a flow."""
         import cited_mcp.tools.auth as auth_mod

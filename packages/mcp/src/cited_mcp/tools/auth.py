@@ -201,6 +201,15 @@ async def login(
     cited_ctx: CitedContext = ctx.request_context.lifespan_context
     target_env = env or cited_ctx.env
 
+    # A login whose listener timed out can't finish; start a fresh one
+    if (
+        _pending_login is not None
+        and not _pending_login.token
+        and _pending_login.expired
+    ):
+        _pending_login = None
+        _pending_login_env = None
+
     # --- Step 2: Check if a pending login completed ---
     if _pending_login is not None:
         token = _pending_login.token
@@ -229,7 +238,7 @@ async def login(
         else:
             # Still waiting — remind the user
             params = urlencode({
-                "callback": _pending_login.redirect_uri,
+                **_pending_login.authorize_params(),
                 "app_name": "cited-mcp",
             })
             login_url = f"{cited_ctx.api_url}{endpoints.AUTHORIZE_APP}?{params}"
@@ -275,7 +284,7 @@ async def login(
     # Use the API's authorize-app endpoint (same as CLI) — it handles
     # OAuth consent and redirects back to localhost with the token.
     params = urlencode({
-        "callback": callback_server.redirect_uri,
+        **callback_server.authorize_params(),
         "app_name": "cited-mcp",
     })
     login_url = f"{cited_ctx.api_url}{endpoints.AUTHORIZE_APP}?{params}"
