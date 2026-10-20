@@ -34,7 +34,9 @@ versions:
     # get_audit_models, added after 0.5.2. Removes the five Agent API (v1)
     # tools (the backend dropped /agent/v1), and the buyer intent, profile
     # competitor and analytics trend/dashboard tools the trim pass removed.
-    fingerprint: "a6e0bb78e4a6"
+    # start_audit and turning on set_auto_refill need confirm=True; without it
+    # they return confirmation_required (with the credit quote for audits).
+    fingerprint: "84c7fc0ea071"
     tools_added:
       - name: get_prices
         description: |
@@ -62,6 +64,7 @@ versions:
       - name: set_auto_refill
         description: |
           Turn auto-refill on or off, with the pack and a monthly cap.
+          Turning it on needs confirm=True.
       - name: redeem_voucher
         description: |
           Redeem a voucher code for free credits (once per account, claimed
@@ -93,7 +96,9 @@ versions:
       - name: start_audit
         change_summary: |
           Charges credits up front (response adds credits_charged and
-          balance); returns insufficient_credits (402) when short.
+          balance); returns insufficient_credits (402) when short. Without
+          confirm=True it starts nothing and returns confirmation_required
+          with the credit quote.
       - name: check_auth_status
         change_summary: |
           Returns credits_balance, unclaimed and auth_method; with an agent

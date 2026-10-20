@@ -175,7 +175,7 @@ def test_start_audit():
     respx.post(f"{DEV_API}/audit/start").mock(side_effect=_capture)
     cited_ctx = _make_cited_ctx()
     ctx = _make_mcp_ctx(cited_ctx)
-    result = _run(start_audit(ctx, "template-1", "b1"))
+    result = _run(start_audit(ctx, "template-1", "b1", confirm=True))
     assert result["job_id"] == "aj1"
     assert captured["named_audit_id"] == "template-1"
     assert captured["business_id"] == "b1"

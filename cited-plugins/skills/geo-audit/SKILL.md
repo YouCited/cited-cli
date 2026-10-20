@@ -19,7 +19,7 @@ Use the Cited MCP tools to run a complete GEO (Generative Engine Optimization) a
 
 4. **Check the cost**: Call `quote_audit` with the `named_audit_id`. A standard audit is 10 credits (1 credit = $1). If `enough` is false, offer `buy_audit` ($15 for one audit) or `buy_credits`, show the user the `checkout_url`, and continue once `get_credits` shows the credits.
 
-5. **Start the audit**: Call `start_audit` with the `named_audit_id` (and optional `business_id` override). Save the returned `job_id`.
+5. **Start the audit**: Call `start_audit` with the `named_audit_id` (and optional `business_id` override). The first call returns the credit quote and starts nothing; tell the user the cost, then call again with `confirm=True` once they agree. Save the returned `job_id`.
 
 6. **Poll for completion**: Call `get_audit_status` with the `job_id`. Repeat every 10-15 seconds until `status` is `"completed"` or `"failed"`.
 

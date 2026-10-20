@@ -24,7 +24,7 @@ The typical flow is: **Business Setup → Audit → Recommendations → Solution
 - `create_audit_template` — Define what questions to audit (e.g., "What is [business]?", "Best [industry] tools")
 - `free_audit` — Free GEO audit of any website, no login or credits needed. Use it when the user has no Cited account yet. Call again with the same `url` every ~30 seconds until `status` is `completed` (2-4 minutes).
 - `quote_audit` — Check the credit cost first (a standard audit is 10 credits)
-- `start_audit` — Launch the audit using a template (2-4 minutes); credits are charged up front. Poll `get_audit_status` every 30-60 seconds.
+- `start_audit` — Launch the audit using a template (2-4 minutes); credits are charged up front. The first call only returns the credit quote: tell the human the cost and call again with `confirm=True` once they agree. Poll `get_audit_status` every 30-60 seconds.
 - `get_audit_result` — Returns a summary by default (aggregate KPIs, competitor leaderboard, question IDs). Use `full=True` for detailed per-question citations — warning: full results can be very large.
 
 ### 3. Generate Recommendations

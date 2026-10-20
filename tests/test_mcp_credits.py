@@ -219,7 +219,7 @@ def test_start_audit_insufficient_credits_402():
         )
     )
     ctx, cited = _ctx()
-    result = _run(start_audit(ctx, named_audit_id="tmpl-1"))
+    result = _run(start_audit(ctx, named_audit_id="tmpl-1", confirm=True))
     assert result["error"] is True
     assert result["status_code"] == 402
     assert result["payment_required"] is True
@@ -351,9 +351,54 @@ def test_set_auto_refill():
         return_value=httpx.Response(200, json={"auto_refill": {"enabled": True}})
     )
     ctx, cited = _ctx()
-    result = _run(set_auto_refill(ctx, enabled=True, pack_id="pack_50", monthly_cap_usd=100))
+    result = _run(
+        set_auto_refill(ctx, enabled=True, pack_id="pack_50", monthly_cap_usd=100, confirm=True)
+    )
     assert _body(route) == {"enabled": True, "pack_id": "pack_50", "monthly_cap_usd": 100}
     assert result["auto_refill"]["enabled"] is True
+    cited.client.close()
+
+
+@respx.mock
+def test_set_auto_refill_on_needs_confirm():
+    from cited_mcp.tools.billing import set_auto_refill
+
+    route = respx.put(f"{DEV_API}/billing/credits/auto-refill").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    ctx, cited = _ctx()
+    result = _run(set_auto_refill(ctx, enabled=True, pack_id="pack_50"))
+    assert result["confirmation_required"] is True
+    assert result["pack_id"] == "pack_50"
+    assert not route.called
+    cited.client.close()
+
+
+@respx.mock
+def test_start_audit_quotes_without_confirm():
+    from cited_mcp.tools.audit import start_audit
+
+    quote = respx.post(f"{DEV_API}/billing/audit-quote").mock(
+        return_value=httpx.Response(
+            200, json={"credits": 12, "balance": 20, "enough": True, "question_count": 5}
+        )
+    )
+    start = respx.post(f"{DEV_API}/audit/start").mock(
+        return_value=httpx.Response(202, json={"job_id": "j1"})
+    )
+    ctx, cited = _ctx()
+    result = _run(
+        start_audit(ctx, named_audit_id="tmpl-1", models=["anthropic:claude-sonnet-5-5"])
+    )
+    assert result["confirmation_required"] is True
+    assert result["credits"] == 12
+    assert result["enough"] is True
+    assert "confirm=True" in result["message"]
+    assert _body(quote) == {
+        "named_audit_id": "tmpl-1",
+        "models": ["anthropic:claude-sonnet-5-5"],
+    }
+    assert not start.called
     cited.client.close()
 
 

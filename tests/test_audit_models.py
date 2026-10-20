@@ -147,6 +147,8 @@ def test_mcp_start_audit_with_models():
     respx.post(f"{DEV_API}/audit/start").mock(side_effect=_capture)
     cited_ctx = _make_cited_ctx()
     ctx = _make_mcp_ctx(cited_ctx)
-    asyncio.run(start_audit(ctx, "tpl-1", models=["anthropic:claude-sonnet-5-5"]))
+    asyncio.run(
+        start_audit(ctx, "tpl-1", models=["anthropic:claude-sonnet-5-5"], confirm=True)
+    )
     assert captured["models"] == ["anthropic:claude-sonnet-5-5"]
     cited_ctx.client.close()

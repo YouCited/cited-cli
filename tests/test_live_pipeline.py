@@ -153,7 +153,7 @@ def test_full_live_pipeline():
         print(f"  Template: {template_id}")
 
         # 5. Start audit
-        audit = _run(start_audit(ctx, template_id, business_id))
+        audit = _run(start_audit(ctx, template_id, business_id, confirm=True))
         assert "job_id" in audit, f"Audit start failed: {audit}"
         audit_job_id = audit["job_id"]
         print(f"  Audit job: {audit_job_id}")
