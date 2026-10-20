@@ -23,12 +23,14 @@ def prompt_if_missing(
     flag_name: str,
     prompt_text: str,
     out: OutputContext,
+    *,
+    hide_input: bool = False,
 ) -> str:
     """Return *value* if set, prompt interactively if possible, or error."""
     if value is not None:
         return value
     if can_prompt(out):
-        result: str = typer.prompt(prompt_text)
+        result: str = typer.prompt(prompt_text, hide_input=hide_input)
         return result
     print_error(f"Missing required option: {flag_name}", out)
     raise typer.Exit(ExitCode.VALIDATION_ERROR)

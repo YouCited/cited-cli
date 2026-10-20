@@ -14,6 +14,15 @@ from cited_core.config.manager import VALID_KEYS, VALID_OUTPUT_VALUES, ConfigMan
 
 config_app = typer.Typer(name="config", help="Manage CLI configuration.")
 
+# Values never echoed back in full.
+SECRET_KEYS = {"agent_api_key"}
+
+
+def _mask(key: str, value: object) -> object:
+    if key not in SECRET_KEYS or not isinstance(value, str) or not value:
+        return value
+    return f"{value[:4]}…{value[-4:]}" if len(value) > 12 else "****"
+
 
 def _get_ctx(ctx: typer.Context) -> tuple[OutputContext, ConfigManager, str]:
     obj = ctx.obj or {}
@@ -45,7 +54,9 @@ def config_set(
             sorted(VALID_OUTPUT_VALUES), out,
         )
     else:
-        value = prompt_if_missing(value, "VALUE", f"Value for {key}", out)
+        value = prompt_if_missing(
+            value, "VALUE", f"Value for {key}", out, hide_input=key in SECRET_KEYS
+        )
 
     if key == "environment" and value not in ENVIRONMENTS:
         print_error(
@@ -61,7 +72,7 @@ def config_set(
 
     cfg.set(key, value, profile)
     suffix = f" (profile: {profile})" if profile != "default" else ""
-    print_success(f"Set {key} = {value}{suffix}", out)
+    print_success(f"Set {key} = {_mask(key, value)}{suffix}", out)
 
 
 @config_app.command("get")
@@ -82,7 +93,7 @@ def config_get(
 def config_show(ctx: typer.Context) -> None:
     """Show all configuration values."""
     out, cfg, profile = _get_ctx(ctx)
-    data = cfg.get_all(profile)
+    data = {k: _mask(k, v) for k, v in cfg.get_all(profile).items()}
     if not data:
         print_error("No configuration set", out)
         raise typer.Exit(ExitCode.NOT_FOUND)

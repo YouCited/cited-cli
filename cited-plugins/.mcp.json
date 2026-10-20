@@ -2,7 +2,7 @@
   "mcpServers": {
     "cited": {
       "type": "http",
-      "url": "https://mcpdev.youcited.com"
+      "url": "https://mcp.youcited.com/mcp"
     }
   }
 }
