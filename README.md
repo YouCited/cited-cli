@@ -1,13 +1,14 @@
 # Cited CLI
 
-Command-line interface for the [Cited](https://youcited.com) GEO (Generative Engine Optimization) platform. Audit how often your business is cited by AI assistants, generate recommendations, and produce AI-ready content solutions — all from the terminal or a Python script.
+Command-line interface for the [Cited](https://youcited.com) GEO (Generative Engine Optimization) platform. See how often ChatGPT, Gemini and Claude cite your business, get recommendations, and generate the fix files, all from the terminal or a script.
 
 ## For AI agents
 
-- **Free audit, no login:** call the `free_audit` MCP tool (or run `cited audit free example.com`) to see how often ChatGPT, Perplexity and Google AI cite a site, and who they cite instead.
+- **Free audit, no login:** call the `free_audit` MCP tool (or run `cited audit free example.com`) to see how AI answers 5 buyer questions about a site, and who it cites instead.
 - **MCP server:** `https://mcp.youcited.com/mcp` (streamable HTTP, OAuth login on first use). Also on PyPI as [`cited-mcp`](https://pypi.org/project/cited-mcp/) for local stdio.
 - **One-command setup:** `cited agent setup` connects Claude Code, Cursor and Codex (and prints the Claude Desktop connector steps). Add `--dry-run` to preview.
-- **Docs:** `search_docs` / `get_doc` tools, or `cited docs search "<question>"`, search the public [Cited docs](https://youcited.com/docs) without a login.
+- **No account yet:** `cited agent signup` (or the `agent_signup` tool) creates an account and API key without a login; give your human the claim link and code.
+- **Docs:** the `search_docs` tool, or `cited docs search "<question>"`, searches the public [Cited docs](https://youcited.com/docs) without a login.
 
 ## Installation
 
@@ -23,28 +24,20 @@ brew install cited
 ```bash
 git clone https://github.com/YouCited/cited-cli.git
 cd cited-cli
-pip install -e ".[dev]"
+./scripts/dev-install.sh
 ```
 
 ## Quick Start
 
 ```bash
-# Log in (opens browser by default)
-cited login
-
-# Check you're connected
-cited status
-
-# List your businesses
-cited business list
-
-# See all commands
+cited audit free example.com     # free first look, no account needed
+cited login                      # opens the browser
+cited status                     # who you are, credits, businesses and the next step
+cited business setup --website example.com
 cited --help
-cited audit --help
-cited audit template --help
 ```
 
-For the full end-to-end workflow — creating a business, running a GEO audit, and generating content solutions — see the [GEO Audit Pipeline](#geo-audit-pipeline) section below.
+The [workflow](#workflow) section below walks through a paid audit, recommendations and fixes.
 
 ---
 
@@ -80,7 +73,7 @@ cited register --email you@example.com --name "Your Name" --password "Secret123!
 
 ## MCP Server
 
-This repo also includes `cited-mcp`, a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes 75 tools for AI assistants like Claude. It lets Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions on your behalf.
+`cited-mcp` and the hosted server at `mcp.youcited.com` give AI assistants Cited's tools: set up a business, draft questions, run audits, get recommendations and generate fixes.
 
 ### Quick setup
 
@@ -153,7 +146,7 @@ Add to `Settings → Developer → Edit Config`, then restart Claude Desktop.
 }
 ```
 
-Get your token with `cited login` then `cited auth token`.
+With no env vars, call the `login` tool to sign in with a browser, or `agent_signup` to make an account. To reuse a CLI login, get the token with `cited login` then `cited auth token`.
 
 ### Cursor
 
@@ -193,47 +186,45 @@ codex mcp login cited
 
 Or add `[mcp_servers.cited]` with `url = "https://mcp.youcited.com/mcp"` to `~/.codex/config.toml` (`cited agent setup --client codex` does this for you).
 
-### Updating to new Cited features
+### One set of tools everywhere
 
-Cited adds new tools regularly. To access new tools after a release, **disconnect and reconnect the Cited connector** in your Claude Desktop or Claude.ai connector settings — restarting Claude alone is not enough, because the connector's tool list is cached at registration time. Once reconnected, ask the agent to call `whats_new` to see what changed since you last connected.
+The tools are defined once, in the Cited API. The hosted server at `mcp.youcited.com`, the local `cited-mcp` server and this CLI all run the same tools (`GET /agent/tools` lists them, `POST /agent/tools/{name}` runs one), so they behave the same. New tools show up in `cited-mcp` without a release; hosted clients may need to reconnect the Cited connector to refresh the cached list.
+
+| Tool | CLI command | What it does |
+|------|-------------|--------------|
+| `free_audit` | `cited audit free` | Free check of 5 buyer questions about a site (no login) |
+| `agent_signup` | `cited agent signup` | Account and API key for an AI agent (no login) |
+| `account_status` | `cited status` | Who is signed in, balance, businesses, prices, next step |
+| `search_docs` | `cited docs search` / `get` | Search or read the Cited docs (no login) |
+| `buy_credits` | `cited credits buy` | Checkout link for a pack or one audit, or redeem a voucher |
+| `setup_business` | `cited business setup` | Add a business from its website, or update it |
+| `get_business` | `cited business get` | List businesses, or one business in full |
+| `get_agent_brief` | `cited business brief` | What to focus on next |
+| `draft_questions` | `cited audit questions` | Draft, extend or replace the buyer questions |
+| `quote_audit` | `cited audit quote` | What an audit costs, and the models |
+| `run_audit` | `cited audit run` | Run a paid audit (asks before spending) |
+| `get_audit` | `cited audit get` | List audits, or one audit's status and report |
+| `compare_audits` | `cited audit compare` | Citations won and lost between two audits |
+| `schedule_recheck` | `cited audit schedule` | Re-run the audit every N days, with alerts |
+| `get_recommendations` | `cited recommend list` | What to change, with evidence, status and fixes |
+| `update_recommendation` | `cited recommend set` | Mark an item done or dismissed, or open it again |
+| `generate_fixes` | `cited fix generate` | Write fix files and steps (asks before spending) |
+| `get_fixes` | `cited fix list` / `get` | Fixes, their files, targets and steps |
+| `update_fix` | `cited fix done` / `undo` / `verify` | Track a fix and re-check the live site |
+
+`cited-mcp` adds local `login` and `logout` tools. `cited tools list` prints the live list and `cited tools call NAME '{...}'` calls any tool with JSON arguments. See [`packages/mcp/README.md`](packages/mcp/README.md) for the MCP server's details.
 
 ### Example
 
-Once connected, ask Claude something like:
+Once connected, ask your assistant something like:
 
-> "List my businesses, then run a GEO audit on Acme Corp using the default template. When it's done, generate recommendations and show me the top insights."
+> "Set up Acme Corp from acme.com, draft the buyer questions, and tell me what an audit costs."
 
-Claude will chain the tools automatically — `list_businesses` → `start_audit` → `get_audit_status` → `start_recommendation` → `get_recommendation_insights`.
-
-### Available Tools
-
-| Category | Tools |
-|----------|-------|
-| **Auth** | `check_auth_status`, `login`, `logout` |
-| **Credits** | `get_prices`, `get_credits`, `credit_history`, `buy_credits`, `buy_audit`, `request_refund`, `redeem_voucher`, `set_auto_refill`, `quote_audit` |
-| **Agent signup & keys** | `agent_signup`, `key_status`, `list_api_keys`, `revoke_api_key` |
-| **No login needed** | `free_audit`, `search_docs`, `get_doc`, `get_prices`, `agent_signup` |
-| **Businesses** | `list_businesses`, `get_business`, `create_business`, `update_business`, `delete_business`, `crawl_business`, `get_health_scores`, `get_usage_stats` |
-| **Audit Templates** | `list_audit_templates`, `get_audit_template`, `create_audit_template`, `update_audit_template`, `delete_audit_template` |
-| **Audits** | `start_audit`, `get_audit_status`, `get_audit_result`, `list_audits`, `export_audit` |
-| **Recommendations** | `start_recommendation`, `get_recommendation_status`, `get_recommendation_result`, `get_recommendation_insights`, `list_recommendations` |
-| **Solutions** | `start_solution`, `get_solution_status`, `get_solution_result`, `list_solutions` |
-| **Jobs** | `get_job_status`, `cancel_job` |
-| **HQ** | `get_business_hq` |
-| **Analytics** | `compare_audits` |
-| **Action Plan** | `get_action_plan`, `get_quick_wins`, `mark_action_done`, `dismiss_action`, `get_action_progress` |
-
-See [`packages/mcp/README.md`](packages/mcp/README.md) for full details, environment variables, and development instructions.
+It chains the tools: `setup_business` → `draft_questions` → `quote_audit`, then `run_audit` once you approve the price.
 
 ### Pricing: pay-as-you-go credits
 
-No plans or tiers: every command and tool works on every account, and work is paid with
-credits (1 credit = $1). A standard audit is 10 credits (`cited audit quote` shows the exact
-cost); a one-off audit is $15 (`cited credits buy-audit`); packs (`cited credits buy pack_20`)
-need a claimed account. Purchases print a Stripe checkout link for a person to open.
-
-An AI agent with no account can run `cited agent signup` (or call the `agent_signup` tool) to
-get its own API key on an unclaimed account, then give its human the claim link and code.
+No plans or tiers: every command and tool works on every account, and work is paid with credits (1 credit = $1). `cited audit quote` shows what an audit costs, and `cited status` shows the balance and prices. `cited credits buy` prints a Stripe checkout link for a person to open; nothing is bought until the balance changes. `cited audit run` and `cited fix generate` show the price and ask before spending (`--yes` skips the question).
 
 ---
 
@@ -253,338 +244,101 @@ These flags apply to every command and must be placed immediately after `cited`:
 
 ---
 
-## GEO Audit Pipeline
+## Workflow
 
-The complete workflow from business registration through AI-ready content solutions. Each step captures an ID for the next — just like piping commands together.
-
-### Prerequisites
-
-- `jq` installed (`brew install jq`) for ID extraction in bash
-- A publicly resolvable website domain (not `example.com`)
-- Account logged in: `cited login`
-
-### Step 1 — Create your business profile
+Commands that need a business take `--business/-b`, which is optional when you have one business (or set `cited config set default_business_id <id>`). Audit commands default to the newest audit.
 
 ```bash
-BUSINESS_ID=$(cited --json business create \
-  --name        "Acme Corp" \
-  --website     "https://acme.com" \
-  --description "Acme builds AI-powered tools for enterprise productivity teams." \
-  --industry    "technology" \
-  | jq -r '.id')
+# 1. A free first look (no account)
+cited audit free acme.com
 
-echo "Business: $BUSINESS_ID"
+# 2. Sign in (or `cited agent signup` for an agent) and add the business
+cited login
+cited business setup --website acme.com
+cited business setup --id <business_id> --persona "Ops lead: runs a 20-person warehouse"
+
+# 3. Draft the buyer questions the audit asks, then review them
+cited audit questions                       # show them, drafting a set if there is none
+cited audit questions --add --count 5 --focus "pricing"
+cited audit questions -q "Best WMS for small warehouses?" -q "..."   # replace the set
+
+# 4. Price it and run it
+cited audit quote
+cited audit run                             # shows the price and asks; --yes to skip
+cited audit get --wait                      # status, then the report
+
+# 5. What to change
+cited recommend list
+cited recommend set <item_key> dismissed
+
+# 6. Fix files, then check them live
+cited fix generate --all                    # asks before spending
+cited fix list
+cited fix get <fix_id> --save ./fixes       # write the files to disk
+cited fix done <fix_id>                     # after putting it on the site
+cited fix verify <fix_id>                   # re-check the live site (free)
+
+# 7. Keep watching
+cited audit schedule --every 30
+cited audit compare <audit_id>              # against the audit before it
+cited business brief
 ```
 
-> **`--industry` must be one of:**
-> `automotive` `beauty` `consulting` `education` `entertainment` `finance`
-> `fitness` `government` `healthcare` `home_services` `hospitality` `legal`
-> `manufacturing` `non_profit` `real_estate` `restaurant` `retail` `technology` `other`
+## Scripting
 
-### Step 2 — Scan your website
-
-The crawler reads your site so the platform understands your content, products, and brand signals.
+Every command takes `--json` and prints the tool's result unchanged, so the JSON is the same shape an MCP client sees:
 
 ```bash
-CRAWL_JOB=$(cited --json business crawl $BUSINESS_ID | jq -r '.job_id')
-cited job watch $CRAWL_JOB
-
-# View crawl results as health score bars
-cited business health $BUSINESS_ID
+BUSINESS=$(cited --json business setup --website acme.com | jq -r '.business.id')
+cited --json audit run -b "$BUSINESS" --yes | jq -r '.audit_id'
+cited --json recommend list | jq -r '.items[] | "\(.item_key)\t\(.title)"'
 ```
 
-### Step 3 — Create an audit template
-
-An audit template defines the questions you want AI assistants to answer. Ask questions your target buyers would actually type.
+`cited tools call` runs any tool with JSON arguments, for anything the commands don't expose:
 
 ```bash
-TEMPLATE_ID=$(cited --json audit template create \
-  --name     "Q4 GEO Audit" \
-  --business $BUSINESS_ID \
-  --question "Are we cited when people ask about AI productivity tools?" \
-  --question "Does our product appear in enterprise software recommendations?" \
-  --question "Are we mentioned when users research our core use case?" \
-  | jq -r '.id')
-
-echo "Template: $TEMPLATE_ID"
-
-# List all templates for a business
-cited audit template list --business $BUSINESS_ID
-
-# Inspect a template
-cited audit template get $TEMPLATE_ID
+cited tools call get_audit '{"limit": 5}'
 ```
 
-Auto-generated questions are rarely perfect out of the box. Refine them before running the audit:
-
-```bash
-# Replace all questions (--question flags replace the full list)
-cited audit template update $TEMPLATE_ID \
-  --question "Are we cited when enterprise buyers ask about AI safety?" \
-  --question "Does our product appear in responsible AI recommendations?" \
-  --question "Are we mentioned when developers compare AI platforms?"
-
-# Update just the name (keeps existing questions)
-cited audit template update $TEMPLATE_ID --name "Q4 GEO Audit v2"
-
-# Verify changes
-cited audit template get $TEMPLATE_ID
-```
-
-### Step 4 — Run the audit
-
-```bash
-AUDIT_JOB=$(cited --json audit start $TEMPLATE_ID --business $BUSINESS_ID \
-  | jq -r '.job_id')
-
-# Watch live progress bar
-cited job watch $AUDIT_JOB
-
-# View results: per-question citation data across providers
-cited audit result $AUDIT_JOB
-```
-
-### Step 5 — Generate recommendations
-
-```bash
-RECO_JOB=$(cited --json recommend start $AUDIT_JOB | jq -r '.job_id')
-cited job watch $RECO_JOB
-```
-
-### Step 6 — Discover what to fix
-
-`recommend insights` prints a table of all actionable items with the source IDs you'll need for the next step:
-
-```bash
-cited recommend insights $RECO_JOB
-```
-
-```
-                          Available Insights
-┏━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ # ┃ Type              ┃ Source ID                ┃ Description              ┃
-┡━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ 1 │ question_insight  │ d5b17bda-fa5b-48ff-...   │ Are we cited for AI...   │
-│ 2 │ head_to_head      │ wikipedia.org            │ wikipedia.org            │
-│ 3 │ strengthening_tip │ llms_txt                 │ Create llms.txt for AI   │
-└───┴───────────────────┴──────────────────────────┴──────────────────────────┘
-
-Run a solution: cited solution start $RECO_JOB --type <type> --source <source_id>
-```
-
-### Step 7 — Generate a content solution
-
-Pick a row from the insights table and pass its type and source ID:
-
-```bash
-cited solution start $RECO_JOB \
-  --type   question_insight \
-  --source d5b17bda-fa5b-48ff-8238-a644c78b404a
-
-# → ✓ Solution Started
-# → Track progress: cited job watch <sol_job_id>
-# → View artifacts: https://app.youcited.com/solutions/<sol_job_id>
-```
-
-**`--type` values:** `question_insight` · `head_to_head` · `strengthening_tip` · `priority_action`
-
-> Rich solution artifacts (blog posts, FAQ schemas, structured content) are rendered in the web app.
-> The CLI prints the direct link so you can jump straight there.
-
----
-
-## Scripting & Automation
-
-Every command supports `--json` output, making the CLI a first-class building block for automation pipelines — in bash, Python, or any language that can run a subprocess.
-
-### Bash with `jq`
-
-```bash
-# Capture IDs by piping --json output through jq
-BUSINESS_ID=$(cited --json business create --name "..." --website "..." \
-  --description "..." --industry "technology" | jq -r '.id')
-
-TEMPLATE_ID=$(cited --json audit template create \
-  --name "My Audit" --business $BUSINESS_ID \
-  --question "Are we cited for X?" | jq -r '.id')
-
-AUDIT_JOB=$(cited --json audit start $TEMPLATE_ID | jq -r '.job_id')
-cited job watch $AUDIT_JOB
-
-# Optional: compare specific models side by side (see `cited audit models`)
-CMP_JOB=$(cited --json audit start $TEMPLATE_ID \
-  --model anthropic:claude-sonnet-5-5 --model anthropic:claude-opus-5-5 \
-  --model openai:gpt-5.2 | jq -r '.job_id')
-cited job watch $CMP_JOB
-cited audit models $CMP_JOB
-
-RECO_JOB=$(cited --json recommend start $AUDIT_JOB | jq -r '.job_id')
-cited job watch $RECO_JOB
-
-# Extract first question insight source_id
-SOURCE_ID=$(cited --json recommend result $RECO_JOB \
-  | jq -r '.question_insights[0].question_id')
-
-cited solution start $RECO_JOB --type question_insight --source $SOURCE_ID
-```
-
-### Python
-
-The CLI is a thin, authenticated HTTP wrapper — Python scripts can drive it directly via `subprocess` with no extra dependencies. This is the same pattern used by the integration test suite.
-
-```python
-#!/usr/bin/env python3
-"""
-cited-pipeline.py — Automate a full GEO audit pipeline.
-
-Requirements: `cited` CLI installed and authenticated (`cited login` first).
-Usage:        python3 cited-pipeline.py
-"""
-import json
-import subprocess
-
-ENV = "dev"  # or "prod"
-
-
-def cited_json(*args: str) -> dict | list:
-    """Run a cited command with --json and return parsed output."""
-    result = subprocess.run(
-        ["cited", "--env", ENV, "--json", *args],
-        capture_output=True, text=True, check=True,
-    )
-    return json.loads(result.stdout)
-
-
-def cited_watch(*args: str) -> None:
-    """Run a cited command streaming human output live (progress bars, tables)."""
-    subprocess.run(["cited", "--env", ENV, *args], check=True)
-
-
-# ── Step 1: Create business ───────────────────────────────────────────────────
-print("→ Creating business...")
-business = cited_json(
-    "business", "create",
-    "--name",        "Acme Corp",
-    "--website",     "https://acme.com",
-    "--description", "Acme builds AI-powered tools for enterprise productivity teams.",
-    "--industry",    "technology",
-)
-business_id = business["id"]
-print(f"  Business: {business_id}")
-
-# ── Step 2: Scan the website ──────────────────────────────────────────────────
-print("→ Scanning website...")
-crawl = cited_json("business", "crawl", business_id)
-if crawl_job := crawl.get("job_id"):
-    cited_watch("job", "watch", crawl_job)
-
-# ── Step 3: Create audit template ────────────────────────────────────────────
-print("→ Creating audit template...")
-template = cited_json(
-    "audit", "template", "create",
-    "--name",     "Q4 GEO Audit",
-    "--business", business_id,
-    "--question", "Are we cited when people ask about AI productivity tools?",
-    "--question", "Does our product appear in enterprise software recommendations?",
-    "--question", "Are we mentioned when users research our core use case?",
-)
-template_id = template["id"]
-print(f"  Template: {template_id}")
-
-# ── Step 3b: Refine questions (auto-generated questions usually need tuning) ─
-print("→ Refining template questions...")
-updated = cited_json(
-    "audit", "template", "update", template_id,
-    "--question", "Are we cited when enterprise buyers ask about AI safety?",
-    "--question", "Does our product appear in responsible AI recommendations?",
-    "--question", "Are we mentioned when developers compare AI platforms?",
-)
-print(f"  Updated: {len(updated['questions'])} questions")
-
-# ── Step 4: Run the audit ─────────────────────────────────────────────────────
-print("→ Starting audit...")
-audit = cited_json("audit", "start", template_id, "--business", business_id)
-audit_job = audit["job_id"]
-cited_watch("job", "watch", audit_job)
-
-# ── Step 5: Generate recommendations ─────────────────────────────────────────
-print("→ Generating recommendations...")
-recommend = cited_json("recommend", "start", audit_job)
-reco_job = recommend["job_id"]
-cited_watch("job", "watch", reco_job)
-
-# ── Step 6: View available insights ──────────────────────────────────────────
-print("→ Available insights:")
-cited_watch("recommend", "insights", reco_job)
-
-# ── Step 7: Start a content solution ─────────────────────────────────────────
-# Extract source IDs directly from the JSON result
-result = cited_json("recommend", "result", reco_job)
-question_insights = result.get("question_insights", [])
-
-if question_insights:
-    source_id = question_insights[0]["question_id"]
-    print(f"→ Solving: {question_insights[0]['question_text'][:60]}...")
-    solution = cited_json(
-        "solution", "start", reco_job,
-        "--type",   "question_insight",
-        "--source", source_id,
-    )
-    sol_job = solution["job_id"]
-    print(f"  Solution job:    {sol_job}")
-    print(f"  View artifacts:  https://{ENV}.youcited.com/solutions/{sol_job}")
-
-print("\n✓ Pipeline complete!")
-```
-
-The `cited_json()` / `cited_watch()` pattern — capture IDs from `--json` output, stream human output for long-running jobs — is exactly what the integration test suite uses internally with mocked HTTP responses.
+A command that would spend credits without `--yes` prints the price instead and exits 0 in `--json` mode, with `"confirmation_required": true` in the result.
 
 ---
 
 ## Command Reference
 
 ```
-cited login                               Log in (top-level alias)
-cited logout                              Log out (top-level alias)
-cited register                            Register new account (top-level alias)
-cited status                              API health check
-cited version                             Show CLI version
-
-cited auth login|logout|register|status|token
-
+cited login | logout | register | status | version
+cited auth login|logout|status|token|register
 cited config set|get|show|environments
 
-cited business list|get|create|update|delete|health|crawl
+cited agent setup [--client ...] [--dry-run] [--yes]  ← Connect AI clients to Cited
+cited agent signup [--name] [--email]               ← Account + API key for an agent (no login)
 
-cited audit template list|get|create|update|delete   ← Manage audit templates
-cited audit quote TEMPLATE_ID [--model ...]   ← Credits an audit will cost
-cited audit start|status|result|list|export   ← Run and inspect audits
-cited audit models [JOB_ID]                   ← Compare AI models (or list choices)
+cited credits buy [PACK_ID] [--one-audit] [--voucher CODE] [--no-save-card]
 
-cited recommend start|status|result|list      ← Generate recommendations
-cited recommend insights                      ← View actionable source table
+cited business setup [--website URL | --id ID] [--name ...] [--persona "Name: desc"] ...
+cited business get [BUSINESS_ID]
+cited business brief [-b ID]
 
-cited solution start|status|result|list       ← Generate content solutions
+cited audit free URL [--token TOKEN] [--wait/--no-wait]
+cited audit questions [-q ...] [--regenerate] [--add] [--count N] [--focus TEXT] [--job ID]
+cited audit quote [-m MODEL ...]
+cited audit run [-m MODEL ...] [--engine ...] [--country CC] [--deep] [--yes]
+cited audit get [AUDIT_ID] [--answers] [--wait] [--limit N]
+cited audit compare AUDIT_ID [--baseline ID]
+cited audit schedule [--every DAYS | --off] [--email/--no-email] [--webhook URL]
 
-cited hq <business_id> [--full] [--personas] [--products] [--actions]
+cited recommend list [--audit ID] [--run ID] [--all]
+cited recommend set ITEM_KEY open|done|dismissed
 
-cited analytics compare AUDIT_ID BASELINE_ID
+cited fix generate [ITEM_KEY ...] [--all] [--yes]
+cited fix list [--state STATE]
+cited fix get FIX_ID [--save DIR]
+cited fix done|undo|verify FIX_ID
 
-cited agent setup                             ← Connect Claude Code / Cursor / Codex / Claude Desktop
-cited agent signup [--name] [--email]         ← Account + API key for an AI agent (no login)
-cited agent key-status|keys|revoke KEY_ID     ← Inspect and revoke agent keys
-
-cited credits prices                          ← Prices and packs (no login; 1 credit = $1)
-cited credits balance|history [--limit N]
-cited credits buy PACK_ID [--no-save-card]    ← Checkout link for a pack
-cited credits buy-audit                       ← $15 checkout link for one audit
-cited credits refund [--yes]                  ← Refund unused credits (last 30 days)
-cited credits redeem CODE                     ← Redeem a voucher code for free credits
-cited credits auto-refill --on|--off [--pack PACK_ID] [--cap USD]
-
-cited docs search|get                         ← Search and read the public docs (no login)
-
-cited job watch|cancel
+cited docs search QUERY | cited docs get PATH
+cited tools list | cited tools call NAME [JSON]
+cited mcp serve
 ```
 
 ---
@@ -618,23 +372,7 @@ cited config environments
 
 ## JSON Output
 
-All commands write clean JSON to stdout with `--json`, enabling pipelines with `jq`, `python3 -c`, or any other tool:
-
-```bash
-# Extract specific fields
-cited --json business list | jq '.[].name'
-cited --json audit result <id> | jq '.overall_citation_rate'
-cited --json recommend result <id> | jq '.question_insights[].question_text'
-
-# Save full results
-cited --json audit result <id> > audit.json
-cited --json recommend result <id> > recommendations.json
-
-# Count citations by provider
-cited --json audit result <id> | jq '[.citations_pulled[].provider_name] | group_by(.) | map({provider: .[0], count: length})'
-```
-
-Errors always go to **stderr** as `{"error": true, "message": "..."}` so they never corrupt stdout pipelines.
+All commands write clean JSON to stdout with `--json`, so they pipe into `jq`, `python3 -c`, or any other tool. Errors always go to **stderr** as `{"error": true, "message": "..."}` so they never corrupt stdout pipelines.
 
 ---
 
@@ -655,23 +393,18 @@ Errors always go to **stderr** as `{"error": true, "message": "..."}` so they ne
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-pytest -v                                       # All tests
-pytest tests/test_pipeline.py -v               # Pipeline integration tests
-ruff check src/
-mypy src/cited_cli/ --ignore-missing-imports
+./scripts/dev-install.sh
+pytest -v
+ruff check src/ packages/
+mypy packages/core/src packages/mcp/src src/cited_cli/ --ignore-missing-imports
 ```
 
-### MCP test harness
-
-`scripts/mcp_test_harness.py` runs an end-to-end test suite against the deployed MCP server (dev or prod). Exercises the four-PR-plan test cases — `tools_fingerprint` on `ping`, `whats_new` lookups, read-only credits tools (`get_prices`, `get_credits`), `tool_unavailable` error shape — plus auth/host-header/rate-limit/cross-env/`robots.txt` regression checks.
+`packages/core/src/cited_core/tools.json` is a snapshot of the API's tool list, used when the API can't be reached. Refresh it after the API's tools change:
 
 ```bash
-./scripts/mcp_test_harness.py --env dev    # mcpdev.youcited.com
-./scripts/mcp_test_harness.py --env prod   # mcp.youcited.com
+python scripts/sync_tools_manifest.py            # from api.youcited.com
+python scripts/sync_tools_manifest.py --env dev
 ```
-
-First run per env opens a browser for OAuth; tokens are cached at `/tmp/cited-mcp-{env}-token.json` and reused for 7 days. The rate-limiter test fills the user's per-token window for ~60s, so run it last in any debug session.
 
 ## Releasing
 

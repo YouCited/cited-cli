@@ -1,28 +1,18 @@
 ---
 name: business-setup
-description: Create and onboard a new business on the Cited platform
+description: Add a business to Cited and fill in its profile, buyer personas and offerings
 ---
 
 # Business Setup Workflow
 
-Use the Cited MCP tools to create a new business and prepare it for GEO auditing.
+Use the Cited tools to add a business and give the audit enough context to ask good buyer questions.
 
 ## Steps
 
-1. **Verify auth**: Call `check_auth_status` to confirm the user is logged in. If there are no credentials and the user has no account, `agent_signup` creates one for the agent (1 business until a person claims it); show the user the claim link and code it returns.
+1. **Account**: call `account_status`. If no one is signed in, call `agent_signup` and show the user the claim link and code. An unclaimed account can add 1 business.
+2. **Add the business**: call `setup_business` with `website`. The name comes from the domain and the industry defaults to `other`; pass `name`, `industry` and a `description` (10+ words) when you know them.
+3. **Profile**: call `setup_business` again with `business_id` and what you learn from the user or the site: `one_line_description`, `primary_customer`, `problem_solved`, `offering_type`, `primary_market`, `service_areas`, `goals`.
+4. **Personas and offerings**: in the same call pass `personas` (`{name, description}`) and `offerings` (`{name, description, category}`). Change one with `{id, ...}` and remove one with `{id, remove: true}`.
+5. **Check**: `get_business` with `business_id` shows the profile, personas, offerings, question set and recent audits.
 
-2. **Create business**: Call `create_business` with:
-   - `name`: Business name
-   - `website`: Must be a publicly DNS-resolvable domain (not example.com)
-   - `description`: At least ~50 characters describing the business
-   - `industry`: One of: automotive, beauty, consulting, education, entertainment, finance, fitness, government, healthcare, home_services, hospitality, legal, manufacturing, non_profit, real_estate, restaurant, retail, technology, other
-
-3. **Trigger crawl**: Call `crawl_business` with the `business_id` from the create response. Save the returned `job_id`.
-
-4. **Poll crawl status**: Call `get_job_status` with just the `job_id` (omit `job_type` — it will auto-detect the correct type). Wait for completion.
-
-5. **Check health scores**: Call `get_health_scores` with the `business_id` to see the initial GEO health assessment.
-
-## Next Steps
-
-After setup, suggest running a GEO audit using the `geo-audit` workflow.
+Then draft the buyer questions with `draft_questions` and continue with the `geo-audit` skill.

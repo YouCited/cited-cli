@@ -23,10 +23,18 @@ def _setup_tmp_config(tmp_path, monkeypatch):
     return config_dir, creds_file
 
 
+@respx.mock
 def test_auth_status_not_logged_in(runner, cli_app, tmp_path, monkeypatch):
     _setup_tmp_config(tmp_path, monkeypatch)
+    monkeypatch.delenv("CITED_AGENT_API_KEY", raising=False)
+    route = respx.post("https://api.youcited.com/agent/tools/account_status").mock(
+        return_value=httpx.Response(200, json={"signed_in": False, "next_step": "Run free_audit"})
+    )
     result = runner.invoke(cli_app, ["auth", "status"])
-    assert result.exit_code != 0
+    assert result.exit_code == 0
+    assert "Not signed in" in result.output
+    assert "cited audit free" in result.output
+    assert "Cookie" not in route.calls[0].request.headers
 
 
 def test_auth_logout_not_logged_in(runner, cli_app, tmp_path, monkeypatch):

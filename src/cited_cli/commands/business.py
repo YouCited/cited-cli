@@ -1,203 +1,161 @@
+"""`cited business`: setup_business, get_business and get_agent_brief."""
+
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
 
-from cited_cli.output.formatter import OutputContext, print_error, print_result, print_success
-from cited_cli.output.tables import render_bar, render_kv, render_table
-from cited_cli.utils.client import get_authed_client
-from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
-from cited_cli.utils.interactive import can_prompt, prompt_choice, prompt_if_missing
-from cited_core.api import endpoints
-from cited_core.api.client import CitedClient
-from cited_core.config.constants import VALID_INDUSTRIES
+from cited_cli.output.tables import render_kv, render_table
+from cited_cli.utils.tools import as_commands, clean, run
 
-business_app = typer.Typer(name="business", help="Manage businesses.")
+business_app = typer.Typer(help="Add and describe your business.", no_args_is_help=True)
 
 
-def _get_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient, str]:
-    return get_authed_client(ctx)
+def _people(values: list[str] | None, removals: list[str] | None) -> list[Any]:
+    """``"Name: description"`` adds one; ``--remove-* ID`` removes one."""
+    items: list[dict[str, Any]] = []
+    for value in values or []:
+        name, _, description = value.partition(":")
+        item: dict[str, Any] = {"name": name.strip()}
+        if description.strip():
+            item["description"] = description.strip()
+        items.append(item)
+    items.extend({"id": i, "remove": True} for i in removals or [])
+    return items
 
 
-@business_app.command("list")
-def business_list(ctx: typer.Context) -> None:
-    """List all businesses."""
-    out, client, _ = _get_client(ctx)
-    try:
-        data = client.get(endpoints.BUSINESSES)
-        businesses = (
-            data if isinstance(data, list)
-            else data.get("businesses", data.get("items", [data]))
+def _setup(data: dict[str, Any], console: Console) -> None:
+    business = data.get("business") or {}
+    verb = "Added" if data.get("created") else "Updated"
+    console.print(f"{verb} {business.get('name')} ({business.get('id')})", markup=False)
+    for kind in ("personas", "offerings"):
+        for item in data.get(kind) or []:
+            what = "removed" if item.get("removed") else "saved"
+            label = item.get("name") or item.get("id")
+            console.print(f"  {kind[:-1]} {what}: {label}", markup=False)
+    console.print(f"→ {as_commands(str(data.get('next_step') or ''))}", markup=False)
+
+
+@business_app.command("setup")
+def setup(
+    ctx: typer.Context,
+    website: Annotated[str | None, typer.Option("--website", "-w", help="Add a business")] = None,
+    business_id: Annotated[
+        str | None, typer.Option("--id", help="Update this business instead")
+    ] = None,
+    name: Annotated[str | None, typer.Option("--name")] = None,
+    industry: Annotated[str | None, typer.Option("--industry")] = None,
+    description: Annotated[
+        str | None, typer.Option("--description", help="What it does (10+ words)")
+    ] = None,
+    tagline: Annotated[
+        str | None, typer.Option("--tagline", help="One-line description, max 140 characters")
+    ] = None,
+    customer: Annotated[str | None, typer.Option("--customer", help="Primary customer")] = None,
+    problem: Annotated[str | None, typer.Option("--problem", help="Problem it solves")] = None,
+    offering_type: Annotated[str | None, typer.Option("--offering-type")] = None,
+    market: Annotated[str | None, typer.Option("--market", help="Primary market")] = None,
+    service_areas: Annotated[str | None, typer.Option("--service-areas")] = None,
+    country: Annotated[
+        str | None, typer.Option("--country", help="Headquarters country (two letters)")
+    ] = None,
+    goal: Annotated[list[str] | None, typer.Option("--goal", help="Repeat for several")] = None,
+    persona: Annotated[
+        list[str] | None, typer.Option("--persona", help="Add one: 'Name: description'")
+    ] = None,
+    offering: Annotated[
+        list[str] | None, typer.Option("--offering", help="Add one: 'Name: description'")
+    ] = None,
+    remove_persona: Annotated[list[str] | None, typer.Option("--remove-persona")] = None,
+    remove_offering: Annotated[list[str] | None, typer.Option("--remove-offering")] = None,
+) -> None:
+    """Add a business from its website, or update one with --id."""
+    args = clean(
+        {
+            "website": website,
+            "business_id": business_id,
+            "name": name,
+            "industry": industry,
+            "description": description,
+            "one_line_description": tagline,
+            "primary_customer": customer,
+            "problem_solved": problem,
+            "offering_type": offering_type,
+            "primary_market": market,
+            "service_areas": service_areas,
+            "headquarters_country": country,
+            "goals": goal,
+            "personas": _people(persona, remove_persona),
+            "offerings": _people(offering, remove_offering),
+        }
+    )
+    run(ctx, "setup_business", args, _setup)
+
+
+def _get(data: dict[str, Any], console: Console) -> None:
+    if "businesses" in data:
+        render_table(
+            "Businesses",
+            ["id", "name", "website", "industry"],
+            [[b.get("id"), b.get("name"), b.get("website"), b.get("industry")]
+             for b in data["businesses"]],
+            console,
         )
-
-        def _human(d: object, console: Console) -> None:
-            items = d if isinstance(d, list) else []
-            rows = []
-            for b in items:
-                rows.append([
-                    b.get("id", "")[:8],
-                    b.get("name", ""),
-                    b.get("website", ""),
-                    b.get("industry", ""),
-                ])
-            render_table("Businesses", ["ID", "Name", "Website", "Industry"], rows, console)
-
-        print_result(businesses, out, human_formatter=_human)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
+        return
+    business = data.get("business") or {}
+    render_kv(
+        business.get("name") or "Business",
+        {k: business.get(k) for k in ("id", "website", "industry", "description")
+         if business.get(k)},
+        console,
+    )
+    for kind in ("personas", "offerings"):
+        items = data.get(kind) or []
+        if items:
+            render_table(
+                kind.title(),
+                ["id", "name", "description"],
+                [[i.get("id"), i.get("name"), i.get("description") or ""] for i in items],
+                console,
+            )
+    question_set = data.get("question_set")
+    if question_set:
+        console.print("[bold]Questions[/bold]")
+        for q in question_set.get("questions") or []:
+            console.print(f"  • {q}", markup=False)
+        schedule = question_set.get("schedule") or {}
+        if schedule.get("enabled"):
+            console.print(f"  Re-checked every {schedule.get('every_days')} days", markup=False)
+    else:
+        console.print("No questions yet: cited audit questions")
+    audits = data.get("recent_audits") or []
+    if audits:
+        render_table(
+            "Recent audits",
+            ["audit_id", "status", "created_at", "avg_cited_kpi"],
+            [[a.get("audit_id"), a.get("status"), a.get("created_at"), a.get("avg_cited_kpi")]
+             for a in audits],
+            console,
+        )
 
 
 @business_app.command("get")
-def business_get(
+def get(
     ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID")],
-) -> None:
-    """Get business details."""
-    out, client, _ = _get_client(ctx)
-    try:
-        path = endpoints.BUSINESS.format(business_id=business_id)
-        data = client.get(path)
-        print_result(
-            data,
-            out,
-            human_formatter=lambda d, c: render_kv(
-                d.get("name", "Business"),
-                {k: v for k, v in d.items() if v is not None and k != "id"},
-                c,
-            ),
-        )
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
-
-
-@business_app.command("create")
-def business_create(
-    ctx: typer.Context,
-    name: Annotated[str | None, typer.Option(help="Business name")] = None,
-    website: Annotated[str | None, typer.Option(help="Business website URL")] = None,
-    description: Annotated[
-        str | None, typer.Option(help="Business description (min 50 chars)")
+    business_id: Annotated[
+        str | None, typer.Argument(help="Omit to list your businesses")
     ] = None,
-    industry: Annotated[str | None, typer.Option(help="Industry")] = None,
 ) -> None:
-    """Create a new business."""
-    out, client, _ = _get_client(ctx)
-    name = prompt_if_missing(name, "--name", "Business name", out)
-    website = prompt_if_missing(website, "--website", "Website URL", out)
-    description = prompt_if_missing(description, "--description", "Description (min 50 chars)", out)
-    if industry is None and can_prompt(out):
-        industry = prompt_choice(industry, "--industry", "Select industry:", VALID_INDUSTRIES, out)
-    try:
-        payload: dict[str, str] = {"name": name, "website": website, "description": description}
-        if industry:
-            payload["industry"] = industry
-        data = client.post(endpoints.BUSINESSES, json=payload)
-        print_result(data, out, human_formatter=lambda d, c: render_kv("Created Business", d, c))
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
+    """List your businesses, or show one: profile, personas, questions and audits."""
+    run(ctx, "get_business", clean({"business_id": business_id}), _get)
 
 
-@business_app.command("update")
-def business_update(
+@business_app.command("brief")
+def brief(
     ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID")],
-    name: Annotated[str | None, typer.Option(help="New name")] = None,
-    website: Annotated[str | None, typer.Option(help="New website")] = None,
-    industry: Annotated[str | None, typer.Option(help="New industry")] = None,
+    business_id: Annotated[str, typer.Argument(help="The business")],
 ) -> None:
-    """Update a business."""
-    out, client, _ = _get_client(ctx)
-    try:
-        payload: dict[str, str] = {}
-        if name is not None:
-            payload["name"] = name
-        if website is not None:
-            payload["website"] = website
-        if industry is not None:
-            payload["industry"] = industry
-        if not payload:
-            print_error("No fields to update. Use --name, --website, or --industry.", out)
-            raise typer.Exit(ExitCode.VALIDATION_ERROR)
-        path = endpoints.BUSINESS.format(business_id=business_id)
-        data = client.patch(path, json=payload)
-        print_success(f"Updated business {business_id[:8]}", out)
-        print_result(data, out)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
-
-
-@business_app.command("delete")
-def business_delete(
-    ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID")],
-    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation")] = False,
-) -> None:
-    """Delete a business."""
-    out, client, _ = _get_client(ctx)
-    if not yes and not out.json_mode:
-        typer.confirm(f"Delete business {business_id}?", abort=True)
-    try:
-        path = endpoints.BUSINESS.format(business_id=business_id)
-        client.delete(path)
-        print_success(f"Deleted business {business_id[:8]}", out)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
-
-
-@business_app.command("health")
-def business_health(
-    ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID")],
-) -> None:
-    """Show health scores for a business."""
-    out, client, _ = _get_client(ctx)
-    try:
-        path = endpoints.HEALTH_SCORES.format(business_id=business_id)
-        data = client.get(path)
-
-        def _human(d: object, console: Console) -> None:
-            console.print()
-            console.print("[bold]Health Scores[/bold]")
-            console.print("─" * 50)
-            dd = d if isinstance(d, dict) else {}
-            scores = dd.get("scores", dd)
-            if isinstance(scores, dict):
-                for label, value in scores.items():
-                    if isinstance(value, (int, float)):
-                        render_bar(label.replace("_", " ").title(), value, console=console)
-            console.print()
-
-        print_result(data, out, human_formatter=_human)
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
-
-
-@business_app.command("crawl")
-def business_crawl(
-    ctx: typer.Context,
-    business_id: Annotated[str, typer.Argument(help="Business ID")],
-) -> None:
-    """Trigger a website crawl for a business."""
-    out, client, _ = _get_client(ctx)
-    try:
-        path = endpoints.CRAWL_START.format(business_id=business_id)
-        data = client.post(path, timeout=60.0)
-        print_result(data, out, human_formatter=lambda d, c: render_kv("Crawl Started", d, c))
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    finally:
-        client.close()
+    """What to focus on next: top recommendations, quick wins and recent movement."""
+    run(ctx, "get_agent_brief", {"business_id": business_id})

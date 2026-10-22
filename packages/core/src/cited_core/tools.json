@@ -1,0 +1,792 @@
+{
+  "name": "cited",
+  "title": "Cited",
+  "version": "8e72ee4dbc2a",
+  "instructions": "Cited checks whether AI assistants (ChatGPT, Gemini, Claude, Google AI Mode) cite a website when buyers ask about what it sells, and what to change so they do. Start with account_status. free_audit needs no account. For a paid audit: agent_signup (or sign in), setup_business, draft_questions, quote_audit, then run_audit, get_audit, get_recommendations and generate_fixes. Purchases only return checkout links for the human to open.",
+  "tools": [
+    {
+      "name": "free_audit",
+      "title": "Free AI Visibility Audit",
+      "description": "Free check of how AI answers 5 buyer questions about a website: whether the site is cited, which sites are cited instead, a 0-100 score, an executive summary and whether AI bots can reach the site. No account needed. The first call starts it and returns report_token; call again with report_token about every 30 seconds until status is 'completed' (2-4 minutes). The same domain within 24 hours returns the same audit.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Website to audit, e.g. example.com."
+          },
+          "report_token": {
+            "type": "string",
+            "description": "From an earlier free_audit call, to check on it."
+          }
+        }
+      },
+      "annotations": {
+        "title": "Free AI Visibility Audit",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "requires_login": false
+    },
+    {
+      "name": "agent_signup",
+      "title": "Create Account For Your Human",
+      "description": "Create a Cited account for your human without a login. Returns an API key (shown once), a claim link and a 6-digit code for the human. Unclaimed accounts can add 1 business and run 1 audit (paid with a one-audit checkout link) and are deleted after 7 days. Pass owner_email to email them the claim link. Not needed when already signed in.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "agent_name": {
+            "type": "string",
+            "description": "Your name, shown to the human (e.g. 'Claude')."
+          },
+          "owner_email": {
+            "type": "string",
+            "description": "Optional: the human's email for the claim link."
+          }
+        }
+      },
+      "annotations": {
+        "title": "Create Account For Your Human",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "requires_login": false
+    },
+    {
+      "name": "account_status",
+      "title": "Account Status",
+      "description": "Who is signed in, the credit balance, claim status, the businesses on the account, the price list and the next step. Works without signing in (prices and how to start). Call this first.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "title": "Account Status",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "requires_login": false
+    },
+    {
+      "name": "buy_credits",
+      "title": "Buy Credits",
+      "description": "Get a Stripe checkout link for a credit pack (pack_id) or for one audit (one_audit=true; works before the account is claimed), or redeem a voucher_code. Without arguments it lists the packs. A link only starts a purchase: the human pays in the browser, and nothing is bought until account_status shows the new balance. 1 credit = $1.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "pack_id": {
+            "type": "string",
+            "description": "A pack id from the price list (account_status)."
+          },
+          "one_audit": {
+            "type": "boolean",
+            "description": "Checkout for a single audit instead of a pack."
+          },
+          "voucher_code": {
+            "type": "string",
+            "description": "Redeem a voucher for free credits."
+          },
+          "save_card": {
+            "type": "boolean",
+            "description": "Save the card for later packs (default true)."
+          }
+        }
+      },
+      "annotations": {
+        "title": "Buy Credits",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "setup_business",
+      "title": "Set Up Business",
+      "description": "Add a business from its website, or update one (pass business_id). Only website is needed to add one: the name comes from the domain and industry defaults to 'other' unless you pass better ones. Also adds, changes or removes buyer personas and offerings (what the business sells). Unclaimed accounts can add one business.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "description": "Update this business instead of adding one."
+          },
+          "website": {
+            "type": "string",
+            "description": "e.g. example.com"
+          },
+          "name": {
+            "type": "string"
+          },
+          "industry": {
+            "type": "string",
+            "enum": [
+              "automotive",
+              "beauty",
+              "consulting",
+              "education",
+              "entertainment",
+              "finance",
+              "fitness",
+              "government",
+              "healthcare",
+              "home_services",
+              "hospitality",
+              "legal",
+              "manufacturing",
+              "non_profit",
+              "real_estate",
+              "restaurant",
+              "retail",
+              "technology",
+              "other"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "What the business does (10+ words, 50+ characters)."
+          },
+          "one_line_description": {
+            "type": "string",
+            "description": "Tagline, max 140 characters."
+          },
+          "primary_customer": {
+            "type": "string"
+          },
+          "problem_solved": {
+            "type": "string"
+          },
+          "offering_type": {
+            "type": "string",
+            "enum": [
+              "product",
+              "service",
+              "both"
+            ]
+          },
+          "primary_market": {
+            "type": "string",
+            "enum": [
+              "global",
+              "national",
+              "regional",
+              "local"
+            ]
+          },
+          "service_areas": {
+            "type": "string",
+            "description": "Cities or regions, for local or regional businesses."
+          },
+          "headquarters_country": {
+            "type": "string",
+            "description": "Two-letter ISO code, e.g. US."
+          },
+          "goals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "discovery_channels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "success_definition": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "description": "Update only."
+          },
+          "city": {
+            "type": "string",
+            "description": "Update only."
+          },
+          "region": {
+            "type": "string",
+            "description": "Update only."
+          },
+          "country": {
+            "type": "string",
+            "description": "Update only."
+          },
+          "personas": {
+            "type": "array",
+            "description": "Buyer personas to add ({name, description}), change ({id, ...}) or remove ({id, remove: true}).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Set to change or remove one."
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "remove": {
+                  "type": "boolean",
+                  "description": "With id: remove it."
+                },
+                "constraints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "offerings": {
+            "type": "array",
+            "description": "Products or services to add ({name, description, category}), change ({id, ...}) or remove ({id, remove: true}).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Set to change or remove one."
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "remove": {
+                  "type": "boolean",
+                  "description": "With id: remove it."
+                },
+                "category": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "annotations": {
+        "title": "Set Up Business",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "get_business",
+      "title": "Get Business",
+      "description": "Without business_id: list the account's businesses. With it: the profile, buyer personas, offerings, the question set (and its re-check schedule) and recent audits.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string"
+          }
+        }
+      },
+      "annotations": {
+        "title": "Get Business",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "get_agent_brief",
+      "title": "Agent Brief",
+      "description": "One-page summary of what to focus on for a business: top open recommendations, quick wins, failing site checks and recent citation movement. Use it for 'what should I do next?'.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "business_id"
+        ]
+      },
+      "annotations": {
+        "title": "Agent Brief",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "draft_questions",
+      "title": "Draft Audit Questions",
+      "description": "The business's question set: the buyer questions each audit asks AI. Returns the set when there is one. With none (or regenerate=true, or add=true to draft more) it starts drafting and returns job_id; call again with job_id to save and return the drafted set. Pass questions to replace the set with your own list. Review the questions with the user before run_audit. Up to 25 questions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "description": "Optional when the account has one business."
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Replace the set with these questions."
+          },
+          "regenerate": {
+            "type": "boolean",
+            "description": "Draft a new set even though one exists."
+          },
+          "add": {
+            "type": "boolean",
+            "description": "Draft more questions and add them to the set."
+          },
+          "count": {
+            "type": "integer",
+            "description": "How many to draft (default 5)."
+          },
+          "focus": {
+            "type": "string",
+            "description": "Optional steer, e.g. 'pricing questions'."
+          },
+          "job_id": {
+            "type": "string",
+            "description": "From an earlier call, to collect drafted questions."
+          }
+        }
+      },
+      "annotations": {
+        "title": "Draft Audit Questions",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "quote_audit",
+      "title": "Quote Audit",
+      "description": "What an audit of the business's question set costs in credits, the balance, and the models that can answer. Free; nothing is charged.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "description": "Optional when the account has one business."
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional models to compare, from available_models."
+          }
+        }
+      },
+      "annotations": {
+        "title": "Quote Audit",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "run_audit",
+      "title": "Run Audit",
+      "description": "Run a paid audit of the business's question set: every question goes to each engine's flagship and fast model (or the models you pass), three times each, and recommendations follow automatically. Spends credits: without confirm=true it only returns the cost, so ask the user, then call again with confirm=true. Credits come back if the run fails. Returns audit_id; poll get_audit.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "description": "Optional when the account has one business."
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional models to compare, as [route/]provider:model from quote_audit's available_models. Each extra model costs more."
+          },
+          "engines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional subset of engines (default: all)."
+          },
+          "country": {
+            "type": "string",
+            "description": "Two-letter country for as-seen (brightdata/) checks."
+          },
+          "deep_recommendations": {
+            "type": "boolean",
+            "description": "Look harder at why other sites were cited."
+          },
+          "confirm": {
+            "type": "boolean",
+            "description": "True only after the user approved the cost."
+          }
+        }
+      },
+      "annotations": {
+        "title": "Run Audit",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "get_audit",
+      "title": "Get Audit",
+      "description": "With audit_id: its status while it runs, then the report: a 0-100 score per model (Cited, Visibility, Share of Voice), the overall score, the executive summary, the site check, each question's answers with the sites cited instead, the share link and whether recommendations are ready. Without audit_id: the account's audits (filter by business_id).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "audit_id": {
+            "type": "string"
+          },
+          "business_id": {
+            "type": "string"
+          },
+          "include_answers": {
+            "type": "boolean",
+            "description": "Full AI answers instead of excerpts."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "List length (default 20)."
+          }
+        }
+      },
+      "annotations": {
+        "title": "Get Audit",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "compare_audits",
+      "title": "Compare Audits",
+      "description": "Wins and drops between an audit and an earlier one of the same business: citations gained or lost per question and model, and score changes. Without baseline_audit_id it compares with the previous audit.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "audit_id": {
+            "type": "string"
+          },
+          "baseline_audit_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "audit_id"
+        ]
+      },
+      "annotations": {
+        "title": "Compare Audits",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "schedule_recheck",
+      "title": "Schedule Re-check",
+      "description": "Re-run the business's question set on a schedule (every 7-90 days, default 30) and alert on citations gained or lost and score moves of 10+ points: in-app, by email, and to an optional webhook so an agent can react. Each re-check costs credits when it runs. off=true stops it.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "description": "Optional when the account has one business."
+          },
+          "every_days": {
+            "type": "integer",
+            "minimum": 7,
+            "maximum": 90
+          },
+          "off": {
+            "type": "boolean",
+            "description": "Stop the schedule."
+          },
+          "email_alerts": {
+            "type": "boolean"
+          },
+          "webhook_url": {
+            "type": "string",
+            "description": "HTTPS URL for alerts; empty string removes it."
+          }
+        }
+      },
+      "annotations": {
+        "title": "Schedule Re-check",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "get_recommendations",
+      "title": "Get Recommendations",
+      "description": "What to change on the site to get cited, from an audit: one item per buyer question the site loses and per site change, each with item_key, status (open, done, dismissed), the evidence behind it and its fix if one was made. Open items only unless include_closed. Also the price of fixes (the first ones are included with each audit).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "audit_id": {
+            "type": "string",
+            "description": "The audit (default: the newest finished one)."
+          },
+          "business_id": {
+            "type": "string",
+            "description": "Use this business's newest finished audit."
+          },
+          "recommendations_id": {
+            "type": "string",
+            "description": "From get_recommendations; overrides audit_id."
+          },
+          "include_closed": {
+            "type": "boolean",
+            "description": "Also list done and dismissed items."
+          }
+        }
+      },
+      "annotations": {
+        "title": "Get Recommendations",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "update_recommendation",
+      "title": "Update Recommendation",
+      "description": "Mark a recommendation done or dismissed, or open it again. The status is kept for the business, so later audits show the item the same way.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "audit_id": {
+            "type": "string",
+            "description": "The audit (default: the newest finished one)."
+          },
+          "business_id": {
+            "type": "string",
+            "description": "Use this business's newest finished audit."
+          },
+          "recommendations_id": {
+            "type": "string",
+            "description": "From get_recommendations; overrides audit_id."
+          },
+          "item_key": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "done",
+              "dismissed"
+            ]
+          }
+        },
+        "required": [
+          "item_key",
+          "status"
+        ]
+      },
+      "annotations": {
+        "title": "Update Recommendation",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "generate_fixes",
+      "title": "Generate Fixes",
+      "description": "Write the fix for recommendations: the files (schema markup, FAQ, page copy, llms.txt) and steps to put them on the site. Pass item_keys (up to 10) or all=true for every open item without a fix. Each audit includes the first fixes; beyond those each costs credits, and the call returns the price for the user to confirm (confirm=true) before spending.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "audit_id": {
+            "type": "string",
+            "description": "The audit (default: the newest finished one)."
+          },
+          "business_id": {
+            "type": "string",
+            "description": "Use this business's newest finished audit."
+          },
+          "recommendations_id": {
+            "type": "string",
+            "description": "From get_recommendations; overrides audit_id."
+          },
+          "item_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "all": {
+            "type": "boolean",
+            "description": "Every open item."
+          },
+          "confirm": {
+            "type": "boolean",
+            "description": "The user agreed to the credits quoted."
+          }
+        }
+      },
+      "annotations": {
+        "title": "Generate Fixes",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "get_fixes",
+      "title": "Get Fixes",
+      "description": "With fix_id: the fix's files (with their content), where each goes, the steps and the last verification. Without: list fixes with their state (generating, ready, done, verified, working), optionally for one audit, recommendations run or business.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "fix_id": {
+            "type": "string"
+          },
+          "audit_id": {
+            "type": "string",
+            "description": "The audit (default: the newest finished one)."
+          },
+          "business_id": {
+            "type": "string",
+            "description": "Use this business's newest finished audit."
+          },
+          "recommendations_id": {
+            "type": "string",
+            "description": "From get_recommendations; overrides audit_id."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "generating",
+              "ready",
+              "done",
+              "verified",
+              "working",
+              "failed"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        }
+      },
+      "annotations": {
+        "title": "Get Fixes",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "requires_login": true
+    },
+    {
+      "name": "update_fix",
+      "title": "Update Fix",
+      "description": "action 'done': the user put the fix on their site. 'undo': back to ready. 'verify': re-check the live site for the fix now (free); it moves to verified when every check passes, and the report says what is missing when one fails.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "fix_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "done",
+              "undo",
+              "verify"
+            ]
+          }
+        },
+        "required": [
+          "fix_id",
+          "action"
+        ]
+      },
+      "annotations": {
+        "title": "Update Fix",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "requires_login": true
+    },
+    {
+      "name": "search_docs",
+      "title": "Search Cited Docs",
+      "description": "Search the Cited help docs (how audits, scores, credits, fixes and the tools work) with query, or read one doc in full with path ('<category>/<slug>' from a result). No account needed.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "description": "A result's path."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          }
+        }
+      },
+      "annotations": {
+        "title": "Search Cited Docs",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "requires_login": false
+    }
+  ]
+}

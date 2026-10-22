@@ -1,50 +1,64 @@
-"""Feature parity test: CLI commands vs MCP tools.
+"""Feature parity: every CLI command runs a tool, and every tool has a command.
 
-This test fails when a CLI command has no MCP equivalent or vice versa,
-preventing feature drift between the two interfaces. When adding a new
-feature, add it to BOTH the CLI and MCP, then update the exceptions
-below if the gap is intentional.
+The tools are defined once, in the Cited API (``cited_core/tools.json`` is the
+bundled snapshot); cited-mcp lists exactly those plus its local login/logout.
+When a tool is added, add its CLI command and map it here.
 """
 
 from __future__ import annotations
 
-import pytest
+from cited_core.tools import bundled_manifest, tool_names
 
-# Intentional gaps — features that only make sense in one interface.
-# Each entry must have a comment explaining WHY it's CLI-only or MCP-only.
+# Commands with no tool behind them, and why.
 CLI_ONLY = {
-    "auth token",  # Raw JWT export — only useful for CLI scripting/piping
-    "auth register",  # Account creation — one-time flow, not suited for MCP
+    "auth token",  # Prints the raw session token for scripts
+    "auth register",  # Account creation in a browser or with a password
     "register",  # Top-level alias for auth register
-    "config set",  # Local config management — no equivalent in MCP
-    "config get",  # Local config management
-    "config show",  # Local config management
-    "config environments",  # Local config management
-    "mcp serve",  # Starts the MCP server itself — meta, not a tool
-    "job watch",  # Live Rich progress bar — interactive terminal only
-    "version",  # CLI version display — not meaningful for MCP
-    "agent setup",  # Writes MCP config for local AI clients on this machine — not a remote tool
+    "config set",  # Local config
+    "config get",  # Local config
+    "config show",  # Local config
+    "config environments",  # Local config
+    "mcp serve",  # Starts the MCP server itself
+    "version",  # CLI version
+    "agent setup",  # Writes MCP config for AI clients on this machine
+    "tools list",  # The tool list itself
+    "tools call",  # Calls any tool by name
 }
 
-MCP_ONLY = {
-    "ping",  # Lightweight readiness check — CLI users run `cited status` instead
-    "whats_new",  # Tool-surface diff for stale MCP-client caches — CLI doesn't have a tool cache
-    "get_usage_stats",  # Aggregated stats — CLI uses auth status + business list
-    "get_job_status",  # MCP probes types; CLI uses job watch (live polling)
-    "get_audit_question_detail",  # Drill-down from summary — CLI uses audit result (full)
-    "get_recommendation_insight_detail",  # Drill-down from summary — CLI uses recommend full
-    "start_solutions_batch",  # Bulk operation — CLI users call solution start in a loop
-    # Action plan tools — agent/conversational checklist UX, no CLI equivalent yet
-    "get_action_plan",  # Conversational ranked checklist — agents only
-    "get_quick_wins",  # Filtered checklist for "what should I do now?" — agents only
-    "mark_action_done",  # Stateful progress mark — agents update checklist via chat
-    "dismiss_action",  # Stateful progress mark — agents dismiss via chat
-    "get_action_progress",  # Progress summary — surfaced inline by the agent
+# CLI command -> the tool it runs.
+CLI_TO_TOOL: dict[str, str] = {
+    "login": "login",
+    "logout": "logout",
+    "auth login": "login",
+    "auth logout": "logout",
+    "status": "account_status",
+    "auth status": "account_status",
+    "audit free": "free_audit",
+    "agent signup": "agent_signup",
+    "credits buy": "buy_credits",
+    "business setup": "setup_business",
+    "business get": "get_business",
+    "business brief": "get_agent_brief",
+    "audit questions": "draft_questions",
+    "audit quote": "quote_audit",
+    "audit run": "run_audit",
+    "audit get": "get_audit",
+    "audit compare": "compare_audits",
+    "audit schedule": "schedule_recheck",
+    "recommend list": "get_recommendations",
+    "recommend set": "update_recommendation",
+    "fix generate": "generate_fixes",
+    "fix list": "get_fixes",
+    "fix get": "get_fixes",
+    "fix done": "update_fix",
+    "fix undo": "update_fix",
+    "fix verify": "update_fix",
+    "docs search": "search_docs",
+    "docs get": "search_docs",
 }
 
 
-def _get_cli_commands() -> set[str]:
-    """Extract all CLI commands as 'group subcommand' strings."""
+def _cli_commands() -> set[str]:
     import typer
 
     from cited_cli.app import app
@@ -52,166 +66,45 @@ def _get_cli_commands() -> set[str]:
     commands: set[str] = set()
 
     def _walk(typer_app: typer.Typer, prefix: str = "") -> None:
-        # Get registered commands
         for command in typer_app.registered_commands:
-            name = command.name or command.callback.__name__
-            full = f"{prefix} {name}".strip() if prefix else name
-            commands.add(full)
-
-        # Get registered sub-apps (groups)
+            name = command.name or (command.callback.__name__ if command.callback else "")
+            commands.add(f"{prefix} {name}".strip())
         for group in typer_app.registered_groups:
-            sub_app = group.typer_instance
-            group_name = group.name or ""
-            full_prefix = f"{prefix} {group_name}".strip() if prefix else group_name
-            if sub_app:
-                _walk(sub_app, full_prefix)
+            if group.typer_instance:
+                _walk(group.typer_instance, f"{prefix} {group.name or ''}".strip())
 
     _walk(app)
     return commands
 
 
-def _get_mcp_tools() -> set[str]:
-    """Get all registered MCP tool names."""
-    from cited_mcp.server import create_stdio_server
+def _mcp_tools() -> set[str]:
+    from cited_core.api.client import CitedClient
+    from cited_mcp.server import CitedSession, tool_list
 
-    server = create_stdio_server()
-    return {t.name for t in server._tool_manager.list_tools()}
-
-
-# Mapping from CLI command patterns to their MCP tool equivalents.
-# This is the source of truth for feature parity.
-_CLI_TO_MCP: dict[str, str | list[str]] = {
-    # Auth
-    "login": "login",
-    "logout": "logout",
-    "auth login": "login",
-    "auth logout": "logout",
-    "auth status": "check_auth_status",
-    # Business
-    "business list": "list_businesses",
-    "business get": "get_business",
-    "business create": "create_business",
-    "business update": "update_business",
-    "business delete": "delete_business",
-    "business health": "get_health_scores",
-    "business crawl": "crawl_business",
-    # Audit templates
-    "audit template list": "list_audit_templates",
-    "audit template get": "get_audit_template",
-    "audit template create": "create_audit_template",
-    "audit template update": "update_audit_template",
-    "audit template delete": "delete_audit_template",
-    # Audits
-    "audit start": "start_audit",
-    "audit models": "get_audit_models",
-    "audit status": "get_audit_status",
-    "audit result": "get_audit_result",
-    "audit list": "list_audits",
-    "audit export": "export_audit",
-    "audit free": "free_audit",
-    # Recommendations
-    "recommend start": "start_recommendation",
-    "recommend status": "get_recommendation_status",
-    "recommend result": "get_recommendation_result",
-    "recommend insights": "get_recommendation_insights",
-    "recommend list": "list_recommendations",
-    "recommend check-status": "get_recommendation_check_status",
-    "recommend validate": "validate_recommendation",
-    "recommend validation-latest": "get_recommendation_validation_latest",
-    # Solutions
-    "solution start": "start_solution",
-    "solution status": "get_solution_status",
-    "solution result": "get_solution_result",
-    "solution list": "list_solutions",
-    # Jobs
-    "job cancel": "cancel_job",
-    # HQ
-    "hq": "get_business_hq",
-    # Analytics
-    "analytics compare": "compare_audits",
-    # Agent signup and per-user agent keys
-    "agent signup": "agent_signup",
-    "agent key-status": "key_status",
-    "agent keys": "list_api_keys",
-    "agent revoke": "revoke_api_key",
-    # Credits (pay-as-you-go billing)
-    "credits prices": "get_prices",
-    "credits balance": "get_credits",
-    "credits history": "credit_history",
-    "credits buy": "buy_credits",
-    "credits buy-audit": "buy_audit",
-    "credits refund": "request_refund",
-    "credits redeem": "redeem_voucher",
-    "credits auto-refill": "set_auto_refill",
-    "audit quote": "quote_audit",
-    # Profile-declared competitors
-    # HQ writes / composite reads
-    "hq brief": "get_agent_brief",
-    "hq recompute": "recompute_health_scores",
-    "hq refresh": "refresh_business_overview",
-    # Persona / Product / Buyer-intent CRUD
-    "hq persona list": "list_personas",
-    "hq persona create": "create_persona",
-    "hq persona update": "update_persona",
-    "hq persona delete": "delete_persona",
-    "hq product list": "list_products",
-    "hq product create": "create_product",
-    "hq product update": "update_product",
-    "hq product delete": "delete_product",
-    # Docs (public, no login)
-    "docs search": "search_docs",
-    "docs get": "get_doc",
-    # Status (top-level)
-    "status": "check_auth_status",
-}
-
-
-@pytest.fixture
-def _mcp_available():
-    try:
-        import mcp  # noqa: F401
-    except ImportError:
-        pytest.skip("mcp not installed")
-
-
-@pytest.mark.usefixtures("_mcp_available")
-def test_every_cli_command_has_mcp_equivalent():
-    """Every CLI command should have an MCP tool, or be in CLI_ONLY."""
-    cli_commands = _get_cli_commands()
-    unmapped: list[str] = []
-    for cmd in sorted(cli_commands):
-        if cmd in CLI_ONLY:
-            continue
-        if cmd not in _CLI_TO_MCP:
-            unmapped.append(cmd)
-    assert unmapped == [], (
-        f"CLI commands without MCP equivalents (add to _CLI_TO_MCP or CLI_ONLY): {unmapped}"
+    session = CitedSession(
+        client=CitedClient("http://localhost"), env="dev", api_url="http://localhost",
+        manifest=bundled_manifest(),
     )
+    return {t.name for t in tool_list(session)}
 
 
-@pytest.mark.usefixtures("_mcp_available")
-def test_every_mcp_tool_has_cli_equivalent():
-    """Every MCP tool should map from a CLI command, or be in MCP_ONLY."""
-    mcp_tools = _get_mcp_tools()
-    mapped_tools = set()
-    for target in _CLI_TO_MCP.values():
-        if isinstance(target, list):
-            mapped_tools.update(target)
-        else:
-            mapped_tools.add(target)
-    mapped_tools |= MCP_ONLY
-
-    unmapped = mcp_tools - mapped_tools
-    assert unmapped == set(), (
-        f"MCP tools without CLI equivalents (add to _CLI_TO_MCP or MCP_ONLY): {unmapped}"
-    )
+def test_every_cli_command_runs_a_tool():
+    unmapped = sorted(c for c in _cli_commands() if c not in CLI_ONLY and c not in CLI_TO_TOOL)
+    assert unmapped == [], f"Map these to a tool in CLI_TO_TOOL, or add to CLI_ONLY: {unmapped}"
 
 
-@pytest.mark.usefixtures("_mcp_available")
-def test_mapped_mcp_tools_actually_exist():
-    """All MCP tools referenced in the mapping must be registered."""
-    mcp_tools = _get_mcp_tools()
-    for cli_cmd, mcp_tool in _CLI_TO_MCP.items():
-        tools = [mcp_tool] if isinstance(mcp_tool, str) else mcp_tool
-        for t in tools:
-            assert t in mcp_tools, f"CLI '{cli_cmd}' maps to MCP tool '{t}' which is not registered"
+def test_mapped_commands_exist():
+    assert set(CLI_TO_TOOL) - _cli_commands() == set()
+
+
+def test_every_tool_has_a_cli_command():
+    missing = _mcp_tools() - set(CLI_TO_TOOL.values())
+    assert missing == set(), f"Tools without a CLI command: {missing}"
+
+
+def test_cli_maps_only_to_real_tools():
+    assert set(CLI_TO_TOOL.values()) <= _mcp_tools()
+
+
+def test_mcp_lists_the_shared_tools_plus_login_and_logout():
+    assert _mcp_tools() == {*tool_names(), "login", "logout"}

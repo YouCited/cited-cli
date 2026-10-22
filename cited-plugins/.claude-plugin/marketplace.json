@@ -12,7 +12,7 @@
       "name": "cited",
       "source": "./",
       "description": "Audit, optimize, and monitor AI search presence for any business",
-      "version": "0.3.2",
+      "version": "0.4.0",
       "author": {
         "name": "Cited",
         "email": "support@youcited.com"

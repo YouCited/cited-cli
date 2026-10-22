@@ -6,13 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Monorepo for the [Cited](https://youcited.com) GEO platform tooling. Contains three Python packages:
 
-- **`cited-core`** (`packages/core/`) — Shared library: API client, auth, config, endpoints, errors. No CLI or MCP dependencies.
-- **`cited-mcp`** (`packages/mcp/`) — Standalone MCP server with 75 tools. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
+- **`cited-core`** (`packages/core/`) — Shared library: API client, auth, config, endpoints, errors, and the tool client (`tools.py`). No CLI or MCP dependencies.
+- **`cited-mcp`** (`packages/mcp/`) — Local stdio MCP server: Cited's agent tools plus local `login`/`logout`. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
 - **`cited-cli`** (root `src/cited_cli/`) — Typer + Rich CLI. Depends on `cited-core` + `typer` + `rich`. Optional dep on `cited-mcp` for `cited mcp serve`.
 
-Also contains `cited-plugins/` — a Claude Code plugin (skills, commands, agents) that references the MCP server via `uvx cited-mcp`.
+Also contains `cited-plugins/` — a Claude Code plugin (skills, commands, agents) that points at the hosted MCP server.
 
-The backend API lives in a separate monorepo at `~/repos/cited/`.
+The backend API lives in a separate monorepo at `~/repos/cited/` (YouCited/cited).
+
+## One tool definition
+
+The agent tools are defined **once**, in the backend (`backend/services/agent_tools/` in YouCited/cited). The backend serves them three ways:
+
+- the hosted MCP server at `https://mcp.youcited.com/mcp` (`routes/mcp.py`, OAuth),
+- `GET /agent/tools` — the manifest (name, title, description, input schema, annotations, `version`, `instructions`),
+- `POST /agent/tools/{name}` — runs one tool with a JSON object of arguments and returns its result (errors come back as `{"error", "status_code", "error_type", ...}` with the HTTP status).
+
+This repo holds **thin clients** of those endpoints. `cited-mcp` lists the manifest and forwards each call; every CLI data command turns its options into one tool call. Tool behavior, wording and next steps change in the backend, not here. To add or change a tool, change the backend first, then add or adjust the CLI command, then refresh the bundled snapshot.
+
+The tools (19): `free_audit`, `agent_signup`, `account_status`, `search_docs` (no login), `buy_credits`, `setup_business`, `get_business`, `get_agent_brief`, `draft_questions`, `quote_audit`, `run_audit`, `get_audit`, `compare_audits`, `schedule_recheck`, `get_recommendations`, `update_recommendation`, `generate_fixes`, `get_fixes`, `update_fix`. `run_audit` and `generate_fixes` return `{"confirmation_required": true, ...price}` unless called with `confirm=true`.
 
 ## Commands
 
@@ -20,20 +32,16 @@ The backend API lives in a separate monorepo at `~/repos/cited/`.
 # Dev setup (install all three packages in editable mode)
 ./scripts/dev-install.sh
 
-# Or manually:
-pip install -e packages/core
-pip install -e packages/mcp
-pip install -e ".[dev]"
-
 # Run tests, lint, type check
-pytest -v                    # Run all tests
-ruff check src/ packages/    # Lint all packages
+pytest -v
+ruff check src/ packages/
 mypy packages/core/src packages/mcp/src src/cited_cli/ --ignore-missing-imports
 
-# Run the CLI
-cited --help
+# Refresh the bundled tool manifest after backend tool changes
+python scripts/sync_tools_manifest.py [--env dev|local]
 
-# Run the standalone MCP server
+# Run the CLI / the MCP server
+cited --help
 cited-mcp                    # Standalone binary (from cited-mcp package)
 cited mcp serve              # Via CLI (requires cited-cli[mcp])
 
@@ -46,89 +54,64 @@ cited mcp serve              # Via CLI (requires cited-cli[mcp])
 ### Package Structure
 
 **`cited-core`** (`packages/core/src/cited_core/`) — Zero CLI/MCP dependencies:
-- `api/client.py` — `CitedClient` (httpx sync)
-- `api/endpoints.py` — API endpoint path constants
+- `tools.py` — `fetch_manifest()` (API, falling back to the bundled `tools.json`), `call_tool()` (`POST /agent/tools/{name}` → `(result, status)`, never raises for API errors), `run_tool()` (also saves the key `agent_signup` returns via `keep_agent_key` and strips it from the result)
+- `tools.json` — snapshot of `GET /agent/tools`; refreshed by `scripts/sync_tools_manifest.py`
+- `api/client.py` — `CitedClient` (httpx sync); records the `X-Cited-Notice` header as `last_notice`
+- `api/endpoints.py` — API endpoint path constants (auth, config)
 - `auth/store.py` — `TokenStore` (keyring + file fallback); also stores per-env agent keys (`agent_key:<env>`)
 - `auth/credentials.py` — `resolve_agent_api_key()` (env var → config → saved key)
 - `auth/oauth_server.py` — Temporary localhost OAuth callback server
 - `config/manager.py` — `ConfigManager` (TOML config)
-- `config/constants.py` — `ENVIRONMENTS`, `CONFIG_DIR`, `VALID_INDUSTRIES`, etc.
+- `config/constants.py` — `ENVIRONMENTS`, `CONFIG_DIR`, etc.
 - `errors.py` — `CitedAPIError`, `ExitCode`, `exit_code_for_status()`
 
-**`cited-mcp`** (`packages/mcp/src/cited_mcp/`) — MCP server + 75 tools:
-- `server.py` — `FastMCP` instance, lifespan, `run_server()`
-- `tools/` — auth, business, audit, recommend, solution, job, docs (public docs search), billing (credits), agent_keys (agent signup + per-user keys) tool modules
-- No plans or tiers: every tool is available to every account. Paid work is charged in credits by the backend, which returns HTTP 402 (`insufficient_credits` / `purchase_required`) or 403 `claim_required`; `tools/_helpers.py::_api_error_response` flattens the `detail` object (`error_type`, `credits_needed`, `balance`, `buy_url`, `claim_url`, `payment_required`) and adds a hint
-- `log_tool_call` copies the API's `X-Cited-Notice` response header into every tool result as a top-level `notice` (via a ContextVar in `cited_core.api.client`)
-- `auth_provider.py` — OAuth provider with stateless JWT tokens and user JWT expiry detection
-- Supports `CITED_TOKEN` and `CITED_AGENT_API_KEY` env vars; the agent key can also come from the `agent_api_key` config value or the key `agent_signup` saved (`TokenStore.get_agent_key(env)`), resolved by `cited_core.auth.credentials.resolve_agent_api_key`
-- The remote server also accepts an agent key (`cak_...`) as the Bearer token and forwards it as `X-Agent-API-Key`
-- Includes browser OAuth `login` tool for Claude Desktop users
-- Remote server (`remote.py`) runs stateless HTTP with Fargate Spot auto-scaling
+**`cited-mcp`** (`packages/mcp/src/cited_mcp/server.py`) — one module, low-level `mcp.server.lowlevel.Server` over stdio:
+- `build_session()` — credentials (`CITED_TOKEN` or the stored login, else the agent key from `CITED_AGENT_API_KEY` / `agent_api_key` config / the key `agent_signup` saved) and the manifest
+- `tool_list()` — the manifest's tools plus `LOCAL_TOOLS` (`login`, `logout`)
+- `call()` — local tools run here; everything else goes through `cited_core.tools.run_tool`. Adds `notice` from the API header and a login hint on 401; `isError` when status ≥ 400
+- The hosted server is the backend's; this package no longer has a remote/HTTP mode
 
 **`cited-cli`** (`src/cited_cli/`) — Typer CLI:
-- Imports core modules from `cited_core.*` (not `cited_cli.api.*`)
+- `utils/tools.py` — `call()` / `run()` / `poll()` run one tool and print it; `COMMAND_FOR_TOOL` + `as_commands()` rewrite tool names in next steps into CLI commands; `render()` is the default human formatter
+- `commands/` — `account.py` (`status`, `credits buy`), `agent.py` (`setup`, `signup`), `business.py`, `audit.py`, `recommend.py`, `fix.py`, `docs.py`, `tools_cmd.py` (`tools list|call`), plus local `auth.py`, `config_cmd.py`, `mcp_cmd.py`
 - `utils/errors.py` re-exports `CitedAPIError` etc. from `cited_core.errors` + adds `handle_api_error()` (Rich-based)
-- `commands/mcp_cmd.py` lazy-imports from `cited_mcp` (optional dep)
 
 ### CLI Architecture
 
-**Entry point:** `src/cited_cli/app.py` — creates the root `typer.Typer`, registers subcommand groups via `app.add_typer()`, plus top-level `login` and `logout` commands (delegating to `do_login`/`do_logout` from `commands/auth.py`). Defines global flags (`--json`, `--env`, `--profile`, etc.) in the `main_callback`, and stores shared state in `typer.Context.obj`.
+**Entry point:** `src/cited_cli/app.py` — creates the root `typer.Typer`, registers subcommand groups via `app.add_typer()`, plus top-level `login`, `logout`, `register` and `status`. Defines global flags (`--json`, `--env`, `--profile`, etc.) in the `main_callback`, and stores shared state in `typer.Context.obj`.
 
-**Global state flow:** The callback populates `ctx.obj` with `OutputContext`, `ConfigManager`, profile name, and env override. Every command extracts these via a `_get_ctx()` or `_get_client()` helper at the top of each command module.
-
-**Dual output mode:** Every command must support both human (Rich) and JSON (`--json`) output. The pattern is:
+**A data command is one tool call:**
 ```python
-print_result(data, out, human_formatter=lambda d, c: render_kv("Title", d, c))
+@fix_app.command("verify")
+def verify(ctx: typer.Context, fix_id: Annotated[str, typer.Argument()]) -> None:
+    """Re-check the live site for a fix (free)."""
+    run(ctx, "update_fix", {"fix_id": fix_id, "action": "verify"})
 ```
-`print_result` writes `json.dumps(data)` to stdout in JSON mode, or calls the `human_formatter` otherwise. Errors always go to stderr.
+Use `clean({...})` to drop options the user didn't give, so the tool's defaults apply. `--json` prints the tool result unchanged (same shape an MCP client sees); otherwise the command's human formatter (or `render`). Tool errors exit with the code for their status via `handle_api_error`. Spending commands (`audit run`, `fix generate`) show the price and `typer.confirm` unless `--yes`; in `--json` or non-interactive mode they print the `confirmation_required` result instead.
 
-**Output format resolution:** The output format is resolved with this precedence: `--json` flag → `--text` flag → config value (`cited config set output json|text`) → default (`text`). This lets users set `output = "json"` in config for scripting workflows and override back to human-readable with `--text` / `-t` for a single invocation.
+**Output format resolution:** `--json` flag → `--text` flag → config value (`cited config set output json|text`) → default (`text`).
 
-**Authentication:** Top-level `cited login` is the primary entry point (also available as `cited auth login` for backward compat). Both delegate to `do_login()` / `do_logout()` in `commands/auth.py`.
+**Authentication:** Top-level `cited login` is the primary entry point (also `cited auth login`). Both delegate to `do_login()` / `do_logout()` in `commands/auth.py`.
 
-- **Browser login (default):** `cited login` opens the youcited login page in the browser. The CLI starts a temporary localhost HTTP server (`auth/oauth_server.py`) to receive the OAuth callback token. The success page includes a collapsible token-copy section for the paste fallback.
-- **OAuth provider shortcut:** `cited login --provider google|microsoft|github` sends the user directly to that provider.
-- **Password login:** `cited login --email user@example.com` prompts for password (or use `--password` for non-interactive/CI).
-- **Password registration:** `cited register --email ... --name ... --password ...` is a two-step flow:
-  1. `POST /auth/cli-register` — creates the account and sends a verification email; returns `{"message": "..."}` (201, **no token**).
-  2. CLI prompts the user to paste the verification URL from their inbox (e.g. `https://app.youcited.com/complete-registration?token=<43-char-token>`).
-  3. CLI parses the `?token=` query param and calls `POST /auth/cli-verify-email {"token": "..."}`.
-  4. Backend marks email verified and returns `{"token": "<JWT>", "user": {...}}`; JWT is stored; prints "Email verified! Logged in as {email}".
-  - Endpoint constant: `endpoints.CLI_VERIFY_EMAIL = "/auth/cli-verify-email"`.
-  - Tests mock both endpoints and supply the verification URL via `input=` on `runner.invoke`.
-- **Paste fallback:** If the localhost callback times out (firewall, WSL, SSH), the CLI prompts the user to paste the token shown on the browser success page.
-- **Token storage:** Per-environment via OS keychain (`keyring`) with a file fallback (`~/.cited/credentials.json`). The token is sent back to the API as a cookie, not a Bearer header.
-- **TTY detection:** `commands/auth.py` uses `_is_interactive()` (wrapping `sys.stdin.isatty()`) for all TTY checks — tests monkeypatch this helper.
+- **Browser login (default):** opens the youcited login page; a temporary localhost server (`auth/oauth_server.py`) receives the token. The success page includes a token-copy section for the paste fallback.
+- **OAuth provider shortcut:** `cited login --provider google|microsoft|github`.
+- **Password login:** `cited login --email user@example.com` prompts for password (or `--password` for CI).
+- **Password registration:** `cited register --email ... --name ... --password ...` calls `POST /auth/cli-register` (sends a verification email, no token), then prompts for the verification URL, parses `?token=` and calls `POST /auth/cli-verify-email`, which returns `{"token", "user"}`. Tests supply the URL via `input=` on `runner.invoke`.
+- **Paste fallback:** if the localhost callback times out (firewall, WSL, SSH), the CLI prompts for the token shown on the success page.
+- **Token storage:** per environment via OS keychain (`keyring`) with a file fallback (`~/.cited/credentials.json`). The token is sent to the API as a cookie, not a Bearer header.
+- **TTY detection:** `commands/auth.py` uses `_is_interactive()` for TTY checks — tests monkeypatch it.
 
-**Agent keys:** per-user agent keys (`cak_...`) authenticate every request via the `X-Agent-API-Key` header. Sources, in order: `CITED_AGENT_API_KEY`, `cited config set agent_api_key`, then the key saved by `cited agent signup` / the `agent_signup` tool. A login session token takes precedence: `CitedClient` only sends the key when it has no token. CLI commands build their client with `utils/client.py::get_authed_client()`, which uses the token or falls back to the agent key.
-
-**Adding a new command group:**
-1. Create `src/cited_cli/commands/<name>.py` with a `typer.Typer()` instance
-2. Add endpoint paths to `packages/core/src/cited_core/api/endpoints.py`
-3. Register in `app.py` with `app.add_typer(..., name="<name>")`
-
-**Adding a nested command group (sub-subcommands):**
-Create the inner Typer in a separate file, then register it on the parent app — not on the root app. Example: `audit template` lives in `commands/named_audit.py` and is registered in `app.py` as:
-```python
-audit_app.add_typer(named_audit_app, name="template")
-```
-This gives `cited audit template list|get|create|update|delete` while `cited audit start|status|...` remain top-level on `audit_app`. Crucially, the nested registration must happen **before** `app.add_typer(audit_app, ...)` — in practice, put it at the top of the registration block in `app.py`.
-
-**Adding a new command to an existing group:** Add a function decorated with `@<group>_app.command()` in the relevant command file. Follow the `_get_client()` → try/except `CitedAPIError` → `print_result()` pattern.
-
-**Audit template workflow:** The typical flow is create → review → refine → run audit. Auto-generated questions are rarely perfect, so `audit template update` is a common operation. The `--question` flags on `update` **replace all** existing questions (matching the web editor's save behavior). Omit `--question` to keep existing questions unchanged while updating name/description. Backend endpoint: `PUT /named-audits/{id}` with `NamedAuditUpdate` schema.
+**Agent keys:** per-user agent keys (`cak_...`) authenticate via the `X-Agent-API-Key` header. Sources, in order: `CITED_AGENT_API_KEY`, `cited config set agent_api_key`, then the key saved by `cited agent signup` / the `agent_signup` tool (never printed or returned to the model). A login session takes precedence: the CLI sends the key only when there is no token. `cited logout` / the `logout` tool forget a saved key when there is no session.
 
 ## CLI / MCP Feature Parity
 
-**Every new feature must be added to BOTH the CLI and MCP server.** A test (`tests/test_feature_parity.py`) enforces this — it compares all CLI commands against MCP tools and fails if a command exists in one but not the other.
+**Every tool must have a CLI command, and every CLI command must run a tool** (or be listed as CLI-only). `tests/test_feature_parity.py` enforces this against the bundled manifest.
 
-When adding a new feature:
-1. Add the CLI command in `src/cited_cli/commands/`
-2. Add the MCP tool in `packages/mcp/src/cited_mcp/tools/`
-3. Update the `_CLI_TO_MCP` mapping in `tests/test_feature_parity.py`
-4. If the feature is intentionally one-interface-only, add it to `CLI_ONLY` or `MCP_ONLY` with a comment explaining why
-5. Add the tool to `EXPECTED_TOOLS` in `tests/test_mcp_server.py` and `packages/mcp/tests/test_surface_invariants.py`, and to the top entry of `tool_changelog.yaml`
+When the backend adds a tool:
+1. Run `python scripts/sync_tools_manifest.py` to refresh `tools.json`
+2. Add the CLI command in `src/cited_cli/commands/` and its entry in `COMMAND_FOR_TOOL` (`utils/tools.py`)
+3. Map it in `CLI_TO_TOOL` in `tests/test_feature_parity.py` (commands with no tool go in `CLI_ONLY` with a reason)
+4. Update the tool tables in `README.md` and `packages/mcp/README.md`, and the plugin skills in `cited-plugins/` if the workflow changed
 
 ## Key Conventions
 
@@ -138,18 +121,18 @@ When adding a new feature:
 - **Type hints** use `X | None` syntax, not `Optional[X]`
 - **Valid config keys:** `environment`, `default_business_id`, `agent_api_key`, `output` (values: `json`, `text`)
 - **Config module** is named `config_cmd.py` (not `config.py`) to avoid shadowing stdlib
-- **Tests** use `typer.testing.CliRunner` (fixtures `runner` and `cli_app` in `conftest.py`), `respx` for HTTP mocking, and `monkeypatch` to redirect `CONFIG_DIR`/`CONFIG_FILE`/`CREDENTIALS_FILE` to `tmp_path`
-- **User config** lives at `~/.cited/config.toml`; version is in `src/cited_cli/__init__.py`
+- **Tests** use `typer.testing.CliRunner` (fixtures `runner`, `cli_app` and `creds` in `conftest.py`), `respx` for HTTP mocking, and `monkeypatch` to redirect `CONFIG_DIR`/`CONFIG_FILE`/`CREDENTIALS_FILE` to `tmp_path`
+- **User config** lives at `~/.cited/config.toml`
 - **Version** single source of truth is `packages/core/src/cited_core/__init__.py`. The CLI and MCP packages import it via `from cited_core import __version__`. The `version =` field in all three `pyproject.toml` files must also be bumped (the release script handles this).
 
 ## Releasing & Deployment
 
-Release, deploy, and infrastructure scripts live in the **private** repo `~/repos/cited-mcp-infra` ([YouCited/cited-mcp-infra](https://github.com/YouCited/cited-mcp-infra)):
+Release and infrastructure scripts live in the **private** repo `~/repos/cited-mcp-infra` ([YouCited/cited-mcp-infra](https://github.com/YouCited/cited-mcp-infra)):
 
 - `scripts/release.sh <version>` — Bumps version, publishes to PyPI, updates Homebrew tap
-- `scripts/deploy-mcp.sh <env>` — Deploys MCP server to AWS ECS Fargate
 - `scripts/cleanup_dev.py` — Removes test data from dev environment
-- `docker/Dockerfile` — Docker image for the remote MCP server
+
+The hosted MCP server ships with the backend (merges to `main` in YouCited/cited deploy prod); there is no separate MCP deploy.
 
 **Prerequisites:** clean git state on `main`, `gh` CLI authenticated, `.venv` with cited-cli installed, `~/repos/homebrew-cited` cloned.
 
@@ -163,146 +146,22 @@ Release, deploy, and infrastructure scripts live in the **private** repo `~/repo
 | dev  | `https://dev.youcited.com` | |
 | local | `http://localhost:8000` | |
 
-## Credits Billing and Agent Identity
+## Credits Billing
 
-Monthly plans (Growth/Scale/Pro), tiers and plan gating were removed entirely. Billing is
-pay-as-you-go credits (1 credit = $1; a standard audit is 10 credits; a one-off audit is $15).
-
-| CLI | MCP tool | Endpoint |
-|-----|----------|----------|
-| `cited credits prices` (no login) | `get_prices` | `GET /billing/prices` |
-| `cited credits balance` | `get_credits` | `GET /billing/credits` |
-| `cited credits history [--limit]` | `credit_history` | `GET /billing/credits/transactions` |
-| `cited credits buy PACK_ID [--no-save-card]` | `buy_credits` | `POST /billing/credits/checkout` |
-| `cited credits buy-audit` | `buy_audit` | `POST /billing/audit-checkout` |
-| `cited credits refund [--yes]` | `request_refund(confirm)` | `POST /billing/credits/refund` |
-| `cited credits redeem CODE` | `redeem_voucher` | `POST /billing/credits/redeem` |
-| `cited credits auto-refill --on/--off [--pack] [--cap]` | `set_auto_refill` | `PUT /billing/credits/auto-refill` |
-| `cited audit quote TEMPLATE_ID [--model]` | `quote_audit` | `POST /billing/audit-quote` |
-| `cited agent signup [--name] [--email]` (no login) | `agent_signup` | `POST /agent/signup` |
-| `cited agent key-status` | `key_status` | `GET /agent/key-status` |
-| `cited agent keys` | `list_api_keys` | `GET /agent-keys` |
-| `cited agent revoke KEY_ID` | `revoke_api_key` | `DELETE /agent-keys/{id}` |
-
-Purchase commands/tools only return a Stripe `checkout_url` for a person to open; they never
-claim a payment happened. Refunds need confirmation (`--yes` in the CLI, `confirm=True` in MCP).
-Vouchers add free credits (once per account per code, claimed accounts only; 404
-`voucher_not_found`, 400 `voucher_expired` / `voucher_used_up`, 409 `voucher_already_redeemed`).
-Signup stores the returned `api_key` with `TokenStore.save_agent_key(env, key)` and never prints
-it; the claim URL and 6-digit code are shown for the human. `cited logout` / the `logout` tool
-forget a saved agent key when there is no session token.
-
-## Real API Response Field Names (Critical)
-
-These field names were confirmed against the live dev API on 2026-03-18. Using the wrong names produces silently empty output (no error, just blank table cells). Always check the live response shape before adding new field access.
-
-### `GET /recommendations/{job_id}/result` (used by `recommend insights` + `recommend result`)
-
-```python
-{
-    "question_insights": [
-        {
-            "question_id":   "uuid",      # ← source_id for solution start; NOT "id"
-            "question_text": "...",       # ← description field; NOT "question"
-            "risk_level":    "high",
-            "coverage_score": 0.33,
-        }
-    ],
-    "head_to_head_comparisons": [         # ← key name; NOT "head_to_head"
-        {
-            "competitor_domain": "competitor.com",  # ← source_id; no uuid id field
-            "competitor_url":    "https://...",
-            "business_domain":   "...",
-            "overall_winner":    "business",
-        }
-    ],
-    "strengthening_tips": [
-        {
-            "category": "llms_txt",       # ← source_id for solution start; no uuid id field
-            "title":    "Create llms.txt for AI Discovery",
-            "priority": "high",
-        }
-    ],
-    "priority_actions": [],
-}
-```
-
-### `POST /solutions/request` (used by `solution start`)
-
-```json
-{
-    "recommendation_job_id": "<uuid>",
-    "source_type": "question_insight",
-    "source_id": "<question_id from question_insights>"
-}
-```
-
-**`source_type` enum:** `question_insight` · `head_to_head` · `strengthening_tip` · `priority_action`
-
-This endpoint replaced the deprecated `POST /solutions/create` which took `{"recommendation_id": ...}`.
-
-### `POST /businesses/{id}/crawl` (used by `business crawl`)
-
-Returns a `job_id` in the response body — you can `job watch` the crawl:
-```json
-{
-    "message":     "Crawl job enqueued",
-    "business_id": "...",
-    "job_id":      "...",
-    "status":      "crawling"
-}
-```
-
-### `POST /businesses` (used by `business create`)
-
-- `industry` must be one of: `automotive` `beauty` `consulting` `education` `entertainment` `finance` `fitness` `government` `healthcare` `home_services` `hospitality` `legal` `manufacturing` `non_profit` `real_estate` `restaurant` `retail` `technology` `other`
-- `website` must be a publicly DNS-resolvable domain — fabricated domains (e.g. `example.com`, `acme-test.example.com`) will return 422
-- `description` minimum ~50 characters
-
-### `POST /audit/start` (used by `audit start`)
-
-```json
-{
-    "named_audit_id": "<template uuid>",
-    "business_id":    "<optional override>"
-}
-```
-
-The old shape `{"business_id": ...}` returns 422 — `named_audit_id` is required.
+No plans or tiers. Billing is pay-as-you-go credits (1 credit = $1). `account_status` / `quote_audit` show current prices. Purchase tools only return a Stripe `checkout_url` for a person to open; they never claim a payment happened. A short balance is a 402 with `credits_needed` (exit code 6).
 
 ## Testing Patterns
 
-Tests use `respx` for HTTP mocking. Key patterns from `tests/test_pipeline.py`:
+CLI tests mock `POST /agent/tools/{name}` with `respx` and check the arguments the command sent:
 
-**Pre-seeding a login token** (avoids needing to mock the auth flow):
 ```python
-def _setup_logged_in(tmp_path, monkeypatch):
-    # redirect config to tmp_path, then write credentials
-    creds_file.write_text(json.dumps({"dev": "test-jwt-dev-token"}))
-```
-
-**Mocking `watch_job`** to avoid `time.sleep` and Rich `Live` renderer in tests:
-```python
-monkeypatch.setattr(
-    "cited_cli.commands.job.watch_job",
-    lambda client, path, console, poll_interval=2.0: {"status": "completed", "job_id": "..."},
-)
-```
-
-**Threading IDs between commands** (the `--json` pattern):
-```python
-result = runner.invoke(app, ["--env", "dev", "--json", "business", "create", ...])
-business_id = json.loads(result.output)["id"]  # thread into next command
-```
-
-**Verifying request payload** (not just response):
-```python
-captured_body = {}
+captured = {}
 def _capture(request):
-    captured_body.update(json.loads(request.content))
-    return httpx.Response(202, json=MOCK_RESPONSE)
-respx.post(f"{DEV_API}/audit/start").mock(side_effect=_capture)
-# ... invoke command ...
-assert captured_body["named_audit_id"] == TEMPLATE_ID
-assert "recommendation_id" not in captured_body  # old field must not appear
+    captured.update(json.loads(request.content))
+    return httpx.Response(200, json={"status": "running", "audit_id": "a1"})
+respx.post(f"{API}/agent/tools/run_audit").mock(side_effect=_capture)
+result = runner.invoke(app, ["--json", "audit", "run", "--yes"])
+assert captured["confirm"] is True
 ```
+
+`tests/test_mcp_server.py` runs the MCP server in memory with an `mcp` client session; `packages/mcp/tests/` covers `login`/`logout` and the call path.

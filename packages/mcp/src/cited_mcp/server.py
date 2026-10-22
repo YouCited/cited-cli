@@ -1,152 +1,309 @@
+"""The cited-mcp server: Cited's agent tools over stdio.
+
+A thin client. The tools are defined once, in the Cited API, and this server
+lists them from ``GET /agent/tools`` (or the snapshot bundled with cited-core
+when the API can't be reached) and runs each call with
+``POST /agent/tools/{name}``. The hosted server at mcp.youcited.com serves the
+same tools over streamable HTTP with OAuth.
+
+Two tools are local to this server: ``login`` (browser sign-in that stores a
+session on this machine) and ``logout``. ``agent_signup`` saves the API key it
+creates on this machine instead of returning it.
+"""
+
 from __future__ import annotations
 
-import hashlib
 import json
 import os
-from collections.abc import AsyncIterator, Iterable
-from contextlib import asynccontextmanager
+import webbrowser
+from dataclasses import dataclass, field
+from typing import Any
+from urllib.parse import urlencode
 
-from mcp.server.fastmcp import FastMCP
+import anyio
+import mcp.types as types
+from mcp.server.lowlevel import Server
+from mcp.server.stdio import stdio_server
 
+from cited_core import __version__
+from cited_core.api import endpoints
 from cited_core.api.client import CitedClient
 from cited_core.auth.credentials import resolve_agent_api_key
+from cited_core.auth.oauth_server import OAuthCallbackServer
 from cited_core.auth.store import TokenStore
 from cited_core.config.manager import ConfigManager
-from cited_mcp.context import CitedContext
+from cited_core.errors import CitedAPIError
+from cited_core.tools import fetch_manifest, run_tool
 
-# Module-level MCP instance. Tool modules import this via:
-#   from cited_mcp.server import mcp
-# and register tools with @mcp.tool().
-#
-# For stdio: set by run_server() before tool imports.
-# For remote: set by remote.py before tool imports.
-mcp: FastMCP = None  # type: ignore[assignment]
+LOCAL_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "login",
+        "title": "Log In",
+        "description": (
+            "Sign in to Cited with a browser. The first call opens the sign-in page "
+            "and returns login_url to show the user; once they have signed in, "
+            "call it again to finish. force=true signs in again (to switch "
+            "accounts). Not needed for free_audit, account_status or search_docs, "
+            "and agent_signup makes an account without a login."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "force": {
+                    "type": "boolean",
+                    "description": "Sign in again even when already signed in.",
+                }
+            },
+        },
+        "annotations": {
+            "title": "Log In",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    },
+    {
+        "name": "logout",
+        "title": "Log Out",
+        "description": (
+            "Sign out on this machine: forget the stored session, or the agent key "
+            "saved by agent_signup when there is no session."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+        "annotations": {
+            "title": "Log Out",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    },
+]
+LOCAL_TOOL_NAMES = {t["name"] for t in LOCAL_TOOLS}
 
-# Tool surface snapshot, populated once after register_tools() by
-# cache_tool_surface(). Exposed via the `ping` tool so agent skills can detect
-# stale MCP-client tool caches without relying on tools/list_changed.
-_TOOLS_FINGERPRINT: str | None = None
-_TOOLS_COUNT: int = 0
+
+@dataclass
+class CitedSession:
+    """What one server process needs: the API client and the tool list."""
+
+    client: CitedClient
+    env: str
+    api_url: str
+    manifest: dict[str, Any] = field(default_factory=dict)
+    pending_login: OAuthCallbackServer | None = None
+    store: TokenStore = field(default_factory=TokenStore)
+
+    def use_token(self, token: str | None) -> None:
+        self.client.set_token(token)
 
 
-def _hash_tool_surface(items: Iterable[tuple[str, str, str]]) -> str:
-    """Return a 12-char fingerprint over (name, description, schema_json) tuples.
+def build_session(manifest: dict[str, Any] | None = None) -> CitedSession:
+    """Credentials from the environment, config and the local store.
 
-    Pure function — order-independent, deterministic. Extracted so the hash
-    algorithm is testable without standing up a FastMCP instance.
+    ``CITED_TOKEN`` or the session from ``cited login`` wins; otherwise the
+    agent key (``CITED_AGENT_API_KEY``, the ``agent_api_key`` config value, or
+    the key ``agent_signup`` saved).
     """
-    serialized = json.dumps(sorted(items))
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:12]
-
-
-def compute_tools_fingerprint(server: FastMCP) -> str:
-    """Hash the registered tool surface (name + description + input schema).
-
-    Any change a client would notice — added/removed tool, edited docstring,
-    edited parameter schema — produces a different fingerprint.
-    """
-    items = (
-        (
-            tool.name,
-            tool.description or "",
-            json.dumps(tool.parameters or {}, sort_keys=True),
-        )
-        for tool in server._tool_manager.list_tools()
-    )
-    return _hash_tool_surface(items)
-
-
-def cache_tool_surface(server: FastMCP) -> None:
-    """Populate module-level fingerprint/count caches. Call once post-register."""
-    import cited_mcp.server as _self
-
-    _self._TOOLS_FINGERPRINT = compute_tools_fingerprint(server)
-    _self._TOOLS_COUNT = len(server._tool_manager.list_tools())
-
-
-def get_tools_fingerprint() -> str | None:
-    """Cached fingerprint computed at startup, or None before registration."""
-    return _TOOLS_FINGERPRINT
-
-
-def get_tools_count() -> int:
-    """Cached tool count from startup, or 0 before registration."""
-    return _TOOLS_COUNT
-
-
-@asynccontextmanager
-async def cited_lifespan(server: FastMCP) -> AsyncIterator[CitedContext]:
-    """Set up CitedClient for the MCP server lifetime (stdio transport)."""
     config = ConfigManager()
     env_override = os.environ.get("CITED_ENV")
     env = config.get_environment(override=env_override)
     api_url = config.get_api_url(env_override=env_override)
-
     store = TokenStore()
     token = os.environ.get("CITED_TOKEN") or store.get_token(env)
-    # CITED_AGENT_API_KEY, then the agent_api_key config value, then the key
-    # saved by agent_signup. The client only sends it when there is no token.
-    agent_api_key = resolve_agent_api_key(config, env, store=store)
+    agent_key = resolve_agent_api_key(config, env, store=store)
+    client = CitedClient(base_url=api_url, token=token, agent_api_key=agent_key)
+    session = CitedSession(client=client, env=env, api_url=api_url, store=store)
+    session.manifest = manifest or fetch_manifest(client)
+    return session
 
-    client = CitedClient(
-        base_url=api_url,
-        token=token,
-        agent_api_key=agent_api_key,
+
+def tool_list(session: CitedSession) -> list[types.Tool]:
+    entries = [*session.manifest.get("tools", []), *LOCAL_TOOLS]
+    return [
+        types.Tool(
+            name=t["name"],
+            title=t.get("title"),
+            description=t.get("description"),
+            inputSchema=t.get("input_schema") or {"type": "object", "properties": {}},
+            annotations=types.ToolAnnotations(**t["annotations"])
+            if t.get("annotations")
+            else None,
+        )
+        for t in entries
+    ]
+
+
+def _result(data: dict[str, Any], is_error: bool) -> types.CallToolResult:
+    return types.CallToolResult(
+        content=[types.TextContent(type="text", text=json.dumps(data, indent=2, default=str))],
+        structuredContent=data,
+        isError=is_error,
     )
+
+
+# ---------------------------------------------------------------------------
+# Local tools
+# ---------------------------------------------------------------------------
+
+
+def _login_url(session: CitedSession, server: OAuthCallbackServer) -> str:
+    params = urlencode({**server.authorize_params(), "app_name": "cited-mcp"})
+    return f"{session.api_url}{endpoints.AUTHORIZE_APP}?{params}"
+
+
+def _finish_pending_login(session: CitedSession) -> str | None:
+    """Store the token a finished browser sign-in delivered; None while waiting."""
+    pending = session.pending_login
+    if pending is None or not pending.token:
+        return None
+    token = pending.token
+    pending.shutdown()
+    session.pending_login = None
+    session.store.save_token(session.env, token)
+    session.use_token(token)
+    return token
+
+
+def _whoami(session: CitedSession) -> str:
     try:
-        yield CitedContext(client=client, env=env, api_url=api_url)
-    finally:
-        client.close()
+        user = session.client.get(endpoints.ME)
+    except CitedAPIError:
+        return ""
+    return str(user.get("email") or "")
 
 
-def register_tools() -> None:
-    """Import tool modules to trigger @mcp.tool() registrations.
+def login(session: CitedSession, arguments: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    pending = session.pending_login
+    if pending is not None and not pending.token and pending.expired:
+        pending.shutdown()
+        session.pending_login = None
 
-    Must be called after `cited_mcp.server.mcp` is set to a valid FastMCP instance.
-    """
-    import cited_mcp.tools.action_plan  # noqa: I001, E402, F401
-    import cited_mcp.tools.agent_keys  # noqa: E402, F401
-    import cited_mcp.tools.analytics  # noqa: E402, F401
-    import cited_mcp.tools.auth  # noqa: E402, F401
-    import cited_mcp.tools.billing  # noqa: E402, F401
-    import cited_mcp.tools.audit  # noqa: E402, F401
-    import cited_mcp.tools.business  # noqa: E402, F401
-    import cited_mcp.tools.changelog  # noqa: E402, F401
-    import cited_mcp.tools.docs  # noqa: E402, F401
-    import cited_mcp.tools.hq  # noqa: E402, F401
-    import cited_mcp.tools.job  # noqa: E402, F401
-    import cited_mcp.tools.recommend  # noqa: E402, F401
-    import cited_mcp.tools.solution  # noqa: E402, F401
+    if _finish_pending_login(session):
+        email = _whoami(session)
+        return {
+            "success": True,
+            "message": f"Signed in{' as ' + email if email else ''} ({session.env}).",
+            "next_step": "Call account_status.",
+        }, False
+
+    force = arguments.get("force") is True
+    if session.pending_login is not None and not force:
+        return {
+            "waiting": True,
+            "login_url": _login_url(session, session.pending_login),
+            "message": "Still waiting for the browser sign-in. Show the user login_url; "
+            "call login again once they have signed in.",
+        }, False
+
+    if force:
+        if session.pending_login is not None:
+            session.pending_login.shutdown()
+            session.pending_login = None
+        session.store.delete_token(session.env)
+        session.use_token(None)
+    elif session.client.token:
+        email = _whoami(session)
+        if email:
+            return {"success": True, "message": f"Already signed in as {email}."}, False
+
+    callback = OAuthCallbackServer(timeout=300.0)
+    callback.start()
+    session.pending_login = callback
+    url = _login_url(session, callback)
+    try:
+        opened = webbrowser.open(url)
+    except Exception:
+        opened = False
+    return {
+        "action_required": True,
+        "login_url": url,
+        "message": (
+            "I opened the sign-in page in the browser. "
+            if opened
+            else "Open login_url in a browser to sign in. "
+        )
+        + "Once you've signed in, I'll call login again to finish.",
+    }, False
 
 
-def create_stdio_server() -> FastMCP:
-    """Create the stdio MCP server and register all tools.
+def logout(session: CitedSession, arguments: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    if session.pending_login is not None:
+        session.pending_login.shutdown()
+        session.pending_login = None
+    if session.client.token:
+        session.store.delete_token(session.env)
+        session.use_token(None)
+        return {"success": True, "message": f"Signed out of {session.env}."}, False
+    if session.client.agent_api_key:
+        session.store.delete_agent_key(session.env)
+        session.client.set_agent_api_key(None)
+        return {
+            "success": True,
+            "message": f"Removed the saved agent key ({session.env}).",
+        }, False
+    return {"success": False, "message": f"Not signed in to {session.env}."}, False
 
-    Sets the module-level `mcp` variable so tool modules can find it.
-    Idempotent — returns the existing server if already created.
-    """
-    import cited_mcp.server as _self
 
-    if _self.mcp is not None:
-        return _self.mcp
+# ---------------------------------------------------------------------------
+# Calls
+# ---------------------------------------------------------------------------
 
-    _self.mcp = FastMCP(
-        "cited",
-        instructions="Cited GEO platform — audit, optimize, and monitor AI search presence",
-        lifespan=cited_lifespan,
+
+def call(
+    session: CitedSession, name: str, arguments: dict[str, Any] | None
+) -> types.CallToolResult:
+    arguments = arguments or {}
+    if name == "login":
+        return _result(*login(session, arguments))
+    if name == "logout":
+        return _result(*logout(session, arguments))
+
+    # A browser sign-in started earlier may have finished in the meantime.
+    _finish_pending_login(session)
+    session.client.last_notice = None
+    result, status = run_tool(session.client, session.env, name, arguments, session.store)
+    if session.client.last_notice and "notice" not in result:
+        result["notice"] = session.client.last_notice
+    if status == 401:
+        result.setdefault(
+            "hint",
+            "Call login to sign in with a browser, or agent_signup to make an "
+            "account without one.",
+        )
+    return _result(result, status >= 400)
+
+
+def create_server(session: CitedSession) -> Server[Any, Any]:
+    server: Server[Any, Any] = Server(
+        name="cited",
+        version=__version__,
+        instructions=session.manifest.get("instructions"),
+        website_url="https://youcited.com",
     )
-    register_tools()
-    # Replace FastMCP's default ToolManager with our subclass that returns a
-    # structured tool_unavailable payload on unknown tool names instead of
-    # raising a generic ToolError. Must run AFTER register_tools so the new
-    # manager inherits the registered tool set.
-    from cited_mcp.tool_manager import install as _install_tool_manager
-    _install_tool_manager(_self.mcp)
-    cache_tool_surface(_self.mcp)
-    return _self.mcp
+
+    @server.list_tools()  # type: ignore[no-untyped-call, untyped-decorator]
+    async def _list_tools() -> list[types.Tool]:
+        return tool_list(session)
+
+    @server.call_tool(validate_input=False)  # type: ignore[untyped-decorator]
+    async def _call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
+        # The client is synchronous; keep the event loop free while it waits.
+        return await anyio.to_thread.run_sync(call, session, name, arguments)
+
+    return server
+
+
+async def _serve(session: CitedSession) -> None:
+    server = create_server(session)
+    async with stdio_server() as (read, write):
+        await server.run(read, write, server.create_initialization_options())
 
 
 def run_server() -> None:
-    """Start the MCP server on stdio transport."""
-    server = create_stdio_server()
-    server.run(transport="stdio")
+    """Start the MCP server on stdio."""
+    session = build_session()
+    try:
+        anyio.run(_serve, session)
+    finally:
+        session.client.close()
