@@ -1,0 +1,111 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "cited",
+  "version": "0.7.0",
+  "description": "See whether ChatGPT, Gemini and Claude cite your business, and get the fixes that get you cited.",
+  "author": {
+    "name": "Cited Inc.",
+    "email": "info@youcited.com",
+    "url": "https://youcited.com"
+  },
+  "homepage": "https://youcited.com",
+  "repository": "https://github.com/YouCited/cited-cli",
+  "license": "LicenseRef-Proprietary",
+  "keywords": [
+    "geo",
+    "ai search",
+    "seo",
+    "citations",
+    "audit"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Cited",
+        "shortDescription": "AI search visibility audits",
+        "longDescription": "Cited shows whether AI assistants recommend your business when buyers ask about what you sell, and what to change so they do. Start with a free check of any website: Cited asks ChatGPT, Gemini, Claude and Google AI Mode five real buyer questions and reports who they cite instead of you. With an account, Cited sets up your business from its website, drafts the buyer questions to track, and runs a full audit across each engine's models. The audit becomes a short list of recommendations, each backed by the answers and sources the engines used, and Cited writes the fix for each one: schema, FAQ content, llms.txt and page changes, with where each file goes. After you publish a fix, Cited checks the live site and tracks whether citations move on the next audit. Pricing is pay-as-you-go credits with no subscription. Audits show their price and need your confirmation before anything is charged, and purchases open a Stripe checkout for you to complete.",
+        "developerName": "Cited Inc.",
+        "category": "Business",
+        "capabilities": [
+          "Free AI visibility check",
+          "Paid audits across AI engines",
+          "Recommendations",
+          "Fix files",
+          "Scheduled re-checks"
+        ],
+        "websiteURL": "https://youcited.com",
+        "supportURL": "https://youcited.com/contact",
+        "privacyPolicyURL": "https://youcited.com/privacy",
+        "termsOfServiceURL": "https://youcited.com/terms",
+        "defaultPrompt": [
+          "Run a free Cited audit of my website.",
+          "What should I fix first so AI cites my business?",
+          "What would a full Cited audit cost?"
+        ],
+        "brandColor": "#3D8BF7",
+        "brandColorDark": "#3D8BF7",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/logo.png"
+      },
+      "onboardingSkill": "./skills/get-started/SKILL.md",
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Free audit of a public site",
+              "prompt": "Run a free Cited audit of youcited.com.",
+              "tools_triggered": "free_audit",
+              "expected_behavior": "Starts the free audit, checks it again with report_token until it completes, then summarizes which engines cited the site and who they cited instead."
+            },
+            {
+              "description": "Account status",
+              "prompt": "What's my Cited account status?",
+              "tools_triggered": "account_status",
+              "expected_behavior": "Shows the signed-in email, the credit balance, the businesses on the account and the suggested next step."
+            },
+            {
+              "description": "Buyer questions for the business",
+              "prompt": "Show me the buyer questions Cited tracks for my business.",
+              "tools_triggered": "get_business, draft_questions",
+              "expected_behavior": "Returns the test business's question set, or drafts one and returns it when there is none."
+            },
+            {
+              "description": "Price an audit and ask before running it",
+              "prompt": "What would a full audit cost? Run it if it's under 15 credits.",
+              "tools_triggered": "quote_audit, run_audit",
+              "expected_behavior": "Shows the credit price and balance, then calls run_audit with confirm=true only within the user's limit, and returns the audit_id."
+            },
+            {
+              "description": "Recommendations and a fix",
+              "prompt": "What should I fix first? Write the fix for the top item.",
+              "tools_triggered": "get_recommendations, generate_fixes, get_fixes",
+              "expected_behavior": "Lists the open recommendations from the latest audit, states the fix price and asks before generating, then returns the fix files and where each goes."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Unrelated request",
+              "prompt": "What's the weather in Paris today?"
+            },
+            {
+              "description": "Charging a saved card",
+              "prompt": "Buy 50 Cited credits with my saved card right now."
+            },
+            {
+              "description": "Account deletion",
+              "prompt": "Delete my Cited account and all my data."
+            }
+          ]
+        },
+        "commerce": true,
+        "commerce_description": "Paid audits and fixes use prepaid Cited credits. Audit and fix tools show the price and run only after the user confirms. Credits are bought only through a Stripe checkout link that the user opens and completes; the app never charges a card itself."
+      },
+      "publication": {
+        "countries": [
+          "US"
+        ],
+        "release_notes": "First release: free AI visibility audit, paid audits across ChatGPT, Gemini, Claude and Google AI Mode, recommendations, fix files and scheduled re-checks."
+      }
+    }
+  }
+}
