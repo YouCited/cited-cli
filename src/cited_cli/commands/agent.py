@@ -24,10 +24,21 @@ def signup(
     email: Annotated[
         str | None, typer.Option("--email", help="Email the claim link to the person")
     ] = None,
+    free_audit: Annotated[
+        str | None,
+        typer.Option(
+            "--free-audit",
+            help="Report token (or link) of a finished free audit to keep in the new account",
+        ),
+    ] = None,
 ) -> None:
     """Create a Cited account for an AI agent, without a login.
 
     The API key is saved on this machine (never printed). Give the person the
     claim link and code so they can keep the account.
     """
-    run(ctx, "agent_signup", clean({"agent_name": name, "owner_email": email}))
+    run(
+        ctx,
+        "agent_signup",
+        clean({"agent_name": name, "owner_email": email, "free_audit_token": free_audit}),
+    )

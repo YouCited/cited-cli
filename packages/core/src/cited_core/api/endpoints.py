@@ -64,17 +64,6 @@ RECOMMEND_CHECK_STATUS = "/recommendations/{job_id}/check-status"
 RECOMMEND_VALIDATE = "/recommendations/{recommendation_id}/validate"
 RECOMMEND_VALIDATE_LATEST = "/recommendations/{recommendation_id}/validate/latest"
 
-# Solutions
-SOLUTION_REQUEST = "/solutions/request"
-SOLUTION_REQUEST_BATCH = "/solutions/request-batch"
-SOLUTION_CREATE = "/solutions/create"
-SOLUTION_PRIORITY_ACTION = "/solutions/priority-action"
-SOLUTION_STATUS = "/solutions/{job_id}/status"
-SOLUTION_RESULT = "/solutions/{job_id}/result"
-SOLUTION_HISTORY = "/solutions/history"
-SOLUTION_CANCEL = "/solutions/{job_id}/cancel"
-SOLUTION_DELETE = "/solutions/{job_id}"
-
 # Business HQ
 HQ = "/businesses/{business_id}/hq"
 HQ_HEAVY = "/businesses/{business_id}/hq/heavy"
