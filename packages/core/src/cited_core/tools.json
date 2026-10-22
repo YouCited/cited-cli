@@ -1,7 +1,7 @@
 {
   "name": "cited",
   "title": "Cited",
-  "version": "399771b24c73",
+  "version": "8e72ee4dbc2a",
   "instructions": "Cited checks whether AI assistants (ChatGPT, Gemini, Claude, Google AI Mode) cite a website when buyers ask about what it sells, and what to change so they do. Start with account_status. free_audit needs no account. For a paid audit: agent_signup (or sign in), setup_business, draft_questions, quote_audit, then run_audit, get_audit, get_recommendations and generate_fixes. Purchases only return checkout links for the human to open.",
   "tools": [
     {
@@ -333,7 +333,7 @@
     {
       "name": "draft_questions",
       "title": "Draft Audit Questions",
-      "description": "The business's question set: the buyer questions each audit asks AI. Returns the set when there is one. With none (or regenerate=true, or add=true to draft more) it starts drafting and returns job_id; call again with job_id to save and return the drafted set. Pass questions to replace the set with your own list. Review the questions with the user before run_audit. Up to 50 questions.",
+      "description": "The business's question set: the buyer questions each audit asks AI. Returns the set when there is one. With none (or regenerate=true, or add=true to draft more) it starts drafting and returns job_id; call again with job_id to save and return the drafted set. Pass questions to replace the set with your own list. Review the questions with the user before run_audit. Up to 25 questions.",
       "input_schema": {
         "type": "object",
         "properties": {
