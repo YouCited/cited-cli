@@ -4,14 +4,14 @@ description: Run a GEO audit on a business
 user_invocable: true
 arguments:
   - name: business
-    description: Business name or ID (optional, will prompt if not provided)
+    description: Business website, name or ID (optional, will ask if not provided)
     required: false
 ---
 
-Run a full GEO audit workflow using the Cited platform.
+Check whether AI assistants cite a business, using Cited.
 
-If `$ARGUMENTS` contains a business name or ID, use it to find the business. Otherwise, list businesses and ask the user to pick one.
+If `$ARGUMENTS` names a website, business or business ID, use it. Otherwise call `get_business` to list businesses and ask the user to pick one, or ask for their website.
 
-Follow the geo-audit skill workflow: verify auth, select business, select/create template, start audit, poll until complete, then present results with actionable insights.
+Follow the geo-audit skill: `account_status` first, the free audit when there is no account, otherwise the question set, the quote, `run_audit` once the user approves the price, then `get_audit` until it finishes. Present the results with what to fix first.
 
-After showing results, offer to run recommendations for deeper analysis.
+After showing results, offer the geo-recommend workflow for the fixes.

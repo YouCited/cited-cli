@@ -3,7 +3,7 @@
 <!-- MCP Registry ownership verification for PyPI (must match "name" in server.json) -->
 <!-- mcp-name: com.youcited/cited -->
 
-MCP server for the [Cited](https://youcited.com) Generative Engine Optimization (GEO) platform. Exposes 75 tools that let AI assistants like Claude manage businesses, run GEO audits, generate recommendations, work a prioritized action plan, verify fixes via the Validation Engine, and create solutions — all through the [Model Context Protocol](https://modelcontextprotocol.io/).
+MCP server for [Cited](https://youcited.com): check whether ChatGPT, Gemini, Claude and Google AI Mode cite your website when buyers ask about what you sell, and get the fixes that get you cited. 21 tools over the [Model Context Protocol](https://modelcontextprotocol.io/): the 19 Cited tools, the same ones the hosted server at `mcp.youcited.com` serves, plus local `login` and `logout`.
 
 ## Install
 
@@ -19,7 +19,7 @@ uvx cited-mcp
 
 ## Usage
 
-The hosted server is at **`https://mcp.youcited.com/mcp`** (streamable HTTP; your browser opens to log in on first use). The `free_audit`, `search_docs` and `get_doc` tools work without logging in.
+The hosted server is at **`https://mcp.youcited.com/mcp`** (streamable HTTP; your browser opens to log in on first use). The `free_audit`, `account_status`, `agent_signup` and `search_docs` tools work without logging in.
 
 **Quick setup:** with the [cited-cli](https://pypi.org/project/cited-cli/) installed, `cited agent setup` configures Claude Code, Cursor and Codex for you and prints the Claude Desktop connector steps (`--dry-run` to preview). It merges into existing config and backs up files before changing them.
 
@@ -124,218 +124,79 @@ Or add `[mcp_servers.cited]` with `url = "https://mcp.youcited.com/mcp"` to `~/.
 ### Standalone
 
 ```bash
-# Local stdio mode (requires CITED_TOKEN env var)
-CITED_TOKEN=your-jwt-token cited-mcp
-
-# Remote HTTP mode (used for hosted deployment)
-cited-mcp-remote
+cited-mcp                          # stdio; uses `cited login`, CITED_TOKEN or an agent key
+CITED_ENV=dev cited-mcp            # another environment
 ```
+
+The tools are defined once, in the Cited API. On start the server reads the current list from `GET https://api.youcited.com/agent/tools` (falling back to the copy bundled with `cited-core`) and runs each call through `POST /agent/tools/{name}`, so it always behaves like the hosted server.
 
 ### Updating to new Cited features
 
-Cited adds new tools regularly. To access new tools after a release, **disconnect and reconnect the Cited connector** in your Claude Desktop or Claude.ai connector settings — restarting Claude alone is not enough, because the connector's tool list is cached at registration time. Once reconnected, ask the agent to call `whats_new` to see what changed since you last connected.
+Clients cache the tool list. After a Cited release, reconnect the connector (or restart a local `cited-mcp`) to pick up new tools.
 
 ## Tools
 
-### Auth & meta
-| Tool | Description |
-|------|-------------|
-| `ping` | Readiness check — returns server version, tool count, and tool-surface fingerprint |
-| `check_auth_status` | Check current authentication status |
-| `login` | Authenticate via browser OAuth flow |
-| `logout` | Clear stored authentication token |
-| `whats_new` | Diff the current tool surface against a prior fingerprint or version |
+Start with `account_status`: it says who is signed in, the credit balance, the businesses and the next step.
 
-### Credits (1 credit = $1)
-| Tool | Description |
-|------|-------------|
-| `get_prices` | Credit prices, audit cost and packs (no login) |
-| `get_credits` | Balance, purchases (lots), saved card and auto-refill settings |
-| `credit_history` | Credit transactions: purchases, spends, returns, refunds, expiries |
-| `buy_credits` | Checkout link for a credit pack (claimed accounts) |
-| `buy_audit` | $15 checkout link for one audit (any account) |
-| `request_refund` | Refund unused credits bought in the last 30 days (asks for confirmation) |
-| `redeem_voucher` | Redeem a voucher code for free credits (once per account) |
-| `set_auto_refill` | Turn auto-refill on or off, with pack and monthly cap (turning on needs `confirm=True`) |
-| `quote_audit` | Credits an audit will cost before starting it |
-
-### Agent signup & keys
-| Tool | Description |
-|------|-------------|
-| `agent_signup` | Create an account and API key for this agent (no login); returns a claim link and code for the human |
-| `key_status` | Agent key state: unclaimed, expiry, notice, OAuth instructions |
-| `list_api_keys` | List the account's agent API keys |
-| `revoke_api_key` | Revoke an agent API key |
-
-### Businesses
-| Tool | Description |
-|------|-------------|
-| `list_businesses` | List all businesses on your account |
-| `get_business` | Get details for a specific business |
-| `create_business` | Create a new business |
-| `update_business` | Update business details |
-| `delete_business` | Delete a business |
-| `crawl_business` | Start a website crawl for a business |
-| `get_health_scores` | Get GEO health scores for a business |
-| `get_usage_stats` | Get credit balance, business count and audit count |
-
-### Audit Templates
-| Tool | Description |
-|------|-------------|
-| `list_audit_templates` | List all audit templates |
-| `get_audit_template` | Get a specific template with questions |
-| `create_audit_template` | Create a new audit template |
-| `update_audit_template` | Update template name, description, or questions |
-| `delete_audit_template` | Delete an audit template |
-
-### Docs (no login)
-| Tool | Description |
-|------|-------------|
-| `search_docs` | Search the public Cited documentation by keyword; returns doc paths, titles, and descriptions |
-| `get_doc` | Read one doc as markdown by its `category/slug` path |
-
-### Audits
-| Tool | Description |
-|------|-------------|
-| `free_audit` | Free GEO audit of any website, no login needed. Call again with the same URL for progress and the full report |
-| `start_audit` | Run a GEO audit using a template (quotes the cost first; runs with `confirm=True`) |
-| `get_audit_status` | Check audit job status |
-| `get_audit_result` | Get completed audit results |
-| `list_audits` | List all audits |
-| `export_audit` | Export a completed audit as a PDF report |
-
-### Recommendations
-| Tool | Description |
-|------|-------------|
-| `start_recommendation` | Generate recommendations from a completed audit |
-| `get_recommendation_status` | Check recommendation job status |
-| `get_recommendation_result` | Get full recommendation results |
-| `get_recommendation_insights` | Get actionable insights with risk levels and coverage scores |
-| `list_recommendations` | List all recommendation jobs |
-| `get_recommendation_check_status` | Run all 62 deterministic GEO/SEO checks (Validation Engine) — counts + per-check detail |
-| `validate_recommendation` | Re-run the deterministic check for a single recommendation |
-| `get_recommendation_validation_latest` | Fetch the latest stored validation result for a recommendation |
-
-### Solutions
-| Tool | Description |
-|------|-------------|
-| `start_solution` | Generate a solution for a specific insight or tip |
-| `start_solutions_batch` | Start up to 10 solutions in one call |
-| `get_solution_status` | Check solution job status |
-| `get_solution_result` | Get completed solution with implementation steps |
-| `list_solutions` | List all solutions |
-
-### Jobs
-| Tool | Description |
-|------|-------------|
-| `get_job_status` | Check status of any job by type and ID |
-| `cancel_job` | Cancel a running job |
-
-### HQ Dashboard
-| Tool | Description |
-|------|-------------|
-| `get_business_hq` | Get comprehensive business dashboard with health scores, personas, products |
-
-### Analytics
-| Tool | Description |
-|------|-------------|
-| `compare_audits` | Compare an audit against its baseline |
-
-### Action Plan
-| Tool | Description |
-|------|-------------|
-| `get_action_plan` | Get a prioritised checklist of next steps to improve GEO |
-| `get_quick_wins` | Get low-effort, high-impact actions to tackle first |
-| `mark_action_done` | Mark a priority action as completed |
-| `dismiss_action` | Dismiss a priority action as not applicable |
-| `get_action_progress` | Get progress summary (completed vs remaining) |
+| Tool | What it does | Login |
+|------|--------------|-------|
+| `free_audit` | Free check of how AI answers 5 buyer questions about a site; poll with `report_token` | no |
+| `agent_signup` | Create an account for your human without a login; the key is saved locally, the claim link and code are returned | no |
+| `account_status` | Who is signed in, balance, businesses, prices, next step | no |
+| `search_docs` | Search the Cited docs, or read one with `path` | no |
+| `buy_credits` | Checkout link for a credit pack or one audit, or redeem a voucher | yes |
+| `setup_business` | Add a business from its website, or update it, its buyer personas and offerings | yes |
+| `get_business` | List businesses, or one business's profile, questions, schedule and recent audits | yes |
+| `get_agent_brief` | What to focus on next for a business | yes |
+| `draft_questions` | Draft, extend or replace the buyer questions the audit asks | yes |
+| `quote_audit` | What an audit costs, the balance and the models | yes |
+| `run_audit` | Run a paid audit; returns the price first, spends only with `confirm=true` | yes |
+| `get_audit` | List audits, or one audit's status and report | yes |
+| `compare_audits` | Citations won and lost against an earlier audit | yes |
+| `schedule_recheck` | Re-run the audit every N days, email and webhook alerts | yes |
+| `get_recommendations` | What to change, with item keys, evidence, status and fixes | yes |
+| `update_recommendation` | Mark an item done or dismissed, or open it again | yes |
+| `generate_fixes` | Write fix files and steps for items (or all); asks before spending | yes |
+| `get_fixes` | List fixes, or one fix's files, targets and steps | yes |
+| `update_fix` | `done`, `undo`, or `verify` the fix on the live site | yes |
+| `login` | Browser sign-in that stores a session on this machine (local server only) | no |
+| `logout` | Forget the session or saved agent key (local server only) | no |
 
 ## Example Workflow
 
-Once connected, ask Claude to run a full GEO audit:
-
-> "List my businesses, then run a GEO audit on Acme Corp using the default template. When it's done, generate recommendations and show me the top insights."
-
-Claude will chain the tools automatically:
-
-1. `list_businesses` → find the business ID
-2. `list_audit_templates` → find or create a template
-3. `start_audit` → kick off the audit
-4. `get_audit_status` → poll until complete
-5. `start_recommendation` → generate recommendations
-6. `get_recommendation_insights` → display actionable results
-7. `start_solution` → generate implementation steps for top issues
+1. `account_status`, then `free_audit` with the website for a free first look.
+2. `agent_signup` (or `login`), then `setup_business` with the website.
+3. `draft_questions`, review them with the user, then `quote_audit`.
+4. `run_audit` (the user approves the price), then `get_audit` until it finishes.
+5. `get_recommendations`, `generate_fixes`, `get_fixes` for the files, then `update_fix` with `done` and `verify`.
 
 ## Pricing: pay-as-you-go credits
 
-There are no plans or tiers: every tool is available to every account, and work is paid for
-with credits (1 credit = $1). A standard audit costs 10 credits (up to 5 questions with each
-engine's included models; each further 5 questions adds 10, each extra model 2). Call
-`quote_audit` before `start_audit` to see the cost. Recommendations, solutions, crawls and
-question regeneration need the account to have bought credits at least once. A one-off audit
-costs $15 (`buy_audit`, works for unclaimed agent accounts); packs (`buy_credits`) need a
-claimed account. Purchases return a Stripe `checkout_url` for the human to open — no tool
-charges a card on its own.
-
-When an account is short of credits, tools return HTTP 402 details the agent can act on:
-
-```json
-{
-  "error": true,
-  "status_code": 402,
-  "payment_required": true,
-  "error_type": "insufficient_credits",
-  "message": "This audit needs 10 credits; you have 2.",
-  "credits_needed": 10,
-  "balance": 2,
-  "buy_url": "https://youcited.com/app/billing",
-  "hint": "Not enough credits. Show the human buy_url, or call 'buy_credits' ..."
-}
-```
-
-`error_type` is `insufficient_credits`, `purchase_required` (402) or `claim_required` (403, an
-unclaimed agent account tried something that needs a person to claim it; includes `claim_url`).
+No plans or subscriptions. 1 credit = $1; `account_status` and `quote_audit` show current prices. Purchase tools only return a Stripe checkout link for a person to open: nothing is bought until `account_status` shows the new balance. A short balance comes back as an error with `status_code` 402 and `credits_needed`.
 
 ## Agent signup and keys
 
-An agent with no Cited account can call `agent_signup` (no login needed). It gets its own API
-key, saved locally and sent as `X-Agent-API-Key` on every call, on an unclaimed account (1
-business, 1 audit, deleted after 7 days unless claimed). The agent shows its human the claim
-link and 6-digit code; claiming moves everything into the human's account, and the key then
-expires 90 days later. While a key has an expiry, API responses carry an `X-Cited-Notice`
-header, which every tool result surfaces as a top-level `notice` field. Connecting the hosted
-server (`https://mcp.youcited.com/mcp`) with OAuth does not expire. The hosted server also
-accepts an agent key as its Bearer token.
+`agent_signup` makes an unclaimed account for an AI agent. The API key is saved on this machine (the OS keychain, or `~/.cited/credentials.json`) and used for every call; it is never shown to the model. Give your human the claim link and 6-digit code so they keep the account. `logout` forgets the key.
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `CITED_TOKEN` | JWT auth token (stdio mode) |
-| `CITED_AGENT_API_KEY` | Per-user agent API key (alternative to JWT; `agent_signup` saves one for you) |
-| `CITED_API_URL` | API base URL (default: `https://api.youcited.com`) |
-| `CITED_ENV` | Environment: `prod`, `dev`, or `local` |
-| `MCP_URL` | Public URL of this MCP server (remote mode) |
-| `JWT_SECRET` | Secret for signing OAuth tokens (remote mode) |
+| `CITED_TOKEN` | A Cited session token (`cited login`, then `cited auth token`). Optional. |
+| `CITED_AGENT_API_KEY` | A Cited agent key (`cak_...`). Optional; `agent_signup` saves one for you. |
+| `CITED_ENV` | `prod` (default), `dev` or `local`. |
 
 ## Development
 
 ```bash
-# Install in editable mode with dev dependencies
-pip install -e packages/core
-pip install -e "packages/mcp[dev]"
-
-# Run tests
-pytest tests/test_mcp_tools.py tests/test_mcp_server.py packages/mcp/tests/ -v
-
-# Lint and type check
-ruff check packages/mcp/
-mypy packages/mcp/src --ignore-missing-imports
+pip install -e ../core -e ".[dev]"
+pytest
+ruff check src/ && mypy src/ --ignore-missing-imports
 ```
 
 ## Privacy Policy
 
-See our [Privacy Policy](https://youcited.com/privacy) for details on data collection, usage, storage, and third-party sharing.
+See [youcited.com/privacy](https://youcited.com/privacy).
 
 ## License
 

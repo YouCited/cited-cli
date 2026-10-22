@@ -6,25 +6,19 @@ from typing import Annotated
 import typer
 
 from cited_cli import __version__
+from cited_cli.commands.account import credits_app
+from cited_cli.commands.account import status as account_status
 from cited_cli.commands.agent import agent_app
-from cited_cli.commands.analytics import analytics_app
 from cited_cli.commands.audit import audit_app
 from cited_cli.commands.auth import auth_app, do_login, do_logout, do_register
 from cited_cli.commands.business import business_app
 from cited_cli.commands.config_cmd import config_app
-from cited_cli.commands.credits import credits_app
 from cited_cli.commands.docs import docs_app
-from cited_cli.commands.hq import hq_app
-from cited_cli.commands.job import job_app
+from cited_cli.commands.fix import fix_app
 from cited_cli.commands.mcp_cmd import mcp_app
-from cited_cli.commands.named_audit import named_audit_app
 from cited_cli.commands.recommend import recommend_app
-from cited_cli.commands.solution import solution_app
-from cited_cli.output.formatter import OutputContext, print_error, print_result
-from cited_cli.output.tables import render_kv
-from cited_cli.utils.errors import CitedAPIError, ExitCode, handle_api_error
-from cited_core.api import endpoints
-from cited_core.api.client import CitedClient
+from cited_cli.commands.tools_cmd import tools_app
+from cited_cli.output.formatter import OutputContext, print_result
 from cited_core.config.manager import ConfigManager
 
 app = typer.Typer(
@@ -34,22 +28,18 @@ app = typer.Typer(
     rich_markup_mode="rich",
 )
 
-# Register nested subcommand groups
-audit_app.add_typer(named_audit_app, name="template")
-
-# Register subcommand groups
+# Each data command runs one of Cited's agent tools (see utils/tools.py), so
+# the CLI, cited-mcp and the hosted MCP server behave the same.
 app.add_typer(auth_app, name="auth")
 app.add_typer(config_app, name="config")
+app.add_typer(agent_app, name="agent")
+app.add_typer(credits_app, name="credits")
 app.add_typer(business_app, name="business")
 app.add_typer(audit_app, name="audit")
 app.add_typer(recommend_app, name="recommend")
-app.add_typer(solution_app, name="solution")
-app.add_typer(hq_app, name="hq")
-app.add_typer(analytics_app, name="analytics")
-app.add_typer(agent_app, name="agent")
-app.add_typer(credits_app, name="credits")
-app.add_typer(job_app, name="job")
+app.add_typer(fix_app, name="fix")
 app.add_typer(docs_app, name="docs")
+app.add_typer(tools_app, name="tools")
 app.add_typer(mcp_app, name="mcp")
 
 
@@ -131,33 +121,7 @@ def version(ctx: typer.Context) -> None:
     )
 
 
-@app.command()
-def status(ctx: typer.Context) -> None:
-    """Check API health."""
-    obj = ctx.obj or {}
-    out: OutputContext = obj.get("output", OutputContext())
-    cfg: ConfigManager = obj.get("config", ConfigManager())
-    profile = obj.get("profile", "default")
-    api_url = cfg.get_api_url(profile, obj.get("env_override"))
-    env = cfg.get_environment(profile, obj.get("env_override"))
-
-    client = CitedClient(base_url=api_url, timeout=10.0)
-    try:
-        data = client.get(endpoints.HEALTH_READY)
-        data["environment"] = env
-        data["api_url"] = api_url
-        print_result(
-            data,
-            out,
-            human_formatter=lambda d, c: render_kv("API Status", d, c),
-        )
-    except CitedAPIError as e:
-        handle_api_error(e, out.json_mode)
-    except Exception as e:
-        print_error(f"Cannot reach API at {api_url}: {e}", out)
-        raise typer.Exit(ExitCode.ERROR) from e
-    finally:
-        client.close()
+app.command("status")(account_status)
 
 
 @app.command()

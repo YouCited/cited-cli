@@ -1,15 +1,15 @@
 ---
 name: recommend
-description: Generate GEO recommendations from a completed audit
+description: Read the recommendations from a Cited audit and make the fixes
 user_invocable: true
 arguments:
-  - name: audit_job_id
-    description: Audit job ID (optional, will show recent audits if not provided)
+  - name: audit_id
+    description: Audit ID (optional, the newest finished audit is used if not provided)
     required: false
 ---
 
-Generate recommendations and solutions from a completed GEO audit.
+Read the recommendations from a finished Cited audit and turn them into fixes.
 
-If `$ARGUMENTS` contains an audit job ID, use it directly. Otherwise, call `list_audits` and ask the user to pick a completed audit.
+If `$ARGUMENTS` contains an audit ID, pass it as `audit_id`. Otherwise call `get_recommendations` without it to use the newest finished audit.
 
-Follow the geo-recommend skill workflow: start recommendations, poll until complete, get insights, then offer to generate solutions for the highest-priority items.
+Follow the geo-recommend skill: present the open items highest risk first, generate fixes for the ones the user picks (ask before spending credits), show the files and steps, then mark them done and verify them on the live site.

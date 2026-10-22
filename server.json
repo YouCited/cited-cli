@@ -30,14 +30,14 @@
       "environmentVariables": [
         {
           "name": "CITED_TOKEN",
-          "description": "Cited login token (run `cited login`, then `cited auth token`). Optional: without it, use the login tool or the no-login free_audit and search_docs tools.",
+          "description": "Cited login token (run `cited login`, then `cited auth token`). Optional: without it, use the login or agent_signup tools, or the no-login free_audit, account_status and search_docs tools.",
           "isRequired": false,
           "isSecret": true,
           "format": "string"
         },
         {
           "name": "CITED_AGENT_API_KEY",
-          "description": "Cited Agent API key for the structured Agent API tools (facts, claims, comparisons). Optional.",
+          "description": "Cited agent API key (cak_...), used when there is no login token. Optional: the agent_signup tool creates one and saves it on this machine.",
           "isRequired": false,
           "isSecret": true,
           "format": "string"
