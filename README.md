@@ -312,7 +312,7 @@ cited auth login|logout|status|token|register
 cited config set|get|show|environments
 
 cited agent setup [--client ...] [--dry-run] [--yes]  ← Connect AI clients to Cited
-cited agent signup [--name] [--email]               ← Account + API key for an agent (no login)
+cited agent signup [--name] [--email] [--free-audit] ← Account + API key for an agent (no login)
 
 cited credits buy [PACK_ID] [--one-audit] [--voucher CODE] [--no-save-card]
 

@@ -1,6 +1,6 @@
 # Setting Up Cited for Claude Desktop
 
-This guide walks you through connecting Claude Desktop to the Cited GEO platform. Once set up, you can ask Claude to audit your business's AI search presence, generate recommendations, and create solutions — all through conversation.
+This guide walks you through connecting Claude Desktop to the Cited GEO platform. Once set up, you can ask Claude to audit your business's AI search presence, get recommendations, and make fixes, all through conversation.
 
 ## What You Need
 
@@ -85,7 +85,7 @@ Once connected, Claude can:
 - **List and manage your businesses** — view, create, update, or delete businesses
 - **Run GEO audits** — check how your business appears in AI search results (ChatGPT, Perplexity, Gemini, etc.)
 - **Generate recommendations** — get actionable insights to improve your AI search visibility
-- **Create solutions** — detailed implementation steps for each recommendation
+- **Make fixes**: files and install steps for each recommendation
 - **Check health scores** — see your overall GEO health at a glance
 - **Monitor usage** — check your credit balance and account statistics
 

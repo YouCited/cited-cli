@@ -41,6 +41,11 @@ def _cli(runner, cli_app, *args):
         (["auth", "status"], "account_status", {}),
         (["audit", "free", "acme.com", "--no-wait"], "free_audit", {"url": "acme.com"}),
         (["agent", "signup", "--name", "Claude"], "agent_signup", {"agent_name": "Claude"}),
+        (
+            ["agent", "signup", "--free-audit", "instant_ab_cd"],
+            "agent_signup",
+            {"free_audit_token": "instant_ab_cd"},
+        ),
         (["credits", "buy", "pack_20"], "buy_credits", {"pack_id": "pack_20"}),
         (["credits", "buy", "--one-audit"], "buy_credits", {"one_audit": True}),
         (["credits", "buy", "--voucher", "HELLO"], "buy_credits", {"voucher_code": "HELLO"}),
