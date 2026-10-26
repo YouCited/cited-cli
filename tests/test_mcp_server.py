@@ -34,9 +34,9 @@ def test_lists_the_shared_tools_and_local_ones(session):
 
     tools = {t.name: t for t in tool_list(session)}
     assert list(tools) == EXPECTED_TOOLS
-    assert tools["run_audit"].annotations.readOnlyHint is False
-    assert tools["get_business"].annotations.readOnlyHint is True
-    assert tools["free_audit"].inputSchema["properties"]["url"]["type"] == "string"
+    assert tools["run_audit"].annotations.read_only_hint is False
+    assert tools["get_business"].annotations.read_only_hint is True
+    assert tools["free_audit"].input_schema["properties"]["url"]["type"] == "string"
     assert tools["login"].title == "Log In"
 
 
@@ -49,8 +49,8 @@ def test_calls_go_to_the_api(session):
     )
     result = call(session, "get_audit", {"limit": 2})
     assert json.loads(route.calls[0].request.content) == {"limit": 2}
-    assert result.isError is False
-    assert result.structuredContent == {"audits": [], "notice": "hi"}
+    assert result.is_error is False
+    assert result.structured_content == {"audits": [], "notice": "hi"}
 
 
 @respx.mock
@@ -63,8 +63,8 @@ def test_errors_are_marked_and_point_at_login(session):
         )
     )
     result = call(session, "get_business", {})
-    assert result.isError is True
-    assert "login" in result.structuredContent["hint"]
+    assert result.is_error is True
+    assert "login" in result.structured_content["hint"]
 
 
 @respx.mock
@@ -83,17 +83,17 @@ def test_agent_signup_keeps_the_key_local(session, creds):
 def test_login_starts_a_browser_sign_in_then_finishes(session, creds):
     from cited_mcp.server import call
 
-    first = call(session, "login", {}).structuredContent
+    first = call(session, "login", {}).structured_content
     assert first["action_required"] is True
     assert first["login_url"].startswith(f"{API}/auth/authorize-app?")
-    assert call(session, "login", {}).structuredContent["waiting"] is True
+    assert call(session, "login", {}).structured_content["waiting"] is True
 
     session.pending_login.token = "jwt-token"
     with respx.mock:
         respx.get(f"{API}/auth/me").mock(
             return_value=httpx.Response(200, json={"email": "a@b.co"})
         )
-        done = call(session, "login", {}).structuredContent
+        done = call(session, "login", {}).structured_content
     assert done["success"] is True and "a@b.co" in done["message"]
     assert creds.get_token("dev") == "jwt-token"
     assert session.client.token == "jwt-token"
@@ -106,18 +106,20 @@ def test_logout_forgets_the_session_then_the_agent_key(session, creds):
     session.client.set_token("jwt")
     session.client.set_agent_api_key("cak_x")
     creds.save_agent_key("dev", "cak_x")
-    assert "Signed out" in call(session, "logout", {}).structuredContent["message"]
+    assert "Signed out" in call(session, "logout", {}).structured_content["message"]
     assert creds.get_token("dev") is None
-    assert "agent key" in call(session, "logout", {}).structuredContent["message"]
+    assert "agent key" in call(session, "logout", {}).structured_content["message"]
     assert creds.get_agent_key("dev") is None
-    assert call(session, "logout", {}).structuredContent["success"] is False
+    assert call(session, "logout", {}).structured_content["success"] is False
 
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
-async def test_server_answers_over_mcp(session, anyio_backend):
-    """List and call tools through a real MCP client session (in memory)."""
-    from mcp.shared.memory import create_connected_server_and_client_session
+@pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
+async def test_server_answers_over_mcp(session, anyio_backend, mode):
+    """List and call tools through a real MCP client, in memory: ``legacy`` is
+    the initialize handshake, 2026-07-28 the per-request protocol."""
+    from mcp import Client
 
     from cited_mcp.server import create_server
 
@@ -126,8 +128,8 @@ async def test_server_answers_over_mcp(session, anyio_backend):
         respx.post(f"{API}/agent/tools/search_docs").mock(
             return_value=httpx.Response(200, json={"results": []})
         )
-        async with create_connected_server_and_client_session(server) as client:
+        async with Client(server, mode=mode) as client:
             listed = await client.list_tools()
             assert [t.name for t in listed.tools] == EXPECTED_TOOLS
             result = await client.call_tool("search_docs", {"query": "x"})
-            assert result.structuredContent == {"results": []}
+            assert result.structured_content == {"results": []}

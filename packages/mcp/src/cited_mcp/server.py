@@ -22,6 +22,7 @@ from urllib.parse import urlencode
 
 import anyio
 import mcp.types as types
+from mcp.server.context import ServerRequestContext
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 
@@ -125,7 +126,7 @@ def tool_list(session: CitedSession) -> list[types.Tool]:
             name=t["name"],
             title=t.get("title"),
             description=t.get("description"),
-            inputSchema=t.get("input_schema") or {"type": "object", "properties": {}},
+            input_schema=t.get("input_schema") or {"type": "object", "properties": {}},
             annotations=types.ToolAnnotations(**t["annotations"])
             if t.get("annotations")
             else None,
@@ -137,8 +138,8 @@ def tool_list(session: CitedSession) -> list[types.Tool]:
 def _result(data: dict[str, Any], is_error: bool) -> types.CallToolResult:
     return types.CallToolResult(
         content=[types.TextContent(type="text", text=json.dumps(data, indent=2, default=str))],
-        structuredContent=data,
-        isError=is_error,
+        structured_content=data,
+        is_error=is_error,
     )
 
 
@@ -274,24 +275,28 @@ def call(
     return _result(result, status >= 400)
 
 
-def create_server(session: CitedSession) -> Server[Any, Any]:
-    server: Server[Any, Any] = Server(
-        name="cited",
+def create_server(session: CitedSession) -> Server[Any]:
+    async def _list_tools(
+        ctx: ServerRequestContext[Any], params: types.PaginatedRequestParams | None
+    ) -> types.ListToolsResult:
+        return types.ListToolsResult(tools=tool_list(session))
+
+    async def _call_tool(
+        ctx: ServerRequestContext[Any], params: types.CallToolRequestParams
+    ) -> types.CallToolResult:
+        # The client is synchronous; keep the event loop free while it waits.
+        return await anyio.to_thread.run_sync(
+            call, session, params.name, params.arguments or {}
+        )
+
+    return Server(
+        "cited",
         version=__version__,
         instructions=session.manifest.get("instructions"),
         website_url="https://youcited.com",
+        on_list_tools=_list_tools,
+        on_call_tool=_call_tool,
     )
-
-    @server.list_tools()  # type: ignore[no-untyped-call, untyped-decorator]
-    async def _list_tools() -> list[types.Tool]:
-        return tool_list(session)
-
-    @server.call_tool(validate_input=False)  # type: ignore[untyped-decorator]
-    async def _call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
-        # The client is synchronous; keep the event loop free while it waits.
-        return await anyio.to_thread.run_sync(call, session, name, arguments)
-
-    return server
 
 
 async def _serve(session: CitedSession) -> None:

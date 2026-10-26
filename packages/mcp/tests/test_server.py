@@ -53,7 +53,7 @@ def test_login_with_force_drops_the_old_session(store):
     session = _session(store)
     store.save_token("dev", "old")
     session.client.set_token("old")
-    result = call(session, "login", {"force": True}).structuredContent
+    result = call(session, "login", {"force": True}).structured_content
     assert result["action_required"] is True
     assert store.get_token("dev") is None
     assert session.client.token is None
