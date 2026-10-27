@@ -136,7 +136,7 @@ The hosted MCP server ships with the backend (merges to `main` in YouCited/cited
 
 **Prerequisites:** clean git state on `main`, `gh` CLI authenticated, `.venv` with cited-cli installed, `~/repos/homebrew-cited` cloned.
 
-**Homebrew tap repo:** `~/repos/homebrew-cited` (`YouCited/homebrew-cited` on GitHub). Contains a single formula `Formula/cited.rb` that installs cited-cli into a Python virtualenv with pinned dependency hashes. The formula uses `Language::Python::Virtualenv` and depends on `python@3.12` and `rust` (build-time, for `pydantic-core`).
+**Homebrew tap repo:** `~/repos/homebrew-cited` (`YouCited/homebrew-cited` on GitHub). Contains a single formula `Formula/cited.rb` that installs cited-cli into a Python virtualenv with pinned dependency hashes. The formula uses `Language::Python::Virtualenv` and depends on `python@3.12` and `rust` (build-time, for `pydantic-core`). Homebrew 7 only loads formulae from trusted taps, so docs must say `brew install youcited/cited/cited` (never the old tap-then-install pair), and existing users run `brew trust --formula youcited/cited/cited` before `brew upgrade cited`. Never tell users to trust the whole tap.
 
 ## API Environments
 

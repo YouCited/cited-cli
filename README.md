@@ -15,8 +15,18 @@ Command-line interface for the [Cited](https://youcited.com) GEO (Generative Eng
 ### Homebrew (recommended)
 
 ```bash
-brew tap youcited/cited
-brew install cited
+brew install youcited/cited/cited
+```
+
+Use the full name: Homebrew 7 refuses formulae from third-party taps it doesn't trust, and installing by full name trusts just this formula. Tapping first and then running `brew install cited` now fails with "Refusing to load formula ... from untrusted tap".
+
+#### Upgrading an older Homebrew install
+
+Homebrew 7 only loads formulae from trusted taps. If you installed with `brew tap` before, trust the formula once (safe to re-run), then upgrade:
+
+```bash
+brew trust --formula youcited/cited/cited
+brew upgrade cited
 ```
 
 ### From source (development)
