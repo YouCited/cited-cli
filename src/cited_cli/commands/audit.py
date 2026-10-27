@@ -3,6 +3,7 @@ compare_audits and schedule_recheck."""
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Any
 
 import typer
@@ -41,6 +42,22 @@ def _score_text(score: Any) -> str | None:
     return f"{score['score']}/100" + (f" ({band})" if band else "")
 
 
+def _checked_text(data: dict[str, Any]) -> str | None:
+    """"Checked Oct 27, 15:57", or a cached-result note when the audit was reused."""
+    raw = data.get("completed_at")
+    if not raw:
+        return None
+    try:
+        checked = datetime.fromisoformat(str(raw)).astimezone()
+    except ValueError:
+        return None
+    when = f"{checked:%b} {checked.day}, {checked:%H:%M}"
+    if not data.get("reused"):
+        return f"Checked {when}."
+    hours = data.get("cache_hours") or 24
+    return f"Cached result from {when}: free audits of a site are cached for {hours} hours."
+
+
 def _free(data: dict[str, Any], console: Console) -> None:
     status = data.get("status")
     if status in _RUNNING:
@@ -60,6 +77,9 @@ def _free(data: dict[str, Any], console: Console) -> None:
             console.print(summary["headline"], markup=False)
         for point in summary.get("points") or []:
             console.print(f"  • {point}", markup=False)
+    checked = _checked_text(data)
+    if checked:
+        console.print(checked, style="dim", markup=False)
     render_kv(
         f"Free audit: {data.get('domain')}",
         {"score": _score_text(data.get("score")), **(data.get("summary") or {})},

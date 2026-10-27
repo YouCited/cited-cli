@@ -205,3 +205,25 @@ def test_expired_login_says_to_sign_in_again(runner, cli_app, tool_calls):
     assert result.exit_code == 2
     assert "Invalid session" in result.output
     assert "cited login" in result.output
+
+
+def test_free_audit_says_when_a_result_is_cached(runner, cli_app, tool_calls):
+    _, responses = tool_calls
+    report = {
+        "status": "completed",
+        "domain": "acme.com",
+        "completed_at": "2026-10-27T12:00:00+00:00",
+        "cache_hours": 24,
+        "reused": True,
+        "report_token": "tok",
+    }
+    responses["free_audit"] = (200, report)
+    result = runner.invoke(cli_app, ["--env", "dev", "audit", "free", "acme.com"])
+    assert result.exit_code == 0, result.output
+    assert "Cached result from Oct 27" in result.output
+    assert "cached for 24 hours" in result.output
+
+    responses["free_audit"] = (200, {**report, "reused": False})
+    result = runner.invoke(cli_app, ["--env", "dev", "audit", "free", "acme.com"])
+    assert "Checked Oct 27" in result.output
+    assert "Cached" not in result.output
