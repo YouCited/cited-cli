@@ -86,7 +86,11 @@ def call_tool(
             f"{TOOLS_PATH}/{name}", json=arguments or {}, timeout=TOOL_TIMEOUT
         )
     except httpx.HTTPError as e:
-        return {"error": f"Could not reach the Cited API: {e}", "status_code": 503}, 503
+        return {
+            "error": f"Could not reach the Cited API at {client.base_url}: {e}",
+            "status_code": 503,
+            "error_type": "api_unreachable",
+        }, 503
     client._record_notice(response)
     if not response.is_success:
         body = _error_body(response)

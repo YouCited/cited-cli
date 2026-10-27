@@ -196,3 +196,12 @@ def test_human_output_names_commands_not_tools(runner, cli_app, tool_calls):
     assert result.exit_code == 0, result.output
     assert "cited audit questions" in result.output
     assert "draft_questions" not in result.output
+
+
+def test_expired_login_says_to_sign_in_again(runner, cli_app, tool_calls):
+    _, responses = tool_calls
+    responses["account_status"] = (401, {"detail": "Invalid session"})
+    result = runner.invoke(cli_app, ["--env", "dev", "status"])
+    assert result.exit_code == 2
+    assert "Invalid session" in result.output
+    assert "cited login" in result.output
