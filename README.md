@@ -29,6 +29,16 @@ brew trust --formula youcited/cited/cited
 brew upgrade cited
 ```
 
+### uv or pipx
+
+With Python 3.11+:
+
+```bash
+uv tool install cited-cli   # or: pipx install cited-cli
+```
+
+Upgrade later with `uv tool upgrade cited-cli` (or `pipx upgrade cited-cli`). To run it once without installing: `uvx --from cited-cli cited audit free example.com`.
+
 ### From source (development)
 
 ```bash
