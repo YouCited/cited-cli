@@ -34,21 +34,48 @@ def _next(data: dict[str, Any], console: Console) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _score_text(score: Any) -> str | None:
+    if not isinstance(score, dict) or score.get("score") is None:
+        return None
+    band = (score.get("band") or {}).get("label")
+    return f"{score['score']}/100" + (f" ({band})" if band else "")
+
+
 def _free(data: dict[str, Any], console: Console) -> None:
-    if data.get("status") != "completed":
+    status = data.get("status")
+    if status in _RUNNING:
         console.print(
-            f"Free audit {data.get('status')}: check again with "
+            f"Free audit {status}: check again with "
             f"cited audit free --token {data.get('report_token')}",
             markup=False,
         )
         return
-    if data.get("executive_summary"):
-        console.print(str(data["executive_summary"]), markup=False)
+    if status != "completed":
+        console.print(f"Free audit {status}: {data.get('error') or 'it did not finish.'}",
+                      markup=False)
+        return
+    summary = data.get("executive_summary")
+    if isinstance(summary, dict):
+        if summary.get("headline"):
+            console.print(summary["headline"], markup=False)
+        for point in summary.get("points") or []:
+            console.print(f"  • {point}", markup=False)
     render_kv(
         f"Free audit: {data.get('domain')}",
-        {"score": data.get("score"), **(data.get("summary") or {})},
+        {"score": _score_text(data.get("score")), **(data.get("summary") or {})},
         console,
     )
+    blocked = [
+        b for b in ((data.get("site_check") or {}).get("bot_access") or {}).get("bots") or []
+        if b.get("status") != "pass"
+    ]
+    if blocked:
+        render_table(
+            "AI bots your site turns away",
+            ["bot", "engine", "fix"],
+            [[b.get("bot"), b.get("engine"), b.get("fix") or b.get("reason")] for b in blocked],
+            console,
+        )
     others = data.get("most_cited_other_domains") or []
     if others:
         render_table(
@@ -68,7 +95,12 @@ def _free(data: dict[str, Any], console: Console) -> None:
         )
     if data.get("share_url"):
         console.print(f"Report: {data['share_url']}", markup=False)
-    console.print("A paid audit adds more questions, recommendations and fixes: cited status")
+    if data.get("pdf_url"):
+        console.print(f"PDF: {data['pdf_url']}", markup=False)
+    console.print(
+        "A paid audit adds every engine and model, recommendations and fixes: cited status",
+        markup=False,
+    )
 
 
 @audit_app.command("free")
@@ -95,7 +127,8 @@ def free(
         args,
         done=lambda r: r.get("status") not in _RUNNING,
         next_args=lambda r: {"report_token": r.get("report_token")},
-        interval=20.0,
+        # Each check waits on the server (up to 20s) while the audit runs
+        interval=2.0,
     )
     print_result(result, out, human_formatter=_free)
 
