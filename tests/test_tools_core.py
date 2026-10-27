@@ -95,6 +95,7 @@ def test_call_tool_reports_an_unreachable_api():
     respx.post(f"{API}/agent/tools/get_audit").mock(side_effect=httpx.ConnectError("down"))
     result, status = call_tool(CitedClient(API), "get_audit")
     assert status == 503 and "Could not reach" in result["error"]
+    assert API in result["error"] and result["error_type"] == "api_unreachable"
 
 
 @respx.mock

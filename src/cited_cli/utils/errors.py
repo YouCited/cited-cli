@@ -23,6 +23,14 @@ _NEXT_STEPS: dict[str, str] = {
         "This needs an account that has bought credits at least once. "
         "Buy with: cited credits buy pack_20 (or: cited credits buy-audit)"
     ),
+    "login_required": (
+        "Your saved login is missing or has expired. Sign in again with: cited login "
+        "(or forget it with: cited logout)"
+    ),
+    "api_unreachable": (
+        "Check your connection. If the address above isn't https://api.youcited.com, "
+        "switch to production with: cited config set environment prod"
+    ),
     "claim_required": (
         "This agent account is unclaimed. Ask the person to open the claim link "
         "from `cited agent signup` and enter the code."
