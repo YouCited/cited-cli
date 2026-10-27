@@ -1,13 +1,13 @@
 {
   "name": "cited",
   "title": "Cited",
-  "version": "8e72ee4dbc2a",
+  "version": "842bf2f13f36",
   "instructions": "Cited checks whether AI assistants (ChatGPT, Gemini, Claude, Google AI Mode) cite a website when buyers ask about what it sells, and what to change so they do. Start with account_status. free_audit needs no account. For a paid audit: agent_signup (or sign in), setup_business, draft_questions, quote_audit, then run_audit, get_audit, get_recommendations and generate_fixes. Purchases only return checkout links for the human to open.",
   "tools": [
     {
       "name": "free_audit",
       "title": "Free AI Visibility Audit",
-      "description": "Free check of how AI answers 5 buyer questions about a website: whether the site is cited, which sites are cited instead, a 0-100 score, an executive summary and whether AI bots can reach the site. No account needed. The first call starts it and returns report_token; call again with report_token about every 30 seconds until status is 'completed' (2-4 minutes). The same domain within 24 hours returns the same audit.",
+      "description": "Free check of how AI answers 5 buyer questions about a website: whether the site is cited, which sites are cited instead, a 0-100 score, an executive summary and whether AI bots can reach the site. No account needed. The first call starts it and returns report_token; call again with report_token until status is 'completed' (2-4 minutes; each call waits up to 20 seconds, so no need to pause between calls). The same domain within 24 hours returns the same audit.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -33,7 +33,7 @@
     {
       "name": "agent_signup",
       "title": "Create Account For Your Human",
-      "description": "Create a Cited account for your human without a login. Returns an API key (shown once), a claim link and a 6-digit code for the human. Unclaimed accounts can add 1 business and run 1 audit (paid with a one-audit checkout link) and are deleted after 7 days. Pass owner_email to email them the claim link. Not needed when already signed in.",
+      "description": "Create a Cited account for your human without a login. Returns an API key (shown once), a claim link and a 6-digit code for the human. Unclaimed accounts can add 1 business and run 1 audit (paid with a one-audit checkout link) and are deleted after 7 days. Pass owner_email to email them the claim link. Pass free_audit_token (the report_token of a finished free_audit) to bring that business and report into the new account. Not needed when already signed in.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -44,6 +44,10 @@
           "owner_email": {
             "type": "string",
             "description": "Optional: the human's email for the claim link."
+          },
+          "free_audit_token": {
+            "type": "string",
+            "description": "Optional: the report_token of a finished free_audit, to keep that business and report in the new account."
           }
         }
       },
