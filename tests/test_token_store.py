@@ -63,16 +63,33 @@ def test_denied_keychain_saves_and_deletes_in_the_file(denied):
 
 
 @respx.mock
-def test_free_audit_runs_when_the_keychain_is_denied(runner, cli_app, denied):
-    sent = {}
+def test_free_audit_never_reads_the_keychain(runner, cli_app, denied, monkeypatch):
+    monkeypatch.setenv("CITED_AGENT_API_KEY", "cak_env")
+    seen = []
 
     def _free(request: httpx.Request) -> httpx.Response:
-        sent.update(json.loads(request.content))
+        seen.append(request.headers)
         return httpx.Response(200, json={"status": "pending", "report_token": "tok"})
 
+    monkeypatch.setattr(DeniedKeychain, "get_password", lambda *a: pytest.fail("keychain read"))
     respx.post(f"{API}/agent/tools/free_audit").mock(side_effect=_free)
     result = runner.invoke(
         cli_app, ["--env", "dev", "--json", "audit", "free", "acme.com", "--no-wait"]
     )
     assert result.exit_code == 0, result.output
-    assert sent == {"url": "acme.com"}
+    assert "x-agent-api-key" not in seen[0]
+    assert "cookie" not in seen[0]
+
+
+@respx.mock
+def test_status_runs_when_the_keychain_is_denied(runner, cli_app, denied):
+    sent = []
+
+    def _status(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content or b"{}"))
+        return httpx.Response(200, json={"logged_in": False})
+
+    respx.post(f"{API}/agent/tools/account_status").mock(side_effect=_status)
+    result = runner.invoke(cli_app, ["--env", "dev", "--json", "status"])
+    assert result.exit_code == 0, result.output
+    assert sent == [{}]
