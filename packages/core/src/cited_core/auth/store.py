@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import json
 import os
 import stat
@@ -25,28 +24,13 @@ class TokenStore:
         return self._keyring_available
 
     def save_token(self, env: str, token: str) -> None:
-        if self._has_keyring():
-            import keyring
-
-            keyring.set_password(KEYRING_SERVICE, f"token:{env}", token)
-        else:
-            self._save_file(env, token)
+        self._save(f"token:{env}", env, token)
 
     def get_token(self, env: str) -> str | None:
-        if self._has_keyring():
-            import keyring
-
-            return keyring.get_password(KEYRING_SERVICE, f"token:{env}")
-        return self._load_file(env)
+        return self._get(f"token:{env}", env)
 
     def delete_token(self, env: str) -> None:
-        if self._has_keyring():
-            import keyring
-
-            with contextlib.suppress(keyring.errors.PasswordDeleteError):
-                keyring.delete_password(KEYRING_SERVICE, f"token:{env}")
-        else:
-            self._delete_file(env)
+        self._delete(f"token:{env}", env)
 
     def has_token(self, env: str) -> bool:
         return self.get_token(env) is not None
@@ -63,30 +47,56 @@ class TokenStore:
 
     def save_agent_key(self, env: str, api_key: str) -> None:
         name = self._agent_key_name(env)
-        if self._has_keyring():
-            import keyring
-
-            keyring.set_password(KEYRING_SERVICE, name, api_key)
-        else:
-            self._save_file(name, api_key)
+        self._save(name, name, api_key)
 
     def get_agent_key(self, env: str) -> str | None:
         name = self._agent_key_name(env)
-        if self._has_keyring():
-            import keyring
-
-            return keyring.get_password(KEYRING_SERVICE, name)
-        return self._load_file(name)
+        return self._get(name, name)
 
     def delete_agent_key(self, env: str) -> None:
         name = self._agent_key_name(env)
-        if self._has_keyring():
-            import keyring
+        self._delete(name, name)
 
-            with contextlib.suppress(keyring.errors.PasswordDeleteError):
-                keyring.delete_password(KEYRING_SERVICE, name)
-        else:
-            self._delete_file(name)
+    # --- keyring, falling back to the file ---
+    #
+    # A keychain can refuse access (macOS asks again after a reinstall, and
+    # "Deny" raises KeyringLocked). Treat that like having no keyring rather
+    # than crashing commands that don't even need a login.
+
+    def _get(self, keyring_name: str, file_key: str) -> str | None:
+        if self._has_keyring():
+            import keyring.errors
+
+            try:
+                return keyring.get_password(KEYRING_SERVICE, keyring_name)
+            except keyring.errors.KeyringError:
+                self._keyring_available = False
+        return self._load_file(file_key)
+
+    def _save(self, keyring_name: str, file_key: str, value: str) -> None:
+        if self._has_keyring():
+            import keyring.errors
+
+            try:
+                keyring.set_password(KEYRING_SERVICE, keyring_name, value)
+                return
+            except keyring.errors.KeyringError:
+                self._keyring_available = False
+        self._save_file(file_key, value)
+
+    def _delete(self, keyring_name: str, file_key: str) -> None:
+        if self._has_keyring():
+            import keyring.errors
+
+            try:
+                keyring.delete_password(KEYRING_SERVICE, keyring_name)
+            except keyring.errors.PasswordDeleteError:
+                pass
+            except keyring.errors.KeyringError:
+                self._keyring_available = False
+        # Also clear a copy saved while the keychain refused access.
+        if CREDENTIALS_FILE.exists():
+            self._delete_file(file_key)
 
     # --- file fallback ---
 
