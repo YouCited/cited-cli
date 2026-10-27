@@ -26,10 +26,19 @@ from cited_core.tools import run_tool
 Formatter = Callable[[dict[str, Any], Console], None]
 
 
-def tool_client(ctx: typer.Context) -> tuple[OutputContext, CitedClient, str]:
+# Tools that work the same without a login. They never read the keychain, so
+# they never trigger a macOS keychain prompt.
+PUBLIC_TOOLS = frozenset({"free_audit", "search_docs"})
+
+
+def tool_client(
+    ctx: typer.Context, public: bool = False
+) -> tuple[OutputContext, CitedClient, str]:
     """A client with whatever credentials there are (none is fine: public tools)."""
     out = get_output(ctx)
     cfg, profile, env, api_url = get_env_and_url(ctx)
+    if public:
+        return out, CitedClient(base_url=api_url), env
     store = TokenStore()
     token = store.get_token(env)
     agent_key = None if token else resolve_agent_api_key(cfg, env, profile, store)
@@ -56,7 +65,7 @@ def call(
     ctx: typer.Context, name: str, args: dict[str, Any]
 ) -> tuple[dict[str, Any], OutputContext]:
     """Run a tool; on an error print it and exit. Returns ``(result, output)``."""
-    out, client, env = tool_client(ctx)
+    out, client, env = tool_client(ctx, public=name in PUBLIC_TOOLS)
     try:
         result, status = run_tool(client, env, name, args)
     finally:
