@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import contextvars
+import os
 from typing import Any
 
 import httpx
 
+from cited_core import __version__
 from cited_core.errors import CitedAPIError
 
 DEFAULT_TIMEOUT = 30.0
@@ -12,6 +14,9 @@ LONG_TIMEOUT = 120.0
 
 AGENT_KEY_HEADER = "X-Agent-API-Key"
 NOTICE_HEADER = "X-Cited-Notice"
+# Appended to the User-Agent; the live tests set it to "cited-ci" so their
+# traffic can be told apart from real use.
+USER_AGENT_TAG_ENV_VAR = "CITED_USER_AGENT_TAG"
 
 # The most recent X-Cited-Notice the API sent in the current context (task or
 # thread). The MCP tool wrapper clears it before each tool call and copies it
@@ -49,8 +54,12 @@ class CitedClient:
         self.token = token
         self.agent_api_key = agent_api_key
         self.last_notice: str | None = None
+        user_agent = f"cited/{__version__}"
+        if tag := os.environ.get(USER_AGENT_TAG_ENV_VAR):
+            user_agent = f"{user_agent} {tag}"
         headers: dict[str, str] = {
             "Accept": "application/json",
+            "User-Agent": user_agent,
         }
         cookies: dict[str, str] = {}
         if token:

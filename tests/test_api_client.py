@@ -250,3 +250,18 @@ def test_redirect_on_the_same_host_keeps_credentials():
     client.get("/items")
     assert target.calls[0].request.headers["cookie"] == "advgeo_session=jwt"
     client.close()
+
+
+@respx.mock
+def test_user_agent_names_the_version_and_the_ci_tag(monkeypatch):
+    from cited_core import __version__
+
+    route = respx.get("https://api.example.com/health").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    CitedClient(base_url="https://api.example.com").get("/health")
+    assert route.calls[-1].request.headers["User-Agent"] == f"cited/{__version__}"
+
+    monkeypatch.setenv("CITED_USER_AGENT_TAG", "cited-ci")
+    CitedClient(base_url="https://api.example.com").get("/health")
+    assert route.calls[-1].request.headers["User-Agent"] == f"cited/{__version__} cited-ci"
