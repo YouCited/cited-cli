@@ -44,7 +44,13 @@ def find_bin(name: str) -> str:
 def run(args: list[str], env: dict[str, str], code: int = 0, timeout: int = TIMEOUT) -> str:
     try:
         done = subprocess.run(
-            args, capture_output=True, text=True, timeout=timeout, env=env, check=False
+            args,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            env=env,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         fail(f"{' '.join(args)} hung for {timeout}s")
