@@ -3,7 +3,7 @@
   "name": "com.youcited/cited",
   "title": "Cited",
   "description": "Measure and improve how often AI assistants cite your business: GEO audits, fixes, and docs.",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "websiteUrl": "https://youcited.com",
   "repository": {
     "url": "https://github.com/YouCited/cited-cli",
@@ -22,7 +22,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "cited-mcp",
-      "version": "0.8.0",
+      "version": "0.8.1",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
