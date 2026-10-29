@@ -23,6 +23,7 @@ cited = "cited_cli.app:main"
 mcp = ["cited-mcp>=0.8.0"]
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=5.0",
     "respx>=0.21",
     "ruff>=0.4",
     "mypy>=1.10",
@@ -47,4 +48,11 @@ warn_return_any = true
 warn_unused_configs = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "packages/mcp/tests"]
+
+[tool.coverage.run]
+source = ["cited_cli", "cited_core", "cited_mcp"]
+
+[tool.coverage.report]
+# Raise this as tests are added; never lower it to get a PR through.
+fail_under = 78
