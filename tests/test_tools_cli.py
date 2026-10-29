@@ -220,8 +220,10 @@ def test_free_audit_says_when_a_result_is_cached(runner, cli_app, tool_calls):
     responses["free_audit"] = (200, report)
     result = runner.invoke(cli_app, ["--env", "dev", "audit", "free", "acme.com"])
     assert result.exit_code == 0, result.output
-    assert "Cached result from Oct 27" in result.output
-    assert "cached for 24 hours" in result.output
+    # Rich wraps at the console width, which differs by OS.
+    text = " ".join(result.output.split())
+    assert "Cached result from Oct 27" in text
+    assert "cached for 24 hours" in text
 
     responses["free_audit"] = (200, {**report, "reused": False})
     result = runner.invoke(cli_app, ["--env", "dev", "audit", "free", "acme.com"])
