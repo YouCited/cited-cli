@@ -37,6 +37,9 @@ pytest -v --cov            # CI fails under the coverage floor in pyproject.toml
 ruff check src/ packages/
 mypy packages/core/src packages/mcp/src src/cited_cli/ --ignore-missing-imports
 
+# Live tests against prod (free; add CITED_SMOKE_AGENT_KEY for the logged-in ones)
+pytest tests/live --live
+
 # Check built wheels as a user installs them (CI runs this on Linux, macOS, Windows)
 python -m build --outdir dist packages/core && python -m build --outdir dist packages/mcp \
   && python -m build --outdir dist . && python -m venv /tmp/smoke \
@@ -129,20 +132,27 @@ When the backend adds a tool:
 - **Config module** is named `config_cmd.py` (not `config.py`) to avoid shadowing stdlib
 - **Tests** use `typer.testing.CliRunner` (fixtures `runner`, `cli_app` and `creds` in `conftest.py`), `respx` for HTTP mocking, and `monkeypatch` to redirect `CONFIG_DIR`/`CONFIG_FILE`/`CREDENTIALS_FILE` to `tmp_path`
 - **User config** lives at `~/.cited/config.toml`
-- **Version** single source of truth is `packages/core/src/cited_core/__init__.py`. The CLI and MCP packages import it via `from cited_core import __version__`. The `version =` field in all three `pyproject.toml` files must also be bumped (the release script handles this).
+- **Version** single source of truth is `packages/core/src/cited_core/__init__.py`. The CLI and MCP packages import it via `from cited_core import __version__`. The `version =` field in all three `pyproject.toml` files must also be bumped (`scripts/bump_version.py` handles this).
 
 ## Releasing & Deployment
 
-Release and infrastructure scripts live in the **private** repo `~/repos/cited-mcp-infra` ([YouCited/cited-mcp-infra](https://github.com/YouCited/cited-mcp-infra)):
+Releases run in GitHub Actions; no laptop is needed. Release only when John asks for one.
 
-- `scripts/release.sh <version>` — Bumps version, publishes to PyPI, updates Homebrew tap
-- `scripts/cleanup_dev.py` — Removes test data from dev environment
+1. On a branch, run `python scripts/bump_version.py <version>`, which updates `cited_core/__init__.py`, the three `pyproject.toml` files, the `cited-core`/`cited-mcp` minimums and `server.json`. Open a "Release <version>" PR.
+2. Merge it once CI is green. `.github/workflows/release.yml` runs on the push to main:
+    - publishes cited-core, cited-mcp and cited-cli to PyPI (`PYPI_TOKEN`, environment `Prod`)
+    - creates the `v<version>` GitHub release and tag
+    - publishes `server.json` to the MCP Registry (once the `MCP_REGISTRY_KEY` secret exists)
+    - runs `live.yml` against the PyPI packages
+3. homebrew-cited's "Update formula" workflow picks up the new PyPI version within 30 minutes. It regenerates the formula on macOS, runs `brew install` and `brew test`, and commits the formula only if they pass. Start that workflow by hand for an immediate update.
+
+Each step is idempotent. Run `release.yml` by hand (workflow_dispatch) to finish a release that failed partway. `scripts/release.sh` in the private repo [YouCited/cited-mcp-infra](https://github.com/YouCited/cited-mcp-infra) still works as a laptop fallback, because pushing a `v*` tag runs the same workflow. That repo also holds `scripts/cleanup_dev.py`.
+
+`live.yml` runs `pytest tests/live --live` against api.youcited.com nightly, on demand, and on PRs that touch it. It checks that the bundled `tools.json` matches prod, plus the free audit, docs, status and cited-mcp over stdio. With the `CITED_SMOKE_AGENT_KEY` secret, it also runs the logged-in checks. It never confirms a spending tool.
 
 The hosted MCP server ships with the backend (merges to `main` in YouCited/cited deploy prod); there is no separate MCP deploy.
 
-**Prerequisites:** clean git state on `main`, `gh` CLI authenticated, `.venv` with cited-cli installed, `~/repos/homebrew-cited` cloned.
-
-**Homebrew tap repo:** `~/repos/homebrew-cited` (`YouCited/homebrew-cited` on GitHub). Contains a single formula `Formula/cited.rb` that installs cited-cli into a Python virtualenv with pinned dependency hashes. The formula uses `Language::Python::Virtualenv` and depends on `python@3.12` only: keep Rust-built packages such as `pydantic` out of cited-core and cited-cli, because `release.sh` then adds `rust` (and its ~2GB llvm) as a build dependency. Homebrew 7 only loads formulae from trusted taps, so docs must say `brew install youcited/cited/cited` (never the old tap-then-install pair), and existing users run `brew trust --formula youcited/cited/cited` before `brew upgrade cited`. Never tell users to trust the whole tap.
+**Homebrew tap repo:** `~/repos/homebrew-cited` (`YouCited/homebrew-cited` on GitHub). Contains a single formula `Formula/cited.rb` that installs cited-cli into a Python virtualenv with pinned dependency hashes. The formula uses `Language::Python::Virtualenv` and depends on `python@3.12` only: keep Rust-built packages such as `pydantic` out of cited-core and cited-cli, because the formula then needs `rust` (and its ~2GB llvm) as a build dependency. Homebrew 7 only loads formulae from trusted taps, so docs must say `brew install youcited/cited/cited` (never the old tap-then-install pair), and existing users run `brew trust --formula youcited/cited/cited` before `brew upgrade cited`. Never tell users to trust the whole tap.
 
 ## API Environments
 

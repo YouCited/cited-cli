@@ -1,0 +1,78 @@
+name: Live
+
+# The CLI and cited-mcp against prod (api.youcited.com): nightly, on demand,
+# and after each release against the version on PyPI. Never spends credits.
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Test this cited-cli version from PyPI (blank = the code on this branch)"
+        required: false
+  pull_request:
+    paths:
+      - "tests/live/**"
+      - ".github/workflows/live.yml"
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  prod:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install from PyPI
+        if: env.VERSION != ''
+        run: |
+          python -m venv "$RUNNER_TEMP/live"
+          echo "$RUNNER_TEMP/live/bin" >> "$GITHUB_PATH"
+          # A new release can take a minute or two to show up on PyPI.
+          for i in $(seq 1 10); do
+            "$RUNNER_TEMP/live/bin/pip" install "cited-cli[mcp]==$VERSION" pytest anyio && break
+            [[ $i -eq 10 ]] && exit 1
+            sleep 30
+          done
+
+      - name: Install this branch
+        if: env.VERSION == ''
+        run: |
+          pip install -e packages/core
+          pip install -e packages/mcp
+          pip install -e ".[dev]"
+
+      - name: Live tests
+        env:
+          CITED_SMOKE_AGENT_KEY: ${{ secrets.CITED_SMOKE_AGENT_KEY }}
+        run: |
+          python -c "import cited_core; print('Testing cited-core', cited_core.__version__)"
+          python -m pytest tests/live --live -v -p no:cacheprovider
+
+      - name: Open an issue
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TITLE="Live prod tests are failing"
+          if [[ -z "$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[].number')" ]]; then
+            gh issue create --title "$TITLE" --body "The nightly live tests against api.youcited.com failed on ${{ matrix.os }}: $RUN_URL"
+          fi

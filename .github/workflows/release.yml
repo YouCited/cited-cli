@@ -1,61 +1,114 @@
 name: Release
 
+# A release is a merged PR that bumps the version (scripts/bump_version.py).
+# On that push to main this workflow publishes cited-core, cited-mcp and
+# cited-cli to PyPI, creates the v<version> GitHub release and tag, publishes
+# to the MCP Registry, then runs the live tests against the PyPI packages.
+# homebrew-cited's "Update formula" workflow picks the release up from PyPI.
+#
+# Pushing a v* tag (release.sh) still works. Every step is safe to re-run:
+# uploads skip files already on PyPI and a version with a GitHub release is
+# skipped, so run it by hand to finish a release that failed partway.
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "packages/core/src/cited_core/__init__.py"
+  workflow_dispatch:
 
 permissions:
   contents: write
+  issues: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     environment: Prod
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      publish: ${{ steps.v.outputs.publish }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - name: Version
+        id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' packages/core/src/cited_core/__init__.py)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "v$VERSION is already released"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Releasing v$VERSION"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        if: steps.v.outputs.publish == 'true'
         with:
           python-version: "3.12"
 
-      - name: Install build tools
-        run: pip install build twine
-
       # Build and publish in dependency order: core → mcp → cli
-      - name: Build and publish cited-core
+      - name: Build
+        if: steps.v.outputs.publish == 'true'
         run: |
-          cd packages/core
-          python -m build
-          twine upload dist/*
+          pip install build twine
+          python -m build --outdir dist/core packages/core
+          python -m build --outdir dist/mcp packages/mcp
+          python -m build --outdir dist/cli .
+
+      - name: Publish to PyPI
+        if: steps.v.outputs.publish == 'true'
         env:
           TWINE_NON_INTERACTIVE: "1"
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-
-      - name: Build and publish cited-mcp
         run: |
-          cd packages/mcp
-          python -m build
-          twine upload dist/*
-        env:
-          TWINE_NON_INTERACTIVE: "1"
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+          twine upload --skip-existing dist/core/*
+          twine upload --skip-existing dist/mcp/*
+          twine upload --skip-existing dist/cli/*
 
-      - name: Build cited-cli
-        run: python -m build
-
-      - name: Publish cited-cli to PyPI
-        run: twine upload dist/*
-        env:
-          TWINE_NON_INTERACTIVE: "1"
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-
-      - name: Create GitHub Release
+      - name: Create GitHub release
+        if: steps.v.outputs.publish == 'true'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: dist/*
+          tag_name: v${{ steps.v.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          files: dist/cli/*
           generate_release_notes: true
+
+      # Needs the youcited.com DNS key (issue YouCited/cited#245); skipped
+      # until the MCP_REGISTRY_KEY secret exists.
+      - name: Publish to the MCP Registry
+        if: steps.v.outputs.publish == 'true'
+        env:
+          MCP_REGISTRY_KEY: ${{ secrets.MCP_REGISTRY_KEY }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          if [[ -z "$MCP_REGISTRY_KEY" ]]; then
+            echo "::warning::MCP_REGISTRY_KEY is not set, skipping the MCP Registry"
+            exit 0
+          fi
+          for i in $(seq 1 30); do
+            curl -sf "https://pypi.org/pypi/cited-mcp/$VERSION/json" -o /dev/null && break
+            sleep 10
+          done
+          curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar xz mcp-publisher
+          ./mcp-publisher login dns --domain youcited.com --private-key "$MCP_REGISTRY_KEY"
+          ./mcp-publisher publish server.json
+
+  verify:
+    needs: release
+    if: needs.release.outputs.publish == 'true'
+    uses: ./.github/workflows/live.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+    secrets: inherit
