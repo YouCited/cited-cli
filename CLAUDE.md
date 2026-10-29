@@ -32,10 +32,16 @@ The tools (19): `free_audit`, `agent_signup`, `account_status`, `search_docs` (n
 # Dev setup (install all three packages in editable mode)
 ./scripts/dev-install.sh
 
-# Run tests, lint, type check
-pytest -v
+# Run tests (tests/ and packages/mcp/tests), lint, type check
+pytest -v --cov            # CI fails under the coverage floor in pyproject.toml
 ruff check src/ packages/
 mypy packages/core/src packages/mcp/src src/cited_cli/ --ignore-missing-imports
+
+# Check built wheels as a user installs them (CI runs this on Linux, macOS, Windows)
+python -m build --outdir dist packages/core && python -m build --outdir dist packages/mcp \
+  && python -m build --outdir dist . && python -m venv /tmp/smoke \
+  && /tmp/smoke/bin/pip install dist/*.whl \
+  && /tmp/smoke/bin/python -I scripts/smoke_install.py --version <version>
 
 # Refresh the bundled tool manifest after backend tool changes
 python scripts/sync_tools_manifest.py [--env dev|local]
