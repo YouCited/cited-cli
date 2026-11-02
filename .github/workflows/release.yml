@@ -84,16 +84,34 @@ jobs:
           files: dist/cli/*
           generate_release_notes: true
 
-      # Needs the youcited.com DNS key (issue YouCited/cited#245); skipped
-      # until the MCP_REGISTRY_KEY secret exists.
+  # Its own job so a hand run (workflow_dispatch) also publishes a version
+  # that's already on PyPI but missing from the registry. Skips a version the
+  # registry already has. Needs the youcited.com DNS key (YouCited/cited#245);
+  # skipped until the MCP_REGISTRY_KEY secret exists.
+  registry:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: Prod
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
       - name: Publish to the MCP Registry
-        if: steps.v.outputs.publish == 'true'
         env:
           MCP_REGISTRY_KEY: ${{ secrets.MCP_REGISTRY_KEY }}
-          VERSION: ${{ steps.v.outputs.version }}
+          VERSION: ${{ needs.release.outputs.version }}
         run: |
           if [[ -z "$MCP_REGISTRY_KEY" ]]; then
             echo "::warning::MCP_REGISTRY_KEY is not set, skipping the MCP Registry"
+            exit 0
+          fi
+          NAME=$(jq -r .name server.json)
+          if [[ "$(jq -r .version server.json)" != "$VERSION" ]]; then
+            echo "::error::server.json is not at $VERSION (run scripts/bump_version.py)"
+            exit 1
+          fi
+          URL="https://registry.modelcontextprotocol.io/v0/servers/${NAME//\//%2F}/versions/$VERSION"
+          if curl -sf "$URL" -o /dev/null; then
+            echo "$NAME $VERSION is already in the MCP Registry"
             exit 0
           fi
           for i in $(seq 1 30); do
@@ -104,6 +122,9 @@ jobs:
             | tar xz mcp-publisher
           ./mcp-publisher login dns --domain youcited.com --private-key "$MCP_REGISTRY_KEY"
           ./mcp-publisher publish server.json
+          sleep 5
+          curl -sf "$URL" -o /dev/null && echo "Published $NAME $VERSION" \
+            || echo "::warning::Published, but the registry does not list $VERSION yet"
 
   verify:
     needs: release

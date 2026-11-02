@@ -142,7 +142,7 @@ Releases run in GitHub Actions; no laptop is needed. Release only when John asks
 2. Merge it once CI is green. `.github/workflows/release.yml` runs on the push to main:
     - publishes cited-core, cited-mcp and cited-cli to PyPI (`PYPI_TOKEN`, environment `Prod`)
     - creates the `v<version>` GitHub release and tag
-    - publishes `server.json` to the MCP Registry (once the `MCP_REGISTRY_KEY` secret exists)
+    - publishes `server.json` to the MCP Registry (once the `MCP_REGISTRY_KEY` secret exists; a hand run also publishes a released version the registry is missing)
     - runs `live.yml` against the PyPI packages
 3. homebrew-cited's "Update formula" workflow picks up the new PyPI version within 30 minutes. It regenerates the formula on macOS, runs `brew install` and `brew test`, and commits the formula only if they pass. Start that workflow by hand for an immediate update.
 
