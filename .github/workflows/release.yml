@@ -4,7 +4,7 @@ name: Release
 # On that push to main this workflow publishes cited-core, cited-mcp and
 # cited-cli to PyPI, creates the v<version> GitHub release and tag, publishes
 # to the MCP Registry, then runs the live tests against the PyPI packages.
-# homebrew-cited's "Update formula" workflow picks the release up from PyPI.
+# Then it starts homebrew-cited's "Update formula" workflow for the new version.
 #
 # Pushing a v* tag (release.sh) still works. Every step is safe to re-run:
 # uploads skip files already on PyPI and a version with a GitHub release is
@@ -125,6 +125,29 @@ jobs:
           sleep 5
           curl -sf "$URL" -o /dev/null && echo "Published $NAME $VERSION" \
             || echo "::warning::Published, but the registry does not list $VERSION yet"
+
+  # Starts homebrew-cited's "Update formula" workflow for this version, so the
+  # tap updates right away instead of at its 6-hourly backstop check. Needs a
+  # fine-grained token with Actions read/write on YouCited/homebrew-cited;
+  # skipped until the HOMEBREW_TAP_TOKEN secret exists. Re-running it is safe:
+  # the tap commits only when the formula changes.
+  homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: Prod
+    steps:
+      - name: Start the Homebrew formula update
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN is not set; the tap's 6-hourly check will pick up $VERSION"
+            exit 0
+          fi
+          gh workflow run update-formula.yml --repo YouCited/homebrew-cited --ref main \
+            -f version="$VERSION"
+          echo "Started homebrew-cited's Update formula for $VERSION"
 
   verify:
     needs: release
