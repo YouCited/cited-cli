@@ -144,7 +144,7 @@ Releases run in GitHub Actions; no laptop is needed. Release only when John asks
     - creates the `v<version>` GitHub release and tag
     - publishes `server.json` to the MCP Registry (once the `MCP_REGISTRY_KEY` secret exists; a hand run also publishes a released version the registry is missing)
     - runs `live.yml` against the PyPI packages
-3. homebrew-cited's "Update formula" workflow picks up the new PyPI version within 30 minutes. It regenerates the formula on macOS, runs `brew install` and `brew test`, and commits the formula only if they pass. Start that workflow by hand for an immediate update.
+3. `release.yml` then starts homebrew-cited's "Update formula" workflow for the new version (needs the `HOMEBREW_TAP_TOKEN` secret, a fine-grained token with Actions read/write on homebrew-cited; without it the tap's 6-hourly backstop check picks the version up). It regenerates the formula on macOS, runs `brew install` and `brew test`, and commits the formula only if they pass. Start that workflow by hand for an immediate update.
 
 Each step is idempotent. Run `release.yml` by hand (workflow_dispatch) to finish a release that failed partway. `scripts/release.sh` in the private repo [YouCited/cited-mcp-infra](https://github.com/YouCited/cited-mcp-infra) still works as a laptop fallback, because pushing a `v*` tag runs the same workflow. That repo also holds `scripts/cleanup_dev.py`.
 
