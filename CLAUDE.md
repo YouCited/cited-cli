@@ -150,6 +150,8 @@ Each step is idempotent. Run `release.yml` by hand (workflow_dispatch) to finish
 
 `live.yml` runs `pytest tests/live --live` against api.youcited.com nightly, on demand, and on PRs that touch it. It checks that the bundled `tools.json` matches prod, plus the free audit, docs, status and cited-mcp over stdio. With the `CITED_SMOKE_AGENT_KEY` secret, it also runs the logged-in checks. It never confirms a spending tool.
 
+`paid-check.yml` (Paid audit check) runs `tests/live/test_paid.py --live --paid` every Monday and on demand: a real audit with the test account's credits (`CITED_SMOKE_AGENT_KEY`, about $10 of credits and $5 of AI a run), its report and its recommendations. It fails, and opens an issue, if the audit fails, most engines give no answer, or no recommendations arrive within 20 minutes. Keep the test account topped up with an admin voucher.
+
 The hosted MCP server ships with the backend (merges to `main` in YouCited/cited deploy prod); there is no separate MCP deploy.
 
 **Homebrew tap repo:** `~/repos/homebrew-cited` (`YouCited/homebrew-cited` on GitHub). Contains a single formula `Formula/cited.rb` that installs cited-cli into a Python virtualenv with pinned dependency hashes. The formula uses `Language::Python::Virtualenv` and depends on `python@3.12` only: keep Rust-built packages such as `pydantic` out of cited-core and cited-cli, because the formula then needs `rust` (and its ~2GB llvm) as a build dependency. Homebrew 7 only loads formulae from trusted taps, so docs must say `brew install youcited/cited/cited` (never the old tap-then-install pair), and existing users run `brew trust --formula youcited/cited/cited` before `brew upgrade cited`. Never tell users to trust the whole tap.
