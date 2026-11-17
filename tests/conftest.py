@@ -10,10 +10,17 @@ def pytest_addoption(parser):
     parser.addoption(
         "--live", action="store_true", default=False, help="Run live integration tests"
     )
+    parser.addoption(
+        "--paid",
+        action="store_true",
+        default=False,
+        help="Also run the live test that spends the test account's credits",
+    )
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "live: mark test as live integration test (requires --live)")
+    config.addinivalue_line("markers", "paid: spends credits on prod (requires --live --paid)")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -22,6 +29,11 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "live" in item.keywords:
                 item.add_marker(skip_live)
+    if not config.getoption("--paid"):
+        skip_paid = pytest.mark.skip(reason="need --paid option to spend credits")
+        for item in items:
+            if "paid" in item.keywords:
+                item.add_marker(skip_paid)
 
 
 @pytest.fixture
