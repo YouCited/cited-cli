@@ -40,8 +40,8 @@ def wait_for(check, timeout_s: float, interval_s: float = 30.0):
         time.sleep(interval_s)
 
 
-def test_paid_audit_reports_real_answers_and_recommendations(runner, cli_app, agent_key):
-    started = cited(runner, cli_app, "audit", "run", "--yes")
+def test_paid_audit_reports_real_answers_and_recommendations(runner, cli_app, smoke_business):
+    started = cited(runner, cli_app, "audit", "run", "--business", smoke_business, "--yes")
     audit_id = started.get("audit_id")
     assert audit_id, started
 

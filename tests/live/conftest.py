@@ -9,6 +9,7 @@ keychain, and tag their User-Agent with "cited-ci".
 
 from __future__ import annotations
 
+import json
 import os
 
 import pytest
@@ -34,3 +35,19 @@ def agent_key(monkeypatch) -> str:
         pytest.skip("CITED_SMOKE_AGENT_KEY is not set")
     monkeypatch.setenv("CITED_AGENT_API_KEY", key)
     return key
+
+
+SMOKE_SITE = "youcited.com"
+
+
+@pytest.fixture
+def smoke_business(runner, cli_app, agent_key) -> str:
+    """The test account's youcited.com business. The account can hold others,
+    so the tests name this one instead of relying on "your only business"."""
+    result = runner.invoke(cli_app, ["--env", "prod", "--json", "business", "get"])
+    assert result.exit_code == 0, result.output
+    businesses = json.loads(result.stdout).get("businesses") or []
+    for business in businesses:
+        if SMOKE_SITE in (business.get("website") or ""):
+            return str(business["id"])
+    pytest.fail(f"The test account has no {SMOKE_SITE} business: {businesses}")
