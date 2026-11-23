@@ -150,7 +150,7 @@ Each step is idempotent. Run `release.yml` by hand (workflow_dispatch) to finish
 
 `live.yml` runs `pytest tests/live --live` against api.youcited.com nightly, on demand, and on PRs that touch it. It checks that the bundled `tools.json` matches prod, plus the free audit, docs, status and cited-mcp over stdio. With the `CITED_SMOKE_AGENT_KEY` secret, it also runs the logged-in checks. It never confirms a spending tool.
 
-`paid-check.yml` (Paid audit check) runs `tests/live/test_paid.py --live --paid` every Monday and on demand: a real audit with the test account's credits (`CITED_SMOKE_AGENT_KEY`, about $10 of credits and $5 of AI a run), its report and its recommendations. It fails, and opens an issue, if the audit fails, most engines give no answer, or no recommendations arrive within 20 minutes. Keep the test account topped up with an admin voucher.
+`paid-check.yml` (Paid audit check) runs `tests/live/test_paid.py --live --paid` every Monday and on demand: a real audit with the test account's credits (`CITED_SMOKE_AGENT_KEY`, about $10 of credits and $5 of AI a run), its report and its recommendations. It fails, and opens an issue, if the audit fails, most engines give no answer, or no recommendations arrive within 20 minutes. Keep the test account topped up with an admin voucher. `scripts/setup_smoke_key.sh start|finish` (run on a machine with `gh` signed in) makes the test agent key and stores it as the secret without printing it; the key lasts 90 days after its claim, so re-run it then. The checks use the account's youcited.com business by id.
 
 The hosted MCP server ships with the backend (merges to `main` in YouCited/cited deploy prod); there is no separate MCP deploy.
 
