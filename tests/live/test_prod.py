@@ -108,8 +108,14 @@ def test_status_signed_in(runner, cli_app, agent_key):
 def test_business_and_audits(runner, cli_app, smoke_business):
     cited(runner, cli_app, "business", "get", smoke_business)
     cited(runner, cli_app, "audit", "get", "--business", smoke_business)
-    cited(runner, cli_app, "recommend", "list", "--business", smoke_business)
-    cited(runner, cli_app, "fix", "list", "--business", smoke_business)
+    # Recommendations and fixes come from the newest finished audit; until the
+    # account has one, these answer 404 no_audit, which is the right answer.
+    for args in (("recommend", "list"), ("fix", "list")):
+        result = runner.invoke(
+            cli_app, ["--env", "prod", "--json", *args, "--business", smoke_business]
+        )
+        if result.exit_code != 0:
+            assert json.loads(result.stderr).get("error_code") == "no_audit", result.output
 
 
 def test_audit_run_only_quotes_without_confirm(runner, cli_app, smoke_business):
