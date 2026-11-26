@@ -1,7 +1,7 @@
 {
   "name": "cited",
   "title": "Cited",
-  "version": "15f047cd4313",
+  "version": "288e23032b52",
   "instructions": "Cited checks whether AI assistants (ChatGPT, Gemini, Claude, Google AI Mode) cite a website when buyers ask about what it sells, and what to change so they do. Start with account_status. free_audit needs no account. For a paid audit: agent_signup (or sign in), setup_business, draft_questions, quote_audit, then run_audit, get_audit, get_recommendations and generate_fixes. Purchases only return checkout links for the human to open.",
   "tools": [
     {
@@ -415,7 +415,7 @@
     {
       "name": "run_audit",
       "title": "Run Audit",
-      "description": "Run a paid audit of the business's question set: every question goes to each engine's flagship and fast model (or the models you pass), once each, and recommendations follow automatically. Spends credits: without confirm=true it only returns the cost, so ask the user, then call again with confirm=true. Credits come back if the run fails. Returns audit_id; poll get_audit.",
+      "description": "Run a paid audit of the business's question set: every question goes to the standard models (or the models you pass), once each, and recommendations follow automatically. Spends credits: without confirm=true it only returns the cost, so ask the user, then call again with confirm=true. Credits come back if the run fails. Returns audit_id; poll get_audit.",
       "input_schema": {
         "type": "object",
         "properties": {
