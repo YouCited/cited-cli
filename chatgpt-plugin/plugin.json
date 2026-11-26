@@ -31,7 +31,8 @@
           "Paid audits across AI engines",
           "Recommendations",
           "Fix files",
-          "Scheduled re-checks"
+          "Scheduled re-checks",
+          "Audit report cards in chat"
         ],
         "websiteURL": "https://youcited.com",
         "supportURL": "https://youcited.com/contact",
@@ -55,7 +56,7 @@
               "description": "Free audit of a public site",
               "prompt": "Run a free Cited audit of youcited.com.",
               "tools_triggered": "free_audit",
-              "expected_behavior": "Starts the free audit, checks it again with report_token until it completes, then summarizes which engines cited the site and who they cited instead."
+              "expected_behavior": "Starts the free audit and shows a report card that updates itself while the audit runs. Once it completes, the card shows the score, the AI bot check and each question with the sites cited instead, and the reply summarizes which engines cited the site and who they cited instead."
             },
             {
               "description": "Account status",
@@ -104,7 +105,7 @@
         "countries": [
           "US"
         ],
-        "release_notes": "First release: free AI visibility audit, paid audits across ChatGPT, Gemini, Claude and Google AI Mode, recommendations, fix files and scheduled re-checks."
+        "release_notes": "First release: free AI visibility audit, paid audits across ChatGPT, Gemini, Claude and Google AI Mode, recommendations, fix files and scheduled re-checks. Audit results show as an interactive report card (MCP Apps)."
       }
     }
   }
