@@ -121,3 +121,58 @@ def test_business_and_audits(runner, cli_app, smoke_business):
 def test_audit_run_only_quotes_without_confirm(runner, cli_app, smoke_business):
     data = cited(runner, cli_app, "audit", "run", "--business", smoke_business)
     assert data["confirmation_required"] is True
+
+
+HOSTED_MCP = "https://mcp.youcited.com/mcp"
+PLUGIN_SKILLS = Path(__file__).resolve().parents[2] / "cited-plugins" / "skills"
+
+
+def _hosted_mcp(agent_key: str, method: str, params: dict | None = None) -> dict:
+    """One 2026-07-28 request to the hosted MCP server, signed in with the key."""
+    body = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": {
+            **(params or {}),
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {},
+                "io.modelcontextprotocol/clientInfo": {"name": "cited-ci", "version": "1"},
+            },
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer {agent_key}",
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": "2026-07-28",
+        "Mcp-Method": method,
+        "User-Agent": "cited-ci",
+    }
+    if method == "resources/read":  # 2026-07-28 routing header, must equal the uri
+        headers["Mcp-Name"] = params["uri"] if params else ""
+    response = httpx.post(HOSTED_MCP, json=body, headers=headers, timeout=30)
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert "error" not in data, data
+    return data["result"]
+
+
+def test_hosted_mcp_serves_the_plugin_skills(agent_key):
+    """mcp.youcited.com serves the same skills, byte for byte, as cited-plugins."""
+    import hashlib
+
+    discovered = _hosted_mcp(agent_key, "server/discover")
+    assert "io.modelcontextprotocol/skills" in discovered["capabilities"]["extensions"]
+
+    served = {e["frontmatter"]["name"]: e for e in _hosted_mcp(agent_key, "skills/list")["skills"]}
+    local = {p.parent.name: p.read_bytes() for p in PLUGIN_SKILLS.glob("*/SKILL.md")}
+    assert set(served) == set(local)
+    for name, raw in local.items():
+        entry = next(r for r in served[name]["resources"] if r["uri"].endswith("/SKILL.md"))
+        assert entry["digest"] == "sha256:" + hashlib.sha256(raw).hexdigest(), (
+            f"{name}: cited-plugins and the backend's services/agent_skills differ"
+        )
+
+    read = _hosted_mcp(agent_key, "resources/read", {"uri": served["geo-audit"]["uri"]})
+    assert read["contents"][0]["text"].encode("utf-8") == local["geo-audit"]
