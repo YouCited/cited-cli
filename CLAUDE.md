@@ -12,6 +12,8 @@ Monorepo for the [Cited](https://youcited.com) GEO platform tooling. Contains th
 
 Also contains `cited-plugins/` — a Claude Code plugin (skills, commands, agents) that points at the hosted MCP server.
 
+The hosted MCP server also serves the plugin's four skills over MCP (`skills/list`, `skill://cited/<name>/SKILL.md`). Their source is the backend's `services/agent_skills/skills/` in YouCited/cited: change a skill there, then copy the file into `cited-plugins/skills/`. The live test `test_hosted_mcp_serves_the_plugin_skills` fails when the two differ.
+
 The backend API lives in a separate monorepo at `~/repos/cited/` (YouCited/cited).
 
 ## One tool definition
