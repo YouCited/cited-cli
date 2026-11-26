@@ -142,18 +142,16 @@ def _hosted_mcp(agent_key: str, method: str, params: dict | None = None) -> dict
             },
         },
     }
-    response = httpx.post(
-        HOSTED_MCP,
-        json=body,
-        headers={
-            "Authorization": f"Bearer {agent_key}",
-            "Accept": "application/json, text/event-stream",
-            "MCP-Protocol-Version": "2026-07-28",
-            "Mcp-Method": method,
-            "User-Agent": "cited-ci",
-        },
-        timeout=30,
-    )
+    headers = {
+        "Authorization": f"Bearer {agent_key}",
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": "2026-07-28",
+        "Mcp-Method": method,
+        "User-Agent": "cited-ci",
+    }
+    if method == "resources/read":  # 2026-07-28 routing header, must equal the uri
+        headers["Mcp-Name"] = params["uri"] if params else ""
+    response = httpx.post(HOSTED_MCP, json=body, headers=headers, timeout=30)
     assert response.status_code == 200, response.text
     data = response.json()
     assert "error" not in data, data
