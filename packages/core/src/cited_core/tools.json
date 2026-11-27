@@ -1,7 +1,7 @@
 {
   "name": "cited",
   "title": "Cited",
-  "version": "288e23032b52",
+  "version": "d27156d0f9cf",
   "instructions": "Cited checks whether AI assistants (ChatGPT, Gemini, Claude, Google AI Mode) cite a website when buyers ask about what it sells, and what to change so they do. Start with account_status. free_audit needs no account. For a paid audit: agent_signup (or sign in), setup_business, draft_questions, quote_audit, then run_audit, get_audit, get_recommendations and generate_fixes. Purchases only return checkout links for the human to open.",
   "tools": [
     {
@@ -428,7 +428,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Optional models to compare, as [route/]provider:model from quote_audit's available_models. Each extra model costs more."
+            "description": "Optional models to compare, as [route/]provider:model from quote_audit's available_models. Each extra model costs more. Every OpenAI, Gemini and Claude model also answers with web search off (its nosearch/ twin, free): that shows whether the model names the business from its own knowledge."
           },
           "engines": {
             "type": "array",
