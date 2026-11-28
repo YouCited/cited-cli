@@ -57,8 +57,8 @@ def test_nothing_detected_skips_everything(runner, cli_app, home):
     assert data["mcp_url"] == PROD_URL
     assert {r["status"] for r in data["results"]} == {"not_detected"}
     assert data["plugin"]["commands"] == [
-        "/plugin marketplace add YouCited/cited-plugins",
-        "/plugin install cited@youcited-cited-plugins",
+        "/plugin marketplace add YouCited/cited-cli",
+        "/plugin install cited@youcited",
     ]
     assert list(home.iterdir()) == []
 
@@ -319,4 +319,4 @@ def test_claude_desktop_path_on_macos(home, monkeypatch):
 def test_human_output_mentions_plugin(runner, cli_app, home):
     result = runner.invoke(cli_app, ["--text", "agent", "setup", "--dry-run"])
     assert result.exit_code == 0, result.output
-    assert "/plugin install cited@youcited-cited-plugins" in result.output
+    assert "/plugin install cited@youcited" in result.output

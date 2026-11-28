@@ -12,13 +12,13 @@
       "name": "cited",
       "source": "./",
       "description": "Audit, optimize, and monitor AI search presence for any business",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "author": {
         "name": "Cited",
         "email": "support@youcited.com"
       },
       "homepage": "https://youcited.com",
-      "repository": "https://github.com/YouCited/cited-plugins",
+      "repository": "https://github.com/YouCited/cited-cli",
       "license": "LicenseRef-Proprietary",
       "keywords": ["geo", "seo", "ai-search", "audit", "cited"],
       "category": "external-integrations"
