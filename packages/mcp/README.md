@@ -19,7 +19,7 @@ uvx cited-mcp
 
 ## Usage
 
-The hosted server is at **`https://mcp.youcited.com/mcp`** (streamable HTTP; your browser opens to log in on first use). The `free_audit`, `account_status`, `agent_signup` and `search_docs` tools work without logging in.
+The hosted server is at **`https://mcp.youcited.com/mcp`** (streamable HTTP; your browser opens to log in on first use). It adds what this local server can't: an interactive report card for audit results in Claude and ChatGPT (MCP Apps), a form for the person to approve each spend (elicitation), and four workflow skills as `skill://cited/<name>/SKILL.md` resources. Both are listed in the MCP Registry as `com.youcited/cited`. The `free_audit`, `account_status`, `agent_signup` and `search_docs` tools work without logging in.
 
 **Quick setup:** with the [cited-cli](https://pypi.org/project/cited-cli/) installed, `cited agent setup` configures Claude Code, Cursor and Codex for you and prints the Claude Desktop connector steps (`--dry-run` to preview). It merges into existing config and backs up files before changing them.
 
@@ -81,7 +81,7 @@ Get your token by running `cited login` and then `cited auth token` with the [ci
 claude mcp add --transport http --scope user cited https://mcp.youcited.com/mcp
 ```
 
-Then run `/mcp` in Claude Code and choose **Authenticate**. For Cited slash commands, skills and the `geo-analyst` agent, also install the plugin with `/plugin marketplace add YouCited/cited-plugins` and `/plugin install cited@youcited-cited-plugins`.
+Then run `/mcp` in Claude Code and choose **Authenticate**. For Cited slash commands, skills and the `geo-analyst` agent, also install the plugin with `/plugin marketplace add YouCited/cited-cli` and `/plugin install cited@youcited`.
 
 ### Cursor
 
@@ -125,7 +125,7 @@ Or add `[mcp_servers.cited]` with `url = "https://mcp.youcited.com/mcp"` to `~/.
 
 ```bash
 cited-mcp                          # stdio; uses `cited login`, CITED_TOKEN or an agent key
-CITED_ENV=dev cited-mcp            # another environment
+CITED_ENV=local cited-mcp          # a backend on localhost:8000
 ```
 
 The tools are defined once, in the Cited API. On start the server reads the current list from `GET https://api.youcited.com/agent/tools` (falling back to the copy bundled with `cited-core`) and runs each call through `POST /agent/tools/{name}`, so it always behaves like the hosted server.
@@ -184,7 +184,7 @@ No plans or subscriptions. 1 credit = $1; `account_status` and `quote_audit` sho
 |----------|-------------|
 | `CITED_TOKEN` | A Cited session token (`cited login`, then `cited auth token`). Optional. |
 | `CITED_AGENT_API_KEY` | A Cited agent key (`cak_...`). Optional; `agent_signup` saves one for you. |
-| `CITED_ENV` | `prod` (default), `dev` or `local`. |
+| `CITED_ENV` | `prod` (default) or `local`. |
 
 ## Development
 

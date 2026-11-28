@@ -36,10 +36,11 @@ CLIENT_LABELS = {
 }
 
 # The Claude Code plugin (skills, slash commands, geo-analyst agent) is published
-# from the public YouCited/cited-plugins repo, whose marketplace is named
-# "youcited-cited-plugins" (see cited-plugins/.claude-plugin/marketplace.json).
-PLUGIN_MARKETPLACE_REPO = "YouCited/cited-plugins"
-PLUGIN_MARKETPLACE_NAME = "youcited-cited-plugins"
+# from this repo: the marketplace at .claude-plugin/marketplace.json, named
+# "youcited", serves ./cited-plugins. (The old YouCited/cited-plugins repo
+# stopped updating in 2026-03.)
+PLUGIN_MARKETPLACE_REPO = "YouCited/cited-cli"
+PLUGIN_MARKETPLACE_NAME = "youcited"
 PLUGIN_NAME = "cited"
 
 CONNECTOR_GUIDE = (

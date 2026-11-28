@@ -5,7 +5,7 @@ Command-line interface for the [Cited](https://youcited.com) GEO (Generative Eng
 ## For AI agents
 
 - **Free audit, no login:** call the `free_audit` MCP tool (or run `cited audit free example.com`) to see how AI answers 5 buyer questions about a site, and who it cites instead.
-- **MCP server:** `https://mcp.youcited.com/mcp` (streamable HTTP, OAuth login on first use). Also on PyPI as [`cited-mcp`](https://pypi.org/project/cited-mcp/) for local stdio.
+- **MCP server:** `https://mcp.youcited.com/mcp` (streamable HTTP, OAuth login on first use), listed in the [MCP Registry](https://registry.modelcontextprotocol.io) as `com.youcited/cited`. In Claude and ChatGPT, audit results show as an interactive report card, and clients with form elicitation ask the person to approve each spend. Also on PyPI as [`cited-mcp`](https://pypi.org/project/cited-mcp/) for local stdio.
 - **One-command setup:** `cited agent setup` connects Claude Code, Cursor and Codex (and prints the Claude Desktop connector steps). Add `--dry-run` to preview.
 - **No account yet:** `cited agent signup` (or the `agent_signup` tool) creates an account and API key without a login; give your human the claim link and code.
 - **Docs:** the `search_docs` tool, or `cited docs search "<question>"`, searches the public [Cited docs](https://youcited.com/docs) without a login.
@@ -67,10 +67,8 @@ The [workflow](#workflow) section below walks through a paid audit, recommendati
 # Browser login (default — opens youcited.com login page)
 cited login
 
-# Specific OAuth provider
+# Sign in with Google
 cited login --provider google
-cited login --provider microsoft
-cited login --provider github
 
 # Password login (non-interactive / CI)
 cited login --email you@example.com --password "Secret123!"
@@ -114,9 +112,13 @@ claude mcp add --transport http --scope user cited https://mcp.youcited.com/mcp
 Then run `/mcp` in Claude Code and choose **Authenticate**. For Cited slash commands, skills and the `geo-analyst` agent, also install the plugin:
 
 ```
-/plugin marketplace add YouCited/cited-plugins
-/plugin install cited@youcited-cited-plugins
+/plugin marketplace add YouCited/cited-cli
+/plugin install cited@youcited
 ```
+
+### ChatGPT
+
+On plans that allow custom MCP servers: open [chatgpt.com/plugins](https://chatgpt.com/plugins), click **Add**, then **Add custom MCP server**, name it Cited, enter `https://mcp.youcited.com/mcp` with OAuth, click **Create** and sign in.
 
 ### Claude Desktop (Custom Connector — recommended)
 
@@ -256,7 +258,7 @@ These flags apply to every command and must be placed immediately after `cited`:
 |------|-------|-------------|
 | `--json` | `-j` | Machine-readable JSON output (great for scripting) |
 | `--text` | `-t` | Human-readable text output (overrides `output` config) |
-| `--env` | `-e` | Environment: `dev`, `prod`, `local` (default: `prod`) |
+| `--env` | `-e` | Environment: `prod` (default) or `local` (a backend on localhost:8000). `dev` is still accepted but its servers were shut down. |
 | `--profile` | `-p` | Config profile to use |
 | `--verbose` | `-v` | Debug logging |
 | `--quiet` | `-q` | Minimal output |
@@ -368,8 +370,8 @@ cited mcp serve
 Config is stored in `~/.cited/config.toml`:
 
 ```bash
-# Set default environment (saves typing --env dev every time)
-cited config set environment dev
+# Set default environment (prod unless you run the backend locally)
+cited config set environment local
 
 # Set default output format (saves typing --json every time)
 cited config set output json    # or "text" (default)
@@ -423,9 +425,9 @@ mypy packages/core/src packages/mcp/src src/cited_cli/ --ignore-missing-imports
 
 ```bash
 python scripts/sync_tools_manifest.py            # from api.youcited.com
-python scripts/sync_tools_manifest.py --env dev
+python scripts/sync_tools_manifest.py --env local
 ```
 
 ## Releasing
 
-Release and deployment scripts are in a [private infrastructure repo](https://github.com/YouCited/cited-mcp-infra). See that repo's README for release and deploy instructions.
+Releases run in GitHub Actions. Bump the version on a branch with `python scripts/bump_version.py <version>` and open a "Release <version>" PR; merging it runs `.github/workflows/release.yml`, which publishes cited-core, cited-mcp and cited-cli to PyPI, creates the GitHub release, publishes `server.json` to the MCP Registry, runs the live tests and starts the Homebrew formula update in [homebrew-cited](https://github.com/YouCited/homebrew-cited). `CLAUDE.md` has the details. The private [cited-mcp-infra](https://github.com/YouCited/cited-mcp-infra) repo keeps `scripts/release.sh` as a laptop fallback.

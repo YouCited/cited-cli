@@ -19,7 +19,7 @@ Call `account_status` first. It says who is signed in, the credit balance, the b
 
 ## Paid audit
 
-1. **Account**: if `account_status` shows no sign-in, call `agent_signup` (optionally with the user's `owner_email`). Show the user the claim link and 6-digit code it returns. The cited CLI and cited-mcp store the key for you.
+1. **Account**: if `account_status` shows no sign-in, call `agent_signup` (optionally with the user's `owner_email`, and with `free_audit_token` set to the report_token of a free audit you already ran, so that business and report come along). Show the user the claim link and 6-digit code it returns. The cited CLI and cited-mcp store the key for you.
 2. **Business**: `setup_business` with `website` (see the `business-setup` skill).
 3. **Questions**: `draft_questions`. It starts drafting and returns `job_id`; call it again with `job_id` until the set is ready. Review the questions with the user and pass `questions=[...]` to replace them with the user's edits.
 4. **Price**: `quote_audit` shows the credits, the balance and the available models.

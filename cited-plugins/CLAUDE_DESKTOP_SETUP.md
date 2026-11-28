@@ -82,11 +82,11 @@ On first use, your browser will open to log in to your Cited account. After logg
 
 Once connected, Claude can:
 
-- **List and manage your businesses** — view, create, update, or delete businesses
-- **Run GEO audits** — check how your business appears in AI search results (ChatGPT, Perplexity, Gemini, etc.)
-- **Generate recommendations** — get actionable insights to improve your AI search visibility
-- **Make fixes**: files and install steps for each recommendation
-- **Check health scores** — see your overall GEO health at a glance
-- **Monitor usage** — check your credit balance and account statistics
+- **Run a free audit** of any site, no account needed
+- **Set up your business** and draft the buyer questions an audit asks
+- **Run paid audits**: check whether ChatGPT, Gemini, Claude and Google's AI answers cite you, and who they cite instead. Claude shows the price and asks before spending credits
+- **Show the report as a card** in the chat, with scores, each question and links to the full report and PDF
+- **Get recommendations and fixes**: files and install steps for each one, then verify them on your live site
+- **Check your credits** and give you a checkout link to buy more (Claude can't pay for you)
 
 Just ask Claude in plain English — no commands to memorize.

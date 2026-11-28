@@ -10,7 +10,7 @@ Monorepo for the [Cited](https://youcited.com) GEO platform tooling. Contains th
 - **`cited-mcp`** (`packages/mcp/`) — Local stdio MCP server: Cited's agent tools plus local `login`/`logout`. Depends on `cited-core` + `mcp` SDK. Installable via `pip install cited-mcp` or `uvx cited-mcp`.
 - **`cited-cli`** (root `src/cited_cli/`) — Typer + Rich CLI. Depends on `cited-core` + `typer` + `rich`. Optional dep on `cited-mcp` for `cited mcp serve`.
 
-Also contains `cited-plugins/` — a Claude Code plugin (skills, commands, agents) that points at the hosted MCP server.
+Also contains `cited-plugins/` — a Claude Code plugin (skills, commands, agents) that points at the hosted MCP server. It is published from this repo by `.claude-plugin/marketplace.json` (marketplace `youcited`: `/plugin marketplace add YouCited/cited-cli`, `/plugin install cited@youcited`); bump the version there and in `cited-plugins/.claude-plugin/plugin.json` when the plugin changes. The old YouCited/cited-plugins repo stopped updating in 2026-03. `chatgpt-plugin/` is the ChatGPT directory package.
 
 The hosted MCP server also serves the plugin's four skills over MCP (`skills/list`, `skill://cited/<name>/SKILL.md`). Their source is the backend's `services/agent_skills/skills/` in YouCited/cited: change a skill there, then copy the file into `cited-plugins/skills/`. The live test `test_hosted_mcp_serves_the_plugin_skills` fails when the two differ.
 
@@ -49,7 +49,7 @@ python -m build --outdir dist packages/core && python -m build --outdir dist pac
   && /tmp/smoke/bin/python -I scripts/smoke_install.py --version <version>
 
 # Refresh the bundled tool manifest after backend tool changes
-python scripts/sync_tools_manifest.py [--env dev|local]
+python scripts/sync_tools_manifest.py [--env local]
 
 # Run the CLI / the MCP server
 cited --help
@@ -105,7 +105,7 @@ Use `clean({...})` to drop options the user didn't give, so the tool's defaults 
 **Authentication:** Top-level `cited login` is the primary entry point (also `cited auth login`). Both delegate to `do_login()` / `do_logout()` in `commands/auth.py`.
 
 - **Browser login (default):** opens the youcited login page; a temporary localhost server (`auth/oauth_server.py`) receives the token. The success page includes a token-copy section for the paste fallback.
-- **OAuth provider shortcut:** `cited login --provider google|microsoft|github`.
+- **OAuth provider shortcut:** `cited login --provider google`. The CLI also accepts `microsoft` and `github`, but prod has only Google sign-in configured.
 - **Password login:** `cited login --email user@example.com` prompts for password (or `--password` for CI).
 - **Password registration:** `cited register --email ... --name ... --password ...` calls `POST /auth/cli-register` (sends a verification email, no token), then prompts for the verification URL, parses `?token=` and calls `POST /auth/cli-verify-email`, which returns `{"token", "user"}`. Tests supply the URL via `input=` on `runner.invoke`.
 - **Paste fallback:** if the localhost callback times out (firewall, WSL, SSH), the CLI prompts for the token shown on the success page.
@@ -163,7 +163,7 @@ The hosted MCP server ships with the backend (merges to `main` in YouCited/cited
 | Name | URL | Default |
 |------|-----|---------|
 | prod | `https://api.youcited.com` | yes |
-| dev  | `https://dev.youcited.com` | |
+| dev  | `https://dev.youcited.com` (shut down in 2026-10; still in `ENVIRONMENTS`) | |
 | local | `http://localhost:8000` | |
 
 ## Credits Billing
